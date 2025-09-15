@@ -931,6 +931,7 @@ const SheetDataGrid: React.FC<SheetDataGridProps> = ({
                             rowData={selectedSheet.range === 'תיעוד' ? [...rowData].reverse() : rowData}
                             rowHeight={24} // Shrink row height
                             headerHeight={28}
+                            rowSelection="single"
                             stopEditingWhenCellsLoseFocus={true}
                             domLayout="normal"
                             animateRows={true}
@@ -1014,113 +1015,6 @@ const SheetDataGrid: React.FC<SheetDataGridProps> = ({
                     })()}
                 </div>
             )}
-            {/*{showComboBoxWeapon && (*/}
-            {/*    <div*/}
-            {/*        ref={comboBoxRef}*/}
-            {/*        className="absolute z-50 bg-white shadow-xl rounded-lg w-72 border border-gray-300 animate-fadeIn backdrop-blur-md"*/}
-            {/*        style={{top: 100, left: 100}}*/}
-            {/*        role="listbox"*/}
-            {/*        tabIndex={0}*/}
-            {/*    >*/}
-            {/*        <div className="p-2 border-b border-gray-200">*/}
-            {/*            <input*/}
-            {/*                type="text"*/}
-            {/*                placeholder="🔍 חיפוש..."*/}
-            {/*                className="w-full p-2 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"*/}
-            {/*                value={searchTextWeapon}*/}
-            {/*                onChange={(e) => {*/}
-            {/*                    setSearchTextWeapon(e.target.value);  */}
-            {/*                    setHighlightedIndexWeapon(0);*/}
-            {/*                }}*/}
-
-            {/*                onKeyDown={(e) => {*/}
-            {/*                    if (e.key === 'ArrowDown') {*/}
-            {/*                        setHighlightedIndexWeapon((prev) => Math.min(prev + 1, filteredOptionsWeapon.length - 1));*/}
-            {/*                    } else if (e.key === 'ArrowUp') {*/}
-            {/*                        setHighlightedIndexWeapon((prev) => Math.max(prev - 1, 0));*/}
-            {/*                    } else if (e.key === 'Enter' && highlightedIndexWeapon >= 0) {*/}
-            {/*                        handleSelectWeaponOption(filteredOptionsWeapon[highlightedIndexWeapon]);*/}
-            {/*                    } else if (e.key === 'Escape') {*/}
-            {/*                        setShowComboBoxWeapon(false);*/}
-            {/*                    }*/}
-            {/*                }}*/}
-            {/*                autoFocus*/}
-            {/*            />*/}
-            {/*        </div>*/}
-            {/*        <ul className="max-h-60 overflow-y-auto">*/}
-            {/*            {filteredOptionsWeapon.map((option, idx) => (*/}
-            {/*                <li*/}
-            {/*                    key={`${option.value}`}*/}
-            {/*                    className={`p-2 px-4 cursor-pointer transition-colors ${*/}
-            {/*                        idx === highlightedIndexWeapon*/}
-            {/*                            ? 'bg-blue-600 text-white'*/}
-            {/*                            : 'hover:bg-gray-100'*/}
-            {/*                    }`}*/}
-            {/*                    onMouseEnter={() => setHighlightedIndexWeapon(idx)}*/}
-            {/*                    onClick={() => {*/}
-            {/*                        handleSelectWeaponOption(option);*/}
-            {/*                    }}*/}
-            {/*                >*/}
-            {/*                    {option.value}*/}
-            {/*                </li>*/}
-            {/*            ))}*/}
-            {/*        </ul>*/}
-            {/*    </div>*/}
-            {/*)}*/}
-
-            {/*{showComboBox && (*/}
-            {/*    <div*/}
-            {/*        ref={comboBoxRef}*/}
-            {/*        className="absolute z-50 bg-white shadow-xl rounded-lg w-72 border border-gray-300 animate-fadeIn backdrop-blur-md"*/}
-            {/*        style={{top: 100, left: 100}}*/}
-            {/*        role="listbox"*/}
-            {/*        tabIndex={0}*/}
-            {/*    >*/}
-            {/*        <div className="p-2 border-b border-gray-200">*/}
-            {/*            <input*/}
-            {/*                type="text"*/}
-            {/*                placeholder="🔍 חיפוש..."*/}
-            {/*                className="w-full p-2 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"*/}
-            {/*                value={searchText}*/}
-            {/*                onChange={(e) => {*/}
-            {/*                    setSearchText(e.target.value);  */}
-            {/*                    setHighlightedIndex(0);*/}
-            {/*                }}*/}
-            {/*                onKeyDown={(e) => {*/}
-            {/*                    if (e.key === 'ArrowDown') {*/}
-            {/*                        setHighlightedIndex((prev) => Math.min(prev + 1, filteredOptions.length - 1));*/}
-            {/*                    } else if (e.key === 'ArrowUp') {*/}
-            {/*                        setHighlightedIndex((prev) => Math.max(prev - 1, 0));*/}
-            {/*                    } else if (e.key === 'Enter' && highlightedIndex >= 0) {*/}
-            {/*                        handleSelectOption(filteredOptions[highlightedIndex]);*/}
-            {/*                    } else if (e.key === 'Escape') {*/}
-            {/*                        setShowComboBox(false);*/}
-            {/*                    }*/}
-            {/*                }}*/}
-            {/*                autoFocus*/}
-            {/*            />*/}
-            {/*        </div>*/}
-            {/*        <ul className="max-h-60 overflow-y-auto">*/}
-            {/*            {filteredOptions.map((option, idx) => (*/}
-            {/*                <li*/}
-            {/*                    key={`${option.value}-${option.rowIndex}-${option.colIndex}`}*/}
-            {/*                    className={`p-2 px-4 cursor-pointer transition-colors ${*/}
-            {/*                        idx === highlightedIndex*/}
-            {/*                            ? 'bg-blue-600 text-white'*/}
-            {/*                            : 'hover:bg-gray-100'*/}
-            {/*                    }`}*/}
-            {/*                    onMouseEnter={() => setHighlightedIndex(idx)}*/}
-            {/*                    onClick={() => {*/}
-            {/*                        handleSelectOption(option);*/}
-            {/*                    }}*/}
-            {/*                >*/}
-            {/*                    {option.value}*/}
-            {/*                </li>*/}
-            {/*            ))}*/}
-            {/*        </ul>*/}
-            {/*    </div>*/}
-            {/*)}*/}
-
 
             {isStockSheet() && (
                 <div className="mb-2">
