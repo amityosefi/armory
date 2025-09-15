@@ -2,7 +2,7 @@ import React, {useMemo, useEffect, useState, useRef} from "react";
 import SignatureCanvas from "react-signature-canvas";
 import {useGoogleSheetData} from "./hooks/useGoogleSheetData";
 import Select from "react-select";
-import {sheetGroups} from "../constants";
+import {sheetGroups} from "@/constants";
 import CreatableSelect from 'react-select/creatable';
 
 

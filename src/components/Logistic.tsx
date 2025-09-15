@@ -1,26 +1,18 @@
-import React, {useMemo, useState, useRef, useCallback, useEffect} from "react";
+import React, {useMemo, useState, useRef, useEffect} from "react";
 import {AgGridReact} from "ag-grid-react";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
-import GoogleSheetsService from "../services/GoogleSheetsService";
-import {useGoogleSheetData} from "./hooks/useGoogleSheetData";
-
+import {supabase} from "@/lib/supabaseClient"
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandSeparator
-} from "@/components/ui/command";
+import {Check, ChevronsUpDown, Trash} from "lucide-react";
+import {ColDef} from "ag-grid-community";
+import CreatableSelect from 'react-select/creatable';
 
 import {
     Dialog,
     DialogContent,
-    DialogTrigger,
     DialogHeader,
     DialogTitle,
     DialogDescription,
@@ -29,13 +21,14 @@ import {
 import {usePermissions} from "@/contexts/PermissionsContext";
 import SignatureCanvas from "react-signature-canvas";
 import {Label} from "@/components/ui/label";
-import {Popover, PopoverContent, PopoverTrigger} from "./ui/popover";
-import {CaretSortIcon, CheckIcon, PlusCircledIcon} from "@radix-ui/react-icons";
-import {cn} from "../lib/utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
+import StatusMessageProps from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
+// Import logo for PDF export
+import logoImg from "../assets/logo.jpeg";
 
-const STATUSES = ['הזמנה', 'החתמה', 'התעצמות'] as const;
+const STATUSES = ['החתמה', 'הזמנה', 'התעצמות'] as const;
 
 interface LogisticProps {
     accessToken: string;
@@ -46,47 +39,216 @@ interface LogisticProps {
     };
 }
 
+// Define the structure for our Logistic items in Supabase
+type LogisticItem = {
+    id?: string;
+    תאריך: string;
+    מקט?: string;
+    פריט: string;
+    מידה: string;
+    כמות: number;
+    צורך: string;
+    הערה?: string;
+    סטטוס: string;
+    משתמש: string;
+    נקרא?: string;
+    חתימה?: string;
+    שם_החותם?: string;
+    פלוגה: string;
+    חתימת_מחתים: string;
+    created_at?: string;
+};
+
 const Logistic: React.FC<LogisticProps> = ({accessToken, selectedSheet}) => {
     const {permissions} = usePermissions();
+    const [rowData, setRowData] = useState<LogisticItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
 
-    const {data: sheetQueryData, refetch} = useGoogleSheetData(
-        {accessToken, range: selectedSheet.range, isArmory: false},
-        {processData: false, enabled: !!accessToken}
-    );
-
-    // Dialog open state
+    // Dialog states
     const [open, setOpen] = useState(false);
+    const [dataURL, setDataURL] = useState('');
     const [dialogMode, setDialogMode] = useState<'הזמנה' | 'החתמה'>('הזמנה');
     const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
-    const [currentItem, setCurrentItem] = useState<any>(null);
-    const [editedItems, setEditedItems] = useState<any[]>([]);
+    const [currentItem, setCurrentItem] = useState<LogisticItem | null>(null);
+    const [selectedMatchingRows, setSelectedMatchingRows] = useState<LogisticItem[]>([]);
+    const [matchingDateRows, setMatchingDateRows] = useState<LogisticItem[]>([]);
     const signatureRef = useRef<SignatureCanvas>(null);
+    const [selectedRows, setSelectedRows] = useState<LogisticItem[]>([]);
+    const gridRef = useRef<any>(null);
+    const [customItemInput, setCustomItemInput] = useState(''); // For tracking custom item input
+
     const [signerName, setSignerName] = useState('');
     const [signatureItemPopoverOpen, setSignatureItemPopoverOpen] = useState(false);
-    // Form items state (dynamic rows)
-    const defaultItem = {פריט: '', מידה: '', כמות: 1, צורך: 'ניפוק', הערה: ''};
-    const [items, setItems] = useState([{...defaultItem}]);
+    const sigPadRef = useRef<SignatureCanvas>(null);
+    const [activeTab, setActiveTab] = useState<string>('הזמנה'); // Track active tab
 
-    // Parse sheet data to objects
-    const parsedData = useMemo(() => {
-        if (!sheetQueryData?.values?.length) return [];
-        const [headers, ...rows] = sheetQueryData.values;
-        return rows.map((row: { [x: string]: string; }) =>
-            headers.reduce((acc: { [x: string]: string; }, key: string | number, idx: string | number) => {
-                acc[key] = row[idx] ?? "";
-                return acc;
-            }, {} as Record<string, string>)
-        );
-    }, [sheetQueryData]);
+    // Import logo image for PDF
+    const [logoBase64, setLogoBase64] = useState<string>('');
+
+    // Load logo image as base64 on component mount
+    useEffect(() => {
+        const loadLogo = async () => {
+            try {
+                const response = await fetch('/src/assets/logo.jpeg');
+                const blob = await response.blob();
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = reader.result as string;
+                    setLogoBase64(base64data);
+                };
+                reader.readAsDataURL(blob);
+            } catch (err) {
+                console.error("Error loading logo:", err);
+            }
+        };
+
+        loadLogo();
+    }, []);
+
+    // Load and prepare logo for PDF
+    useEffect(() => {
+        const img = new Image();
+        img.src = '/src/assets/logo.jpeg';
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(img, 0, 0);
+                const logoDataUrl = canvas.toDataURL('image/jpeg');
+                // Store in component state or ref
+                localStorage.setItem('logoCache', logoDataUrl);
+            }
+        };
+    }, []);
+
+    // Default item template for form
+    const defaultItem = {
+        פריט: '',
+        מידה: '',
+        כמות: 1,
+        צורך: 'ניפוק',
+        הערה: '',
+        שם_החותם: '',
+        חתימה: '',
+        סטטוס: 'הזמנה'
+    };
+
+    // Form items state (dynamic rows)
+    const [items, setItems] = useState<Partial<LogisticItem>[]>([{...defaultItem}]);
+    const [editedItems, setEditedItems] = useState<Partial<LogisticItem>[]>([getEmptyItem()]);
+    const [originalItem, setOriginalItem] = useState<any>(null);
+
+    // Helper function to create an empty item
+    function getEmptyItem(): Partial<LogisticItem> {
+        return {
+            פריט: '',
+            מידה: '',
+            כמות: 1,
+            צורך: 'ניפוק',
+            הערה: ''
+        };
+    }
+
+    // Fetch data from Supabase
+    const fetchData = async () => {
+
+        if (permissions[selectedSheet.range] || permissions['Logistic']) {
+            try {
+                setLoading(true);
+                const {data, error} = await supabase
+                    .from("logistic")
+                    .select("*")
+                    .eq("פלוגה", selectedSheet.range);
+
+                if (error) {
+                    console.error("Error fetching data:", error);
+                    setStatusMessage({
+                        text: `שגיאה בטעינת נתונים: ${error.message}`,
+                        type: "error"
+                    });
+                } else {
+                    // @ts-ignore
+                    setRowData(data || []);
+                }
+            } catch (err: any) {
+                console.error("Unexpected error:", err);
+                setStatusMessage({
+                    text: `שגיאה לא צפויה: ${err.message}`,
+                    type: "error"
+                });
+            } finally {
+                setLoading(false);
+            }
+        } else {
+            setLoading(false);
+        }
+    };
+
+    // Initial data fetch
+    useEffect(() => {
+        fetchData();
+    }, [selectedSheet.range]);
 
     // Group data by סטטוס
     const dataByStatus = useMemo(() => {
-        const grouped = {הזמנה: [], החתמה: [], התעצמות: []} as Record<string, typeof parsedData>;
-        for (const row of parsedData) {
-            if (STATUSES.includes(row['סטטוס'] as any)) grouped[row['סטטוס']]?.push(row);
-        }
+        const grouped = {הזמנה: [], החתמה: [], התעצמות: []} as Record<string, LogisticItem[]>;
+
+        // First group the items by status
+        rowData.forEach(item => {
+            if (STATUSES.includes(item.סטטוס as any)) {
+                if (!grouped[item.סטטוס]) {
+                    grouped[item.סטטוס] = [];
+                }
+                grouped[item.סטטוס].push(item);
+            }
+        });
+
+        // Now sort הזמנה and התעצמות items by date (newest first)
+        ['הזמנה', 'התעצמות'].forEach(status => {
+            if (grouped[status] && grouped[status].length > 0) {
+                grouped[status].sort((a, b) => {
+                    const dateA = new Date(a.תאריך || '').getTime();
+                    const dateB = new Date(b.תאריך || '').getTime();
+                    return dateB - dateA; // Sort in descending order (newest first)
+                });
+            }
+        });
+
         return grouped;
-    }, [parsedData]);
+    }, [rowData]);
+
+    // Get unique item names from החתמה items for dropdown
+    const uniqueItemNames = useMemo(() => {
+        const items = dataByStatus['החתמה'] || [];
+        const uniqueItems = new Set<string>();
+
+        items.forEach(item => {
+            if (item.פריט) {
+                uniqueItems.add(item.פריט);
+            }
+        });
+
+        return Array.from(uniqueItems).sort();
+    }, [dataByStatus]);
+
+    const summaryColumns = useMemo<ColDef<LogisticItem>[]>(() => {
+        return [
+            {field: 'פריט' as keyof LogisticItem, headerName: 'פריט', sortable: true, filter: true, width: 200},
+            {
+                field: 'כמות' as keyof LogisticItem,
+                headerName: 'סה"כ כמות',
+                sortable: true,
+                filter: true,
+                width: 150,
+                valueFormatter: (params: any) => {
+                    return params.value !== undefined ? params.value.toString() : '';
+                }
+            },
+        ];
+    }, []);
 
     // Create summary data for החתמה table
     const summarizedSignatureData = useMemo(() => {
@@ -98,42 +260,39 @@ const Logistic: React.FC<LogisticProps> = ({accessToken, selectedSheet}) => {
         }
 
         // Create a map to group by פריט (item) and sum up כמות (quantity)
-        const itemSummary = new Map<string, {
-            פריט: string,
-            מידה: string,
-            כמות: number,
-            תאריך: string,
-            משתמש: string,
-            '11': string // שם החותם field
-        }>();
+        const itemSummary = new Map<string, LogisticItem>();
 
         // Process each row
-        signatureData.forEach((row: Record<string, string>) => {
-            const item = row['פריט'];
-            const quantity = isNaN(parseInt(row['כמות'], 10)) ? 0 : parseInt(row['כמות'], 10);
+        signatureData.forEach((row: LogisticItem) => {
+            const item = row.פריט;
+            const quantity = typeof row.כמות === 'number' ? row.כמות : parseInt(String(row.כמות), 10) || 0;
 
             if (itemSummary.has(item)) {
                 // Item exists, update quantity
                 const existing = itemSummary.get(item)!;
-                existing.כמות += quantity;
+                existing.כמות = (existing.כמות || 0) + quantity;
 
                 // Keep the latest date
                 const existingDate = new Date(existing.תאריך || '').getTime() || 0;
-                const currentDate = new Date(row['תאריך'] || '').getTime() || 0;
+                const currentDate = new Date(row.תאריך || '').getTime() || 0;
                 if (currentDate > existingDate) {
-                    existing.תאריך = row['תאריך'];
-                    existing.משתמש = row['משתמש'] || '';
-                    existing['11'] = row['11'] || '';
+                    existing.תאריך = row.תאריך;
+                    existing.משתמש = row.משתמש || '';
+                    existing.שם_החותם = row.שם_החותם || '';
                 }
             } else {
                 // New item, add to map
                 itemSummary.set(item, {
                     פריט: item,
-                    מידה: row['מידה'] || '',
+                    מידה: row.מידה || '',
                     כמות: quantity,
-                    תאריך: row['תאריך'] || '',
-                    משתמש: row['משתמש'] || '',
-                    '11': row['11'] || ''
+                    תאריך: row.תאריך || '',
+                    משתמש: row.משתמש || '',
+                    שם_החותם: row.שם_החותם || '',
+                    סטטוס: 'החתמה',
+                    פלוגה: row.פלוגה,
+                    צורך: row.צורך,
+                    חתימת_מחתים: row.חתימת_מחתים
                 });
             }
         });
@@ -142,1366 +301,1027 @@ const Logistic: React.FC<LogisticProps> = ({accessToken, selectedSheet}) => {
         return Array.from(itemSummary.values());
     }, [dataByStatus]);
 
-    // Disable send if any פריט empty
-    const isSendDisabled = items.some(item => !item.פריט.trim());
-
-    // Form handlers
-    const handleChange = (index: number, field: keyof typeof defaultItem, value: any) => {
-        const newItems = [...items];
-        // @ts-ignore
-        newItems[index][field] = field === 'כמות' ? Number(value) : value;
-        setItems(newItems);
-    };
-    const addItemRow = () => setItems([...items, {...defaultItem}]);
-    const removeItemRow = (index: number) => setItems(items.filter((_, i) => i !== index));
-
-    // Handle order form submission
-    const handleOrderSubmit = async () => {
-        // Filter out items with empty פריט fields
-        const validItems = editedItems.filter(item => item.פריט && item.פריט.trim() !== '');
-        
-        // Skip submission if no valid items
-        if (validItems.length === 0) {
-            alert('אין פריטים תקינים להוספה. נא למלא לפחות פריט אחד.');
-            return;
-        }
-
-        const timestamp = new Date().toLocaleString('he-IL');
-        const userEmail = localStorage.getItem('userEmail') || '';
-
-        try {
-            const rows = validItems.map(item => [
-                timestamp,
-                '', // מק"ט empty for now
-                item.פריט,
-                item.מידה,
-                String(item.כמות),
-                item.צורך || 'ניפוק',
-                item.הערה || '',
-                'הזמנה', // Status is always הזמנה here
-                userEmail, // The user who made the change
-                '', // No signature for orders
-                '0',
-                ''  // Empty signer name for orders
-            ]);
-
-            // Submit the form using Google Sheets Service
-            await GoogleSheetsService.updateCalls({
-                accessToken,
-                updates: [],
-                appendSheetId: selectedSheet.id,
-                appendValues: rows,
-                isArmory: false,
-            });
-
-            setOpen(false);
-            setEditedItems([getEmptyItem()]); // Reset to empty form
-            refetch();
-            alert('הפריטים נשלחו בהצלחה להזמנה');
-        } catch (e) {
-            console.error('Error submitting form:', e);
-        }
-    };
-
-    console.log(permissions['Logistic'])
-
-    // Submit form: append new rows with סטטוס = "הזמנה"
-    const handleSubmit = async () => {
-        // Filter out items with empty פריט fields
-        const validItems = items.filter(item => item.פריט && item.פריט.trim() !== '');
-        
-        // Skip submission if no valid items
-        if (validItems.length === 0) {
-            alert('אין פריטים תקינים להוספה. נא למלא לפחות פריט אחד.');
-            return;
-        }
-
-        const timestamp = new Date().toLocaleString('he-IL');
-        const userEmail = localStorage.getItem('userEmail') || '';
-        let toTable = 'הזמנה';
-        
-        if (!permissions['Plugot'])
-            toTable = 'החתמה'
-        
-        const rows = validItems.map(item => [
-            timestamp,
-            '', // מק"ט empty for now
-            item.פריט,
-            item.מידה,
-            item.כמות.toString(),
-            item.צורך,
-            item.הערה,
-            toTable,
-            userEmail, // The user who made the change
-            'לא', // Default value for 'נקרא' field
-        ]);
-
-        try {
-            // @ts-ignore
-            await GoogleSheetsService.updateCalls({
-                accessToken,
-                updates: [],
-                appendSheetId: selectedSheet.id,
-                appendValues: rows,
-                isArmory: false,
-            });
-            setItems([{...defaultItem}]);
-            setOpen(false);
-            refetch();
-        } catch (error) {
-            console.error('Error submitting to Google Sheet:', error);
-        }
-    };
-
-    // AG Grid columns including editable סטטוס dropdown
-    const baseColumns = useMemo(() => {
-        return [
-            {field: 'תאריך', headerName: 'תאריך', sortable: true, filter: true, width: 160},
-            {field: 'פריט', headerName: 'פריט', sortable: true, filter: true, width: 170},
-            {field: 'מידה', headerName: 'מידה', sortable: true, filter: true, width: 130},
-            {field: 'כמות', headerName: 'כמות', sortable: true, filter: true, width: 80},
-            {field: 'צורך', headerName: 'צורך', sortable: true, filter: true, width: 130},
-            {field: 'הערה', headerName: 'הערה', sortable: true, filter: true, width: 130},
+    // AG Grid column definitions
+    const baseColumns = useMemo<ColDef<LogisticItem>[]>(() => {
+        const columnDefs: ColDef<LogisticItem>[] = [
             {
-                field: 'סטטוס',
-                headerName: 'סטטוס',
-                sortable: true,
-                filter: true,
-                width: 130,
+                width: 35,
+                pinned: 'right',
+                headerName: '',
+                colId: 'checkboxCol'
+            },
+            {field: 'תאריך' as keyof LogisticItem, headerName: 'תאריך', sortable: true, filter: true, width: 160},
+            {field: 'פריט' as keyof LogisticItem, headerName: 'פריט', sortable: true, filter: true, width: 110},
+            {field: 'כמות' as keyof LogisticItem, headerName: 'כמות', sortable: true, filter: true, width: 70,},
+            {field: 'צורך' as keyof LogisticItem, headerName: 'צורך', sortable: true, filter: true, width: 80},
+            {field: 'מידה' as keyof LogisticItem, headerName: 'מידה', sortable: true, filter: true, width: 70},
+            {
+                field: 'סטטוס' as keyof LogisticItem, headerName: 'סטטוס', sortable: true, filter: true, width: 100,
                 editable: permissions['Logistic'],
                 cellEditor: 'agSelectCellEditor',
-                cellEditorParams: {
-                    values: STATUSES
-                },
+                cellEditorParams: {values: ['הזמנה', 'התעצמות', 'החתמה']},
                 onCellValueChanged: async (params: any) => {
-                    // Don't allow changing to החתמה if צורך is בלאי
-                    if (params.newValue === 'החתמה' && params.data['צורך'] === 'בלאי') {
-                        // Revert the change
-                        params.node.setDataValue('סטטוס', params.oldValue);
-                        alert('לא ניתן להעביר פריט בלאי לסטטוס החתמה');
-                        return;
-                    }
-
-                    // Don't allow changing to התעצמות if נקרא is כן
-                    if (params.newValue === 'התעצמות' && params.data['נקרא'] === 'כן') {
-                        // Revert the change
-                        params.node.setDataValue('סטטוס', params.oldValue);
-                        alert('לא ניתן להעביר פריט שנקרא לסטטוס התעצמות');
-                        return;
-                    }
-
-                    const rowData = params.data;
-
-                    // If changing status to החתמה, show signature dialog
-                    if (params.newValue === 'החתמה') {
-                        setCurrentItem({...rowData});
-                        // Store the original item and the grid node for later reverting if needed
-                        setOriginalItem({
-                            data: {...rowData},
-                            oldValue: params.oldValue,
-                            node: params.node
-                        });
-                        setEditedItems([getEmptyItem()]);
-                        setSignatureDialogOpen(true);
-                        return;
-                    }
-
-                    const date = rowData['תאריך'];
-                    const item = rowData['פריט'];
-                    const measure = rowData['מידה'];
-                    const quantity = rowData['כמות'];
-                    const need = rowData['צורך'];
-                    const note = rowData['הערה'];
-                    const timestamp = new Date().toLocaleString('he-IL');
-                    const userEmail = localStorage.getItem('userEmail') || '';
-
-                    // try {
-                    //     // Update נקרא status if changing from הזמנה
-                    //     if (params.oldValue === 'הזמנה' && params.newValue !== 'הזמנה') {
-                    //         // Set נקרא to כן for the original row in הזמנה table
-                    //         // Find the exact row in the parsed data and update it
-                    //         const originalItem = parsedData.find(item =>
-                    //             item['תאריך'] === params.data['תאריך'] &&
-                    //             item['פריט'] === params.data['פריט'] &&
-                    //             item['סטטוס'] === params.oldValue
-                    //         );
-                    //
-                    //         if (originalItem) {
-                    //             originalItem['נקרא'] = 'כן';
-                    //         }
-                    //     }
-                    //
-                    //     // Set נקרא to כן when status changes from הזמנה or התעצמות
-                    //     // const readStatus = (params.oldValue === 'הזמנה' || params.oldValue === 'התעצמות') ? 'כן' : ;
-                    //
-                    //     // Create a new row with updated status and user information
-                    //     const newRow = [
-                    //         timestamp,
-                    //         '', // מק"ט empty for now
-                    //         item,
-                    //         measure,
-                    //         quantity.toString(),
-                    //         need,
-                    //         note,
-                    //         params.newValue, // The new status value
-                    //         userEmail, // The user who made the change
-                    //         rowData['נקרא'], // Set נקרא based on status change
-                    //     ];
-                    //
-                    //     await GoogleSheetsService.updateCalls({
-                    //         accessToken,
-                    //         updates: [],
-                    //         appendSheetId: selectedSheet.id,
-                    //         appendValues: [newRow], // Append as a single new row
-                    //         isArmory: false,
-                    //     });
-                    //
-                    //     refetch();
-                    // } catch (error) {
-                    //     console.error('Failed to update cell:', error);
-                    // }
+                    await handleStatusChange(params);
                 }
             },
+            {
+                headerName: 'נקרא',
+                field: 'נקרא' as keyof LogisticItem,
+                sortable: true,
+                filter: true,
+                width: 80,
+                editable: permissions['Logistic'],
+                cellEditor: 'agSelectCellEditor',
+                cellEditorParams: {values: ['כן', 'לא']},
+                onCellValueChanged: async (params: any) => {
+                    await handleReadStatusChange(params);
+                }
+            },
+            {field: 'הערה' as keyof LogisticItem, headerName: 'הערה', sortable: true, filter: true, width: 110},
+            {field: 'משתמש' as keyof LogisticItem, headerName: 'דורש', sortable: true, filter: true, width: 110},
         ];
-    }, [setCurrentItem, setEditedItems, setSignatureDialogOpen, accessToken, selectedSheet, refetch, parsedData]);
 
-    // Handle signature submission
-    const handleSignatureSubmit = async () => {
-        if (!signatureRef.current) {
-            alert('אנא חתום לפני השליחה');
-            return;
-        }
+        return columnDefs;
+    }, [permissions, activeTab]);
 
-        // Filter out items with empty פריט fields
-        const validItems = editedItems.filter(item => item.פריט && item.פריט.trim() !== '');
-        
-        // Skip submission if no valid items
-        if (validItems.length === 0) {
-            alert('אין פריטים תקינים להוספה. נא למלא לפחות פריט אחד.');
-            return;
-        }
+    const handleDateClicked = async (data: any) => {
+        const date = data.תאריך;
 
-        const timestamp = new Date().toLocaleString('he-IL');
-        const userEmail = localStorage.getItem('userEmail') || '';
+        // Find all rows with the same date in rowData
+        const matchingRows = rowData.filter(item => item.תאריך === date && item.סטטוס === 'הזמנה');
+
+        // Create items array from matching rows
+        const itemsToShow = matchingRows.map(row => ({
+            פריט: row.פריט || '',
+            מידה: row.מידה || '',
+            כמות: (row.צורך === 'זיכוי') ? -row.כמות : row.כמות || 1,
+            צורך: row.צורך || 'ניפוק',
+            הערה: row.הערה || '',
+        }));
+
+        // Set the items state to populate the dialog
+        setItems(itemsToShow);
+
+        // Set dialog mode to signature
+        setDialogMode('החתמה');
+
+        // Open the signature dialog
+        setSignatureDialogOpen(true);
+    }
+    // Handle AG Grid status change
+    const handleStatusChange = async (params: any) => {
+        const {data} = params;
+        const id = data.id;
+        const newStatus = params.newValue;
 
         try {
-            const pngSignature = signatureRef.current.toDataURL("image/png");
-            
-            const rows = validItems.map(item => [
-                timestamp,
-                '', // מק"ט empty for now
-                item.פריט,
-                item.מידה,
-                item.כמות,
-                signerName,
-                '',
-                '',
-                userEmail,
-                pngSignature,
-                '0',
-                'החתמה'
-            ]);
+            // Update the status in Supabase
+            const {error} = await supabase
+                .from('logistic')
+                .update({סטטוס: newStatus})
+                .eq('id', id);
 
-            // Submit the form using Google Sheets API
-            const values = {
-                values: rows
-            };
-
-            // Make sure all items use the same signature data
-            await GoogleSheetsService.updateCalls({
-                accessToken,
-                updates: [],
-                appendSheetId: selectedSheet.id,
-                appendValues: rows,
-                isArmory: false,
-            });
-
-            setSignatureDialogOpen(false);
-            setSignerName('');
-            if (signatureRef.current) {
-                signatureRef.current.clear();
+            if (error) {
+                console.error("Error updating status:", error);
+                // Revert to old value if there was an error
+                params.node.setDataValue('סטטוס', params.oldValue);
+                setStatusMessage({
+                    text: `שגיאה בעדכון סטטוס: ${error.message}`,
+                    type: "error"
+                });
+                return;
             }
-            setEditedItems([getEmptyItem()]); // Reset to empty form
-            refetch();
-            
-            alert('הפריטים נשלחו בהצלחה להחתמה');
-        } catch (e) {
-            console.error('Error submitting form:', e);
+
+            // Refresh data after update
+            fetchData();
+            setStatusMessage({text: "סטטוס עודכן בהצלחה", type: "success"});
+        } catch (err: any) {
+            console.error("Unexpected error during status update:", err);
+            // Revert to old value
+            params.node.setDataValue('סטטוס', params.oldValue);
+            setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
         }
     };
 
-    // Clear the signature pad
-    const clearSignature = () => {
-        if (signatureRef.current) {
-            signatureRef.current.clear();
-        }
-    };
-
-    // Store the original state before opening the dialog
-    const [originalItem, setOriginalItem] = useState<any>(null);
-
-    // Reset form to original state when cancelling
-    const handleSignatureCancel = () => {
-        // Restore the original state in the UI only (no API calls)
-        if (originalItem) {
-            // Revert the cell value in the grid to the original value
-            originalItem.node.setDataValue('סטטוס', originalItem.oldValue);
-            setCurrentItem(originalItem.data);
-        }
-        
-        // Clear form without making any API calls
-        setEditedItems([]);
-        setSignerName('');
-        clearSignature();
-        
-        // Close dialog
-        setSignatureDialogOpen(false);
-        
-        // No GoogleSheetsService.updateCalls here - changes are only reverted in the UI
-    };
-
-    // Function to export החתמה data to PDF
-    const exportSignatureToPDF = () => {
-        // Get signature data
-        const signatureData = dataByStatus['החתמה'] || [];
-
-        if (signatureData.length === 0) {
-            alert('אין נתוני החתמה להורדה');
-            return;
-        }
+    // Handle read status change
+    const handleReadStatusChange = async (params: any) => {
+        const {data} = params;
+        const id = data.id;
+        const ddate = data['תאריך'];
+        const ditem = data['פריט'];
+        const damount = data['כמות'];
+        const newReadStatus = params.newValue;
 
         try {
-            // Create PDF document with RTL support
-            const pdf = new jsPDF({
+            // Update the read status in Supabase
+            // console.log(newReadStatus);
+            // console.log(id);
+            // console.log("id value:", id, typeof id);
+
+            const {data, error} = await supabase
+                .from("logistic")
+                .update({"נקרא": newReadStatus}) // key must be quoted
+                .eq("id", id)
+                // .eq("פריט", ditem)
+                // .eq("כמות", damount)
+                .select();
+
+            console.log("Updated:", data, "Error:", error);
+
+
+            if (error) {
+                console.error("Error updating read status:", error);
+                // Revert to old value if there was an error
+                params.node.setDataValue('נקרא', params.oldValue);
+                setStatusMessage({text: `שגיאה בעדכון סטטוס קריאה: ${error.message}`, type: "error"});
+                return;
+            }
+
+            // Refresh data after update
+            fetchData();
+            setStatusMessage({text: "סטטוס קריאה עודכן בהצלחה", type: "success"});
+        } catch (err: any) {
+            console.error("Unexpected error during read status update:", err);
+            // Revert to old value
+            params.node.setDataValue('נקרא', params.oldValue);
+            setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
+        }
+    };
+
+    const saveSignature = () => {
+        if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
+            setDataURL(sigPadRef.current.getCanvas().toDataURL("image/png"));
+        }
+    };
+
+    // Function to add a new logistic item
+    const handleAddItem = async () => {
+        setStatusMessage({text: "", type: ""});
+
+
+        // Input validation
+        const invalidItems = items.filter(item => !item.פריט);
+        console.log("invalidItems", invalidItems);
+        if (invalidItems.length > 0) {
+            setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
+            setOpen(false);
+            setSignatureDialogOpen(false);
+            return;
+        }
+        // Format items for insertion
+        const formattedDate = new Date().toLocaleString('he-IL');
+        const formattedItems = items.map(item => ({
+            תאריך: formattedDate,
+            פריט: item.פריט,
+            מידה: item.מידה,
+            כמות: (item.צורך === 'זיכוי' && item.כמות) ? -item.כמות : item.כמות,
+            שם_החותם: signerName,
+            חתימת_מחתים: permissions['signature'],
+            חתימה: dataURL,
+            צורך: item.צורך || 'ניפוק',
+            הערה: item.הערה || '',
+            סטטוס: dialogMode,
+            משתמש: permissions['name'] || '',
+            פלוגה: selectedSheet.range,
+        }));
+
+        try {
+            setLoading(true);
+
+            console.log('before insert: ', formattedItems)
+            // Insert new items to Supabase
+            const {data, error} = await supabase
+                .from('logistic')
+                .insert(formattedItems)
+                .select();
+
+            if (error) {
+                console.error("Error adding items:", error);
+                setStatusMessage({text: `שגיאה בהוספת פריטים: ${error.message}`, type: "error"});
+            } else {
+                // Reset form and close dialog
+                setItems([{...defaultItem}]);
+                await fetchData();
+                setOpen(false);
+                setSignatureDialogOpen(false);
+                setSignerName('');
+                setStatusMessage({text: "פריטים נוספו בהצלחה", type: "success"});
+            }
+        } catch (err: any) {
+            console.error("Unexpected error:", err);
+            setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
+        } finally {
+            setOpen(false);
+            setSignatureDialogOpen(false);
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteSelectedItems = async () => {
+
+        try {
+            setLoading(true);
+
+            if (selectedRows.filter(row => row.נקרא).length > 0) {
+                setStatusMessage({text: `לא ניתן למחוק פריטים שנקראו`, type: "error"});
+                return;
+            }
+            // Extract IDs from selected rows
+            const selectedIds = selectedRows.map(row => row.id);
+
+            const {error} = await supabase
+                .from('logistic')
+                .delete()
+                .in('id', selectedIds);
+
+            if (error) {
+                console.error("Error deleting items:", error);
+                setStatusMessage({text: `שגיאה במחיקת פריטים: ${error.message}`, type: "error"});
+            } else {
+                await fetchData();
+                setSelectedRows([]);
+                setStatusMessage({text: `${selectedRows.length} פריטים נמחקו בהצלחה`, type: "success"});
+            }
+        } catch (err: any) {
+            console.error("Unexpected error during deletion:", err);
+            setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const mirrorHebrewSmart = (str: string) => {
+        if (str === null || str === undefined || str === '') return '';
+        return str
+            .split(/\s+/)
+            .map(word =>
+                /[\u0590-\u05FF]/.test(word) ? word.split('').reverse().join('') : word
+            )
+            .reverse() // Reverse word order too
+            .join(' ');
+    };
+
+    // Function to create PDF export
+    const handlePdfExport = async () => {
+        try {
+            // Get active tab data to export
+            const dataToExport = dataByStatus['החתמה'] || [];
+
+            if (dataToExport.length === 0) {
+                return;
+            }
+
+            const doc = new jsPDF({
                 orientation: 'portrait',
                 unit: 'mm',
                 format: 'a4'
             });
 
-            // Add custom font for Hebrew support if needed
-            // This requires additional setup - the basic implementation will use standard fonts
+            // Add Hebrew font support
+            doc.addFont('NotoSansHebrew-normal.ttf', 'NotoSansHebrew', 'normal');
+            doc.setFont('NotoSansHebrew');
 
-            // Set RTL mode
-            pdf.setR2L(true);
+            // Get page dimensions
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const margin = 15;
+            const today = new Date().toLocaleDateString('he-IL');
 
-            // Add title
-            pdf.setFontSize(18);
-            pdf.text('נתוני החתמה', pdf.internal.pageSize.width / 2, 15, {align: 'center'});
+            // Group data by date
+            const groupedByDate = dataToExport.reduce((groups: { [key: string]: LogisticItem[] }, item) => {
+                const date = item.תאריך || '';
+                if (!groups[date]) {
+                    groups[date] = [];
+                }
+                groups[date].push(item);
+                return groups;
+            }, {});
 
-            let startY = 25;
-            const pageHeight = pdf.internal.pageSize.height;
-            const margin = 10;
+            // Process each date group on its own page
+            let pageIndex = 0;
+            for (const [date, items] of Object.entries(groupedByDate)) {
+                // Add new page if not the first group
+                if (pageIndex > 0) {
+                    doc.addPage();
+                }
+                pageIndex++;
 
-            // Process each signature item
-            for (let i = 0; i <signatureData.length; i++) {
-                const item = signatureData[i];
+                let y = margin;
 
-                // Check if we need a new page
-                if (startY > pageHeight - 60) {
-                    pdf.addPage();
-                    startY = 15;
+                // Try to add logo - if it fails, continue without it
+                try {
+                    // Use imported logoImg directly without getBase64FromImg
+                    doc.addImage(logoImg, 'JPEG', margin, y, 30, 30);
+                } catch (logoErr) {
+                    console.error("Error adding logo:", logoErr);
+                    // Continue without logo
                 }
 
-                // Create item header with פריט and כמות
-                pdf.setFontSize(14);
-                pdf.text(`${item['פריט']} - כמות: ${item['כמות']}`, margin, startY);
+                // Add header with title and date
+                y += 35; // Increased from 20 to account for larger logo
+                doc.setFontSize(18);
+                doc.text(mirrorHebrewSmart(`טופס החתמה פלוגה ${selectedSheet.range}`), pageWidth - margin, y, {align: 'right'});
 
-                startY += 8;
+                // Add current date label on one row
+                y += 12;
+                doc.setFontSize(12);
+                doc.text(mirrorHebrewSmart('תאריך:'), pageWidth - margin, y, {align: 'right'});
+                // And date value below
+                y += 7;
+                doc.text(today, pageWidth - margin, y, {align: 'right'});
 
-                // Add item details using autoTable
-                autoTable(pdf, {
-                    startY: startY,
-                    head: [['שדה', 'ערך']],
-                    body: [
-                        ['תאריך', item['תאריך'] || ''],
-                        ['מקט', item['מקט'] || ''],
-                        ['מידה', item['מידה'] || ''],
-                        ['צורך', item['צורך'] || ''],
-                        ['הערה', item['הערה'] || ''],
-                        ['סטטוס', item['סטטוס'] || ''],
-                        ['משתמש', item['משתמש'] || ''],
-                        ['שם החותם', item['11'] || '']
-                    ],
-                    theme: 'grid',
-                    headStyles: {
-                        halign: 'right',
-                        textColor: [0, 0, 0],
-                        fillColor: [220, 220, 220]
-                    },
-                    bodyStyles: {
-                        halign: 'right'
-                    },
-                    tableWidth: 'auto',
-                    margin: {right: margin},
-                    didDrawPage: (data: { cursor: { y: number } }) => {
-                        // Update startY position after table is drawn
-                        startY = data.cursor.y + 10;
+                // Add record date label on one row
+                y += 10;
+                doc.text(mirrorHebrewSmart('תאריך הרישום:'), pageWidth - margin, y, {align: 'right'});
+                // And date value below
+                y += 7;
+                doc.text(date, pageWidth - margin, y, {align: 'right'});
+
+                // Add table header for items
+                y += 15;
+                doc.setFillColor(240, 240, 240);
+                doc.rect(margin, y, pageWidth - (2 * margin), 10, 'F');
+
+                doc.setFontSize(12);
+                doc.text(mirrorHebrewSmart('פריט'), pageWidth - margin - 10, y + 7, {align: 'right'});
+                doc.text(mirrorHebrewSmart('כמות'), pageWidth / 2, y + 7, {align: 'right'});
+
+                // Add item details
+                y += 15;
+                items.forEach((item: LogisticItem, i: number) => {
+                    doc.text(mirrorHebrewSmart(item.פריט || ''), pageWidth - margin - 10, y, {align: 'right'});
+                    doc.text(mirrorHebrewSmart(`${item.כמות || '0'}`), pageWidth / 2, y, {align: 'right'});
+                    y += 8;
+
+                    // Add a light separator line
+                    if (i < items.length - 1) {
+                        doc.setDrawColor(200, 200, 200);
+                        doc.line(margin, y - 4, pageWidth - margin, y - 4);
                     }
                 });
 
-                // Check if we need a new page for the signature
-                if (startY > pageHeight - 40) {
-                    pdf.addPage();
-                    startY = 15;
-                }
+                // Footer with signature sections - make it bigger
+                y = pageHeight - 120; // Changed from -50 to -120 for a bigger footer
 
-                // Add signature if exists
-                if (item['10']) {
-                    pdf.setFontSize(12);
-                    pdf.text('חתימה:', margin, startY);
+                // Draw a line to separate content from signatures
+                doc.setDrawColor(0, 0, 0);
+                doc.line(margin, y - 10, pageWidth - margin, y - 10);
 
-                    startY += 5;
+                // Create two-column layout for signatures
+                const columnWidth = (pageWidth - (2 * margin)) / 2;
 
-                    // Add signature image
+                // First column: משתמש and חתימת_מחתים
+                doc.setFontSize(12);
+                doc.text(mirrorHebrewSmart('משתמש:'), pageWidth - margin, y, {align: 'right'});
+                y += 6;
+                doc.text(mirrorHebrewSmart(items[0].משתמש || ''), pageWidth - margin - 10, y, {align: 'right'});
+
+                y += 12; // Increased from 10
+                doc.text(mirrorHebrewSmart('חתימת מחתים:'), pageWidth - margin, y, {align: 'right'});
+                y += 10; // Increased from 8
+
+                // Add signature box for מחתים - make it bigger
+                doc.rect(pageWidth / 2, y, columnWidth - 5, 35); // Increased height from 25 to 35
+
+                // Add signature image if available
+                if (items[0].חתימת_מחתים && items[0].חתימת_מחתים.startsWith('data:image/')) {
                     try {
-                        const signatureImg = item['10']; // Base64 image data
-                        if (signatureImg && signatureImg.includes('data:image')) {
-                            pdf.addImage(
-                                signatureImg,
-                                'PNG',
-                                margin,
-                                startY,
-                                50,  // width in mm
-                                20   // height in mm
-                            );
-                            startY += 25;
-                        }
-                    } catch (imgError) {
-                        console.error('Error adding signature image:', imgError);
-                        pdf.text('(שגיאה בטעינת החתימה)', margin, startY);
-                        startY += 10;
+                        doc.addImage(items[0].חתימת_מחתים, 'PNG', pageWidth / 2 + 5, y + 2, columnWidth - 15, 30); // Increased height
+                    } catch (err) {
+                        console.error("Error adding מחתים signature:", err);
                     }
                 }
 
-                // Add divider between items
-                if (i < signatureData.length - 1) {
-                    pdf.setDrawColor(200, 200, 200);
-                    pdf.line(margin, startY, pdf.internal.pageSize.width - margin, startY);
-                    startY += 10;
+                // Second column: שם_החותם and חתימה (reset y position)
+                y = pageHeight - 120; // Match the updated starting position
+
+                doc.text(mirrorHebrewSmart('שם החותם:'), pageWidth / 2 - 5, y, {align: 'right'});
+                y += 6;
+                doc.text(mirrorHebrewSmart(items[0].שם_החותם || ''), pageWidth / 2 - 15, y, {align: 'right'});
+
+                y += 12; // Increased from 10
+                doc.text(mirrorHebrewSmart('חתימה:'), pageWidth / 2 - 5, y, {align: 'right'});
+                y += 10; // Increased from 8
+
+                // Add signature box for חותם - make it bigger
+                doc.rect(margin, y, columnWidth - 5, 35); // Increased height from 25 to 35
+
+                // Add signature image if available
+                if (items[0].חתימה && items[0].חתימה.startsWith('data:image/')) {
+                    try {
+                        doc.addImage(items[0].חתימה, 'PNG', margin + 5, y + 2, columnWidth - 15, 30); // Increased height
+                    } catch (err) {
+                        console.error("Error adding חותם signature:", err);
+                    }
                 }
 
-                // Add page if needed for next item
-                if (i < signatureData.length - 1 && startY > pageHeight - 60) {
-                    pdf.addPage();
-                    startY = 15;
-                }
+                // Add page number in the bottom center
+                y = pageHeight - 10;
+                doc.setFontSize(10);
+                doc.text(`${pageIndex}/${Object.keys(groupedByDate).length}`, pageWidth / 2, y, {align: 'center'});
             }
 
-            // Save PDF
-            const fileName = `נתוני_החתמה_${new Date().toLocaleDateString('he-IL').replace(/\//g, '_')}.pdf`;
-            pdf.save(fileName);
-
-        } catch (error) {
-            console.error('Error generating PDF:', error);
-            alert('שגיאה ביצירת ה-PDF');
+            // Save the PDF
+            doc.save(`${selectedSheet.name} - טופס החתמה.pdf`);
+            setStatusMessage({text: "הפקת דפי החתמה הושלמה בהצלחה", type: "success"});
+        } catch (err) {
+            console.error("Error in PDF creation:", err);
+            setStatusMessage({text: `שגיאה ביצירת PDF: ${err}`, type: "error"});
         }
     };
 
-    // Function to export all data to Excel (CSV)
-    const exportDataToExcel = () => {
-        // Get all the data from all statuses
-        const allData = parsedData || [];
-        
-        if (allData.length === 0) {
-            alert('אין נתונים להורדה');
-            return;
-        }
-        
-        // Get headers from the first row
-        const headers = Object.keys(allData[0] || {});
-        
-        // Create CSV content
-        let csvContent = "data:text/csv;charset=utf-8,";
-        
-        // Add headers row
-        csvContent += headers.join(',') + "\n";
-        
-        // Add data rows
-        allData.forEach((row: { [x: string]: any; }) => {
-            const dataRow = headers.map(header => {
-                // Ensure values with commas are properly quoted
-                const cellValue = row[header] ? String(row[header]).replace(/"/g, '""') : '';
-                return `"${cellValue}"`;
+    // Function to export data to Excel
+    const handleExcelExport = () => {
+        try {
+
+            if (!rowData || rowData.length === 0) {
+                setStatusMessage({text: "אין נתונים להורדה", type: "error"});
+                return;
+            }
+
+            // Process data to remove 'id' field
+            const exportData = rowData.map(item => {
+                const {id, ...rest} = item; // Destructure to separate id from other fields
+                return rest; // Return object without id field
             });
-            csvContent += dataRow.join(',') + "\n";
-        });
-        
-        // Create a download link
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `${selectedSheet.name}_${new Date().toLocaleDateString('he-IL')}.csv`);
-        document.body.appendChild(link);
-        
-        // Download the file
-        link.click();
-        
-        // Clean up
-        document.body.removeChild(link);
+            // Create workbook and worksheet
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+
+            // Set RTL direction for Excel
+
+            ws['!cols'] = baseColumns
+                .filter(col => col.field) // Filter out checkbox column
+            // .map(col => ({ wch: Math.floor(col.width / 8) })); // Approximate width conversion
+
+            // Add the worksheet to the workbook
+            XLSX.utils.book_append_sheet(wb, ws, `${selectedSheet.name}`);
+            XLSX.writeFile(wb, `${selectedSheet.name} לוגיסטיקה .xlsx`);
+
+        } catch (err: any) {
+            console.error("Error exporting Excel:", err);
+        }
     };
 
-    // Create status-specific columns
-    const ordersColumns = [
-        ...baseColumns.map(col => {
-            // For the סטטוס column, add conditional editing
-            if (col.field === 'סטטוס') {
-                return {
-                    ...col,
-                    editable: permissions['Logistic'],
-                };
-            }
-            return col;
-        }),
-        {
-            headerName: 'נקרא',
-            field: 'נקרא',
-            sortable: true,
-            filter: true,
-            width: 100,
-            editable: permissions['Logistic'],
-            cellEditor: 'agSelectCellEditor',
-            cellEditorParams: {values: ['כן', 'לא']},
-            onCellValueChanged: async (params: { data: any; newValue: any; }) => {
-                // Handle read status change
-                const rowData = params.data;
-                const date = rowData['תאריך'];
-                const item = rowData['פריט'];
-
-                const sheetRows = sheetQueryData?.values || [];
-                let rowIndexToUpdate = -1;
-                for (let i = 1; i < sheetRows.length; i++) {
-                    if (sheetRows[i][0] === date && sheetRows[i][2] === item) {
-                        rowIndexToUpdate = i;
-                        break;
-                    }
-                }
-
-                if (rowIndexToUpdate === -1) {
-                    console.error("Could not find row to update");
-                    return;
-                }
-
-                try {
-                    const colIndex = 9; // נקרא column index in sheet (assuming it's the 10th column, 0-indexed)
-                    await GoogleSheetsService.updateCalls({
-                        accessToken,
-                        updates: [{
-                            sheetId: selectedSheet.id,
-                            rowIndex: rowIndexToUpdate,
-                            colIndex,
-                            value: params.newValue
-                        }],
-                        isArmory: false,
-                    });
-                    refetch();
-                } catch (e) {
-                    console.error("Failed to update read status in sheet", e);
-                }
-            }
-        }
-    ];
-
-    // Add נקרא column to התעצמות status
-    const armamentColumns = [
-        ...baseColumns,
-        {
-            headerName: 'נקרא',
-            field: 'נקרא',
-            sortable: true,
-            filter: true,
-            width: 100,
-            editable: permissions['Logistic'],
-            cellEditor: 'agSelectCellEditor',
-            cellEditorParams: {values: ['כן', 'לא']},
-            onCellValueChanged: async (params: { data: any; newValue: any; }) => {
-                // Handle read status change
-                const rowData = params.data;
-                const date = rowData['תאריך'];
-                const item = rowData['פריט'];
-
-                const sheetRows = sheetQueryData?.values || [];
-                let rowIndexToUpdate = -1;
-                for (let i = 1; i < sheetRows.length; i++) {
-                    if (sheetRows[i][0] === date && sheetRows[i][2] === item) {
-                        rowIndexToUpdate = i;
-                        break;
-                    }
-                }
-
-                if (rowIndexToUpdate === -1) {
-                    console.error("Could not find row to update");
-                    return;
-                }
-
-                try {
-                    const colIndex = 9; // נקרא column index in sheet (assuming it's the 10th column, 0-indexed)
-                    await GoogleSheetsService.updateCalls({
-                        accessToken,
-                        updates: [{
-                            sheetId: selectedSheet.id,
-                            rowIndex: rowIndexToUpdate,
-                            colIndex,
-                            value: params.newValue
-                        }],
-                        isArmory: false,
-                    });
-                    refetch();
-                } catch (e) {
-                    console.error("Failed to update read status in sheet", e);
-                }
-            }
-        }
-    ];
-
-    // Add columns specific to החתמה status with שם החותם
-    const signatureColumns = [
-        // Filter out צורך, סטטוס, נקרא, and הערה from baseColumns
-        ...baseColumns.filter(col =>
-            col.field !== 'צורך' &&
-            col.field !== 'סטטוס' &&
-            col.field !== 'נקרא' &&
-            col.field !== 'הערה'
-        ),
-        {
-            headerName: 'שם החותם',
-            field: '11', // Assuming this is the index where signer name is stored
-            sortable: true,
-            filter: true,
-            width: 150,
-        }
-    ];
-
-    // Define columns for the summarized signature table
-    const summarizedSignatureColumns = [
-        {field: 'פריט', headerName: 'פריט', sortable: true, filter: true, width: 170},
-        {field: 'כמות', headerName: 'כמות (סה"כ)', sortable: true, filter: true, width: 120}
-    ];
-
-    // Create a default empty item template
-    const getEmptyItem = () => ({
-        כמות: 1,
-        פריט: "",
-        הערה: "",
-        מידה: "",
-        צורך: "ניפוק"
-    });
-
-    // Extract unique signature items
-    const uniqueSignatureItems = useMemo(() => {
-        // Get unique items from the החתמה data
-        const uniqueItems = new Set<string>();
-        
-        // Add items from החתמה
-        dataByStatus['החתמה']?.forEach((item: { [x: string]: string; }) => {
-            if (item['פריט']) {
-                uniqueItems.add(item['פריט']);
-            }
-        });
-        
-        // Convert to array and sort
-        return Array.from(uniqueItems).sort();
-    }, [dataByStatus]);
-
-    // Track open state of פריט comboboxes
-    const [openComboboxes, setOpenComboboxes] = useState<{ [key: number]: boolean }>({});
-
-    const toggleCombobox = (index: number, isOpen: boolean) => {
-        setOpenComboboxes(prev => ({
-            ...prev,
-            [index]: isOpen
-        }));
+    // Default column definition for AG Grid
+    const defaultColDef = {
+        headerClass: 'ag-right-aligned-header',
+        cellStyle: {textAlign: 'center'},
+        resizable: true,
     };
 
-    // Signature form validation - require all fields except מידה
-    const isSignatureSubmitDisabled = useMemo(() => {
-        return editedItems.some(item => 
-            !item.פריט || // פריט is required
-            !item.כמות || // כמות is required
-            !item.צורך || // צורך is required
-            !signerName   // Signer name is required
-            // מידה is NOT required
-            // הערה (note) is optional
-        ) || !signatureRef.current?.toData().length; // Signature is required
-    }, [editedItems, signerName, signatureRef]);
-
-    // Render one table by status
-    const renderTable = (status: typeof STATUSES[number]) => {
-        // Use the appropriate columns based on status
-        let columnDefs;
-        let rowData;
-
-        switch (status) {
-            case 'הזמנה':
-                columnDefs = ordersColumns;
-                rowData = [...dataByStatus[status]].reverse();
-                break;
-            case 'התעצמות':
-                columnDefs = armamentColumns;
-                rowData = [...dataByStatus[status]].reverse();
-                break;
-            case 'החתמה':
-                columnDefs = summarizedSignatureColumns; // Use summarized columns
-                rowData = summarizedSignatureData; // Use summarized data
-                break;
-            default:
-                columnDefs = baseColumns;
-                rowData = [...dataByStatus[status]].reverse();
-        }
-
-        // Row styling function - add light red background for read items
-        const getRowStyle = (params: any) => {
-            // Apply styling to both התעצמות and הזמנה tables
-            if ((status === 'התעצמות' || status === 'הזמנה') && params.data['נקרא'] === 'כן') {
-                return {backgroundColor: '#FFCDD2'}; // Light red color
-            }
-            return undefined;
-        };
-
+    // Loading indicator
+    if (loading) {
         return (
-            <div key={status} className="mb-8">
-                <h2 className="text-lg font-bold mb-2">{`טבלת ${status} של הפלוגה`}</h2>
-                <div className="ag-theme-alpine w-full h-[40vh] ag-rtl">
+            <div className="flex flex-col items-center justify-center h-[50vh]">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                <p className="text-center p-4">טוען נתונים...</p>
+            </div>
+        );
+    }
+
+    function handleCloseModal() {
+        setSignatureDialogOpen(false);
+        setOpen(false);
+        setSignerName('');
+        setDataURL('');
+        setItems([{...defaultItem}]);
+    }
+
+    return (
+        <div className="container mx-auto p-4">
+
+            {statusMessage.text && (
+                <StatusMessageProps
+                    message={statusMessage.text}
+                    isSuccess={statusMessage.type === 'success'}
+                    onClose={() => setStatusMessage({text: '', type: ''})}
+                />
+            )}
+
+            {(permissions[selectedSheet.range] || permissions['Logistic']) && (
+                <div className="flex justify-between mb-4">
+                    <h2 className="text-2xl font-bold">{selectedSheet.name}</h2>
+
+                    <div className="space-x-2">
+                        <Button
+                            onClick={() => {
+                                if (permissions['Logistic']) {
+                                    setDialogMode('החתמה');
+                                    setSignatureDialogOpen(true);
+                                } else {
+                                    setDialogMode('הזמנה');
+                                    setOpen(true);
+                                }
+                            }}
+                            className="bg-blue-500 hover:bg-blue-600"
+                        >
+                            {permissions['Logistic'] ? 'החתמת פריטים' : 'הוספת דרישות'}
+                        </Button>
+
+                        {(activeTab === 'הזמנה' || activeTab === 'התעצמות') && (
+                            <Button
+                                onClick={handleDeleteSelectedItems}
+                                className="bg-red-500 hover:bg-red-600"
+                                disabled={selectedRows.length === 0}
+                            >
+                                מחק פריטים ({selectedRows.length})
+                            </Button>
+                        )}
+
+                        <Button
+                            onClick={handlePdfExport}
+                            className="bg-green-500 hover:bg-green-600"
+                        >
+                            הורדת דפי החתמות
+                        </Button>
+                        {permissions['admin'] && (
+                            <Button
+                                onClick={handleExcelExport}
+                                className="bg-green-500 hover:bg-green-600"
+                            >
+                                הורדה לאקסל
+                            </Button>)}
+                    </div>
+                </div>
+            )}
+
+            {/* Status tabs */}
+            <div className="flex overflow-x-auto border-b mb-4">
+                {STATUSES.map(status => (
+                    <button
+                        key={status}
+                        className={`py-2 px-4 ${activeTab === status ? 'border-b-2 border-blue-500 font-bold' : ''}`}
+                        onClick={() => setActiveTab(status)}
+                    >
+                        {status} ({dataByStatus[status]?.length || 0})
+                    </button>
+                ))}
+            </div>
+
+            {/* AG Grid component with improved layout */}
+            <div className="ag-theme-alpine w-[110vh] h-[45vh] mb-8 overflow-auto" style={{maxWidth: '100%'}}>
+                <div className="ag-theme-alpine w-[110vh] h-[45vh] mb-8 overflow-auto" style={{maxWidth: '100%'}}>
                     <AgGridReact
-                        columnDefs={columnDefs}
-                        rowData={rowData}
-                        defaultColDef={{resizable: true}}
-                        domLayout="normal"
-                        animateRows
-                        stopEditingWhenCellsLoseFocus={true}
+                        ref={gridRef}
+                        rowData={activeTab === 'החתמה' ? summarizedSignatureData : dataByStatus[activeTab] || []}
+                        columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
                         enableRtl={true}
-                        getRowStyle={getRowStyle}
-                        pagination={true}
-                        paginationPageSize={25}
-                        cacheBlockSize={25}
-                        rowModelType="clientSide"
+                        defaultColDef={{
+                            ...defaultColDef,
+                            checkboxSelection: activeTab !== 'החתמה' ? (params) => {
+                                // This will make the checkbox appear only in the first column
+                                return params.column.getColId() === 'checkboxCol';
+                            } : false
+                        }}
                         suppressHorizontalScroll={false}
-                        enableCellTextSelection={permissions['Logistic']}
+                        rowSelection={activeTab !== 'החתמה' ? 'multiple' : undefined}
+                        suppressRowClickSelection={true} /* Changed to always true to prevent row selection on click */
+                        onSelectionChanged={(params) => {
+                            const selectedRows = params.api.getSelectedRows();
+                            setSelectedRows(selectedRows);
+                        }}
+                        onCellClicked={(event) => {
+                            if (permissions['Logistic'] && event.colDef && event.colDef.field === 'תאריך')
+                                handleDateClicked(event.data)
+                        }}
+                        getRowStyle={(params) => {
+                            if (params.data && params.data.נקרא === 'כן') {
+                                return {backgroundColor: '#ffcccc'}; // Light red background
+                            }
+                        }}
                     />
                 </div>
             </div>
-        );
-    };
 
-    return (
-        <div className="rtl p-4 text-right">
+            {/* Item form dialog */}
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogHeader>
-                    <DialogTitle>{dialogMode === 'הזמנה' ? 'תפעול לוגיסטי פלוגתי' : 'תפעול לוגיסטי פלוגתי - החתמה'}</DialogTitle>
-                    {/*<DialogDescription>שלח פריטים להזמנה לצורך ביצוע הזמנה </DialogDescription>*/}
-                </DialogHeader>
-                {permissions['Logistic'] ? (
-                        <Button
-                            className="bg-blue-600 hover:bg-blue-700 text-white mr-2"
-                            variant="default"
-                            onClick={() => {
-                                // Store original state before opening dialog
-                                setOriginalItem(null); // No original for new items
-                                setCurrentItem(null);
-                                setEditedItems([getEmptyItem()]);
-                                setSignatureDialogOpen(true);
-                            }}
-                        >
-                            שלח פריטים להחתמה
-                        </Button>
-                    ) :
-                    <Button
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                        variant="default"
-                        onClick={() => {
-                            // Store original state before opening dialog
-                            setDialogMode('הזמנה');
-                            setOriginalItem(null); // No original for new items
-                            setCurrentItem(null);
-                            setEditedItems([getEmptyItem()]);
-                            setOpen(true);
-                        }}
-                    >
-                        שלח פריטים להזמנה
-                    </Button>}
+                <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle
+                            className="text-right">{dialogMode === 'הזמנה' ? 'דרישות' : 'החתם על פריט'}</DialogTitle>
+                    </DialogHeader>
 
-                <DialogContent className="max-w-4xl overflow-auto max-h-[85vh] space-y-4 p-4">
-                    <DialogDescription className="text-lg font-medium text-center mb-2">
-                        {dialogMode === 'הזמנה' ? 'הזן את פרטי הפריטים להזמנה' : 'הזן את פרטי הפריטים הנדרשים להלן'}
-                    </DialogDescription>
-                    
-                    {dialogMode === 'הזמנה' ? (
-                        // Order dialog content with multi-row support
-                        <>
-                            <div className="grid gap-4 py-1 rtl">
-                                {editedItems.map((item, index) => (
-                                    <div key={index} className="border p-3 rounded-md">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h4 className="font-medium">פריט {index + 1}</h4>
-                                            {editedItems.length > 1 && (
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-8 px-2"
-                                                    onClick={() => {
-                                                        setEditedItems(editedItems.filter((_, i) => i !== index));
-                                                    }}
-                                                >
-                                                    הסר
-                                                </Button>
-                                            )}
-                                        </div>
-                                        
-                                        <div className="grid gap-3">
-                                            <div className="grid grid-cols-2 items-center gap-4">
-                                                <Label htmlFor={`item-${index}`}>פריט</Label>
-                                                <div className="flex gap-2">
-                                                    <select 
-                                                        id={`item-${index}`}
-                                                        className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
-                                                        value={item?.פריט || ""}
-                                                        onChange={(e) => {
-                                                            const selectedValue = e.target.value;
-                                                            const matchingItem = dataByStatus['החתמה']?.find(
-                                                                (item: { [x: string]: string; }) => item['פריט'] === selectedValue
-                                                            );
-                                                            
-                                                            setEditedItems(editedItems.map((editedItem, i) => {
-                                                                if (i === index) {
-                                                                    return {
-                                                                        ...editedItem, 
-                                                                        פריט: selectedValue,
-                                                                        מידה: matchingItem?.['מידה'] || ''
-                                                                    };
-                                                                }
-                                                                return editedItem;
-                                                            }));
-                                                        }}
-                                                    >
-                                                        <option value="">בחר פריט</option>
-                                                        {uniqueSignatureItems.map((itemName, idx) => (
-                                                            <option key={`${itemName}-${idx}`} value={itemName}>
-                                                                {itemName}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                    <Input
-                                                        placeholder="או הוסף פריט חדש"
-                                                        className="max-w-[150px]"
-                                                        value={item?.פריט || ''}
-                                                        onChange={(e) => {
-                                                            setEditedItems(editedItems.map((editedItem, i) => {
-                                                                if (i === index) {
-                                                                    return {...editedItem, פריט: e.target.value};
-                                                                }
-                                                                return editedItem;
-                                                            }));
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
+                    <div className="space-y-4 py-4 text-right">
+                        {items.map((item, index) => (
+                            <div key={index} className="grid grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
+                                    <CreatableSelect
+                                        id={`item-${index}`}
+                                        options={uniqueItemNames.map(name => ({ value: name, label: name }))}
+                                        value={item.פריט ? { value: item.פריט, label: item.פריט } : null}
+                                        getOptionLabel={(option: any) => option.label}
+                                        getOptionValue={(option: any) => option.value}
+                                        onChange={(selectedOption) => {
+                                            const newItems = [...items];
+                                            // If no option is selected (user cleared the field)
+                                            if (!selectedOption) {
+                                                newItems[index].פריט = '';
+                                                setItems(newItems);
+                                                return;
+                                            }
                                             
-                                            <div className="grid grid-cols-2 items-center gap-4">
-                                                <Label htmlFor={`measure-${index}`}>מידה</Label>
-                                                <Input
-                                                    id={`measure-${index}`}
-                                                    value={item?.מידה || ''}
-                                                    onChange={(e) => {
-                                                        setEditedItems(editedItems.map((editedItem, i) => {
-                                                            if (i === index) {
-                                                                return {...editedItem, מידה: e.target.value};
-                                                            }
-                                                            return editedItem;
-                                                        }));
-                                                    }}
-                                                />
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-2 items-center gap-4">
-                                                <Label htmlFor={`quantity-${index}`}>כמות</Label>
-                                                <Input
-                                                    id={`quantity-${index}`}
-                                                    type="number"
-                                                    value={item?.כמות}
-                                                    onChange={(e) => {
-                                                        setEditedItems(editedItems.map((editedItem, i) => {
-                                                            if (i === index) {
-                                                                const newValue = e.target.value === '' ? 0 : Number(e.target.value);
-                                                                return {...editedItem, כמות: newValue};
-                                                            }
-                                                            return editedItem;
-                                                        }));
-                                                    }}
-                                                />
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-2 items-center gap-4">
-                                                <Label htmlFor={`need-${index}`}>צורך</Label>
-                                                <select
-                                                    id={`need-${index}`}
-                                                    className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
-                                                    value={item?.צורך || "ניפוק"}
-                                                    onChange={(e) => {
-                                                        setEditedItems(editedItems.map((editedItem, i) => {
-                                                            if (i === index) {
-                                                                return {...editedItem, צורך: e.target.value};
-                                                            }
-                                                            return editedItem;
-                                                        }));
-                                                    }}
-                                                >
-                                                    <option value="ניפוק">ניפוק</option>
-                                                    <option value="בלאי">בלאי</option>
-                                                </select>
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-2 items-center gap-4">
-                                                <Label htmlFor={`comment-${index}`}>הערה</Label>
-                                                <Input
-                                                    id={`comment-${index}`}
-                                                    value={item?.הערה || ''}
-                                                    onChange={(e) => {
-                                                        setEditedItems(editedItems.map((editedItem, i) => {
-                                                            if (i === index) {
-                                                                return {...editedItem, הערה: e.target.value};
-                                                            }
-                                                            return editedItem;
-                                                        }));
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                                
-                                <div className="flex justify-center mt-2">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        className="w-full"
-                                        onClick={() => {
-                                            setEditedItems([...editedItems, getEmptyItem()]);
+                                            // Use the value directly
+                                            newItems[index].פריט = selectedOption.value;
+                                            setItems(newItems);
+                                        }}
+                                        onCreateOption={(inputValue) => {
+                                            // Create a new option when user enters custom text
+                                            const newItems = [...items];
+                                            newItems[index].פריט = inputValue;
+                                            setItems(newItems);
+                                            // Also update custom item input for potential future use
+                                            setCustomItemInput(inputValue);
+                                        }}
+                                        placeholder="בחר או הכנס פריט"
+                                        noOptionsMessage={() => "לא נמצאו פריטים"}
+                                        formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
+                                        classNamePrefix="item-select"
+                                        isClearable
+                                        isSearchable
+                                        styles={{
+                                            control: (provided) => ({
+                                                ...provided,
+                                                textAlign: 'right',
+                                                direction: 'rtl'
+                                            }),
+                                            menu: (provided) => ({
+                                                ...provided,
+                                                textAlign: 'right',
+                                                direction: 'rtl'
+                                            }),
+                                            option: (provided) => ({
+                                                ...provided,
+                                                textAlign: 'right',
+                                                direction: 'rtl'
+                                            }),
+                                            placeholder: (provided) => ({
+                                                ...provided,
+                                                textAlign: 'right'
+                                            }),
+                                            singleValue: (provided) => ({
+                                                ...provided,
+                                                textAlign: 'right'
+                                            })
+                                        }}
+                                        theme={(theme) => ({
+                                            ...theme,
+                                            colors: {
+                                                ...theme.colors,
+                                                primary: '#3b82f6', // Blue color for selection
+                                                primary25: '#eff6ff' // Light blue for hover
+                                            }
+                                        })}
+                                    />
+                                </div>
+
+                                <div>
+                                    <Label htmlFor={`size-${index}`} className="text-right block mb-2">מידה</Label>
+                                    <Select
+                                        value={item.מידה || 'ללא מידה'}
+                                        onValueChange={(value) => {
+                                            const newItems = [...items];
+                                            newItems[index].מידה = value === 'ללא מידה' ? '' : value;
+                                            setItems(newItems);
                                         }}
                                     >
-                                        <PlusCircledIcon className="h-4 w-4 mr-1" />
-                                        הוסף פריט נוסף
+                                        <SelectTrigger className="text-right">
+                                            <SelectValue placeholder="בחר מידה"/>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ללא מידה">ללא מידה</SelectItem>
+                                            <SelectItem value="XXL">XXL</SelectItem>
+                                            <SelectItem value="XL">XL</SelectItem>
+                                            <SelectItem value="L">L</SelectItem>
+                                            <SelectItem value="M">M</SelectItem>
+                                            <SelectItem value="S">S</SelectItem>
+                                            <SelectItem value="XS">XS</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div>
+                                    <Label htmlFor={`qty-${index}`} className="text-right block mb-2">כמות</Label>
+                                    <Input
+                                        id={`qty-${index}`}
+                                        type="number"
+                                        value={item.כמות || ''}
+                                        onChange={(e) => {
+                                            const newItems = [...items];
+                                            newItems[index].כמות = parseInt(e.target.value, 10) || 0;
+                                            setItems(newItems);
+                                        }}
+                                        className="text-right"
+                                        min="1"
+                                    />
+                                </div>
+
+                                <div className="col-span-2">
+                                    <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
+                                    <Select
+                                        value={item.צורך || 'ניפוק'}
+                                        onValueChange={(value) => {
+                                            const newItems = [...items];
+                                            newItems[index].צורך = value;
+                                            setItems(newItems);
+                                        }}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="בחר צורך"/>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ניפוק">ניפוק</SelectItem>
+                                            <SelectItem value="בלאי">בלאי/ החלפה</SelectItem>
+                                            <SelectItem value="זיכוי">זיכוי</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div>
+                                    <Label htmlFor={`note-${index}`} className="text-right block mb-2">הערה</Label>
+                                    <Input
+                                        id={`note-${index}`}
+                                        value={item.הערה || ''}
+                                        onChange={(e) => {
+                                            const newItems = [...items];
+                                            newItems[index].הערה = e.target.value;
+                                            setItems(newItems);
+                                        }}
+                                        className="text-right"
+                                    />
+                                </div>
+
+                                {index > 0 && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                            setItems(items.filter((_, i) => i !== index));
+                                        }}
+                                        className="col-span-1 text-red-500 hover:text-red-700"
+                                    >
+                                        <Trash className="h-5 w-5"/>
                                     </Button>
-                                </div>
+                                )}
                             </div>
-                            
-                            <div className="flex justify-between mt-4">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => {
-                                        // Handle cancel - reset form and close dialog
-                                        setOpen(false);
-                                        setEditedItems([getEmptyItem()]);
-                                    }}
-                                >
-                                    ביטול
-                                </Button>
-                                <Button
-                                    type="button"
-                                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                                    onClick={handleOrderSubmit}
-                                >
-                                     שלח פריטים להזמנה
-                                </Button>
-                            </div>
-                        </>
-                    ) : (
-                        // Original order items flow
-                        <>
-                            {items.map((item, index) => (
-                                <div key={index} className="flex flex-col gap-2">
-                                    <div className="grid grid-cols-4 gap-2">
-                                        <div className="flex flex-col space-y-1">
-                                            <label htmlFor={`item-comment-${index}`}
-                                                className="text-sm font-medium">הערה:</label>
-                                            <Input
-                                                id={`item-comment-${index}`}
-                                                placeholder="הערה"
-                                                className="text-sm h-9"
-                                                value={item.הערה}
-                                                onChange={e => handleChange(index, 'הערה', e.target.value)}
-                                            />
-                                        </div>
+                        ))}
 
-                                        <div className="flex flex-col space-y-1">
-                                            <label htmlFor={`item-need-${index}`} className="text-sm font-medium">צורך:</label>
-                                            <Select value={item.צורך}
-                                                    onValueChange={value => handleChange(index, 'צורך', value)}>
-                                                <SelectTrigger id={`item-need-${index}`} className="text-sm h-9"><SelectValue
-                                                    placeholder="צורך"/></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="ניפוק">ניפוק</SelectItem>
-                                                    <SelectItem value="בלאי">בלאי</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                                setItems([...items, {...defaultItem}]);
+                            }}
+                            className="w-full"
+                        >
+                            הוסף פריט נוסף
+                        </Button>
+                    </div>
 
-                                        <div className="flex flex-col space-y-1">
-                                            <label htmlFor={`item-quantity-${index}`}
-                                                className="text-sm font-medium">כמות:</label>
-                                            <Input
-                                                id={`item-quantity-${index}`}
-                                                type="number"
-                                                value={item.כמות}
-                                                onChange={e => handleChange(index, 'כמות', e.target.value)}
-                                            />
-                                        </div>
-
-                                        <div className="flex flex-col space-y-1">
-                                            <label htmlFor={`item-size-${index}`} className="text-sm font-medium">מידה:</label>
-                                            <Input
-                                                id={`item-size-${index}`}
-                                                placeholder="מידה"
-                                                className="text-sm h-9"
-                                                value={item.מידה}
-                                                onChange={e => handleChange(index, 'מידה', e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <div className="flex flex-col space-y-1 flex-1">
-                                            <label className="text-sm font-medium">פריט:</label>
-                                            <Popover open={openComboboxes[index]}
-                                                     onOpenChange={(open) => toggleCombobox(index, open)}>
-                                                <PopoverTrigger asChild>
-                                                    <Button
-                                                        variant="outline"
-                                                        role="combobox"
-                                                        aria-expanded={openComboboxes[index]}
-                                                        className="w-full h-9 justify-between text-right text-sm"
-                                                    >
-                                                        {item.פריט || "בחר פריט"}
-                                                        <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50"/>
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-[280px] p-0" align="start">
-                                                    <Command>
-                                                        <CommandInput placeholder="חפש פריט..." className="h-9 text-sm"/>
-                                                        <CommandEmpty>לא נמצאו פריטים.</CommandEmpty>
-                                                        <CommandGroup className="max-h-[250px] overflow-auto">
-                                                            {uniqueSignatureItems.map((itemName, index) => (
-                                                                <CommandItem
-                                                                    key={`${itemName}-${index}`}
-                                                                    className="text-sm py-2 cursor-pointer"
-                                                                    value={itemName as string}
-                                                                    onSelect={(value) => {
-                                                                        handleChange(index, 'פריט', value);
-                                                                        handleChange(index, 'מידה', dataByStatus['החתמה']?.find(
-                                                                            (item: { [x: string]: string; }) => item['פריט'] === itemName
-                                                                        )?.['מידה'] || '');
-                                                                        toggleCombobox(index, false);
-                                                                    }}
-                                                                >
-                                                                    <span className="flex-1 text-right">{itemName}</span>
-                                                                    <CheckIcon
-                                                                        className={cn(
-                                                                            "mr-2 h-4 w-4",
-                                                                            item.פריט === itemName ? "opacity-100" : "opacity-0"
-                                                                        )}
-                                                                    />
-                                                                </CommandItem>
-                                                            ))}
-                                                            <CommandSeparator/>
-                                                            <div className="p-2">
-                                                                <label className="text-sm font-medium block mb-1">הוסף פריט
-                                                                    חדש:</label>
-                                                                <div className="flex gap-1">
-                                                                    <Input
-                                                                        placeholder="הקלד שם פריט חדש"
-                                                                        className="text-sm h-8"
-                                                                        value={item.פריט}
-                                                                        onChange={e => {
-                                                                            e.stopPropagation();
-                                                                            handleChange(index, 'פריט', e.target.value);
-                                                                        }}
-                                                                        onClick={e => e.stopPropagation()}
-                                                                    />
-                                                                    <Button
-                                                                        type="button"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            if (item.פריט.trim()) {
-                                                                                toggleCombobox(index, false);
-                                                                            }
-                                                                        }}
-                                                                        className="shrink-0 h-8 text-xs"
-                                                                    >
-                                                                        הוסף
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
-                                                        </CommandGroup>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
-                                        </div>
-                                        <button
-                                            onClick={() => removeItemRow(index)}
-                                            className="text-red-600 hover:text-red-900 text-lg mt-6"
-                                            aria-label="הסר פריט"
-                                            title="הסר פריט"
-                                        >
-                                            🗑️
-                                        </button>
-                                    </div>
-                                    <hr className="my-1"/>
-                                </div>
-                            ))}
-                            <Button
-                                className="border-blue-600 text-blue-600 hover:bg-blue-100"
-                                variant="outline"
-                                onClick={addItemRow}
-                            >
-                                הוסף פריט
-                            </Button>
-                            <Button
-                                className="bg-blue-600 hover:bg-blue-700 text-white"
-                                onClick={handleSubmit}
-                                disabled={isSendDisabled}
-                            >
-                                שלח
-                            </Button>
-                        </>
-                    )}
+                    <DialogFooter>
+                        <Button type="button" onClick={() => setOpen(false)} variant="outline">
+                            ביטול
+                        </Button>
+                        <Button type="button" onClick={handleAddItem}>
+                            {dialogMode === 'הזמנה' ? 'שלח דרישות' : 'החתם על פריטים'}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {STATUSES.map(renderTable)}
-            <div className="flex space-x-4 rtl:space-x-reverse">
-                <Button
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={exportSignatureToPDF}
-                >
-                    הורד נתוני החתמה כ-PDF
-                </Button>
-                <Button
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={exportDataToExcel}
-                >
-                    הורד את כל הנתונים כקובץ Excel
-                </Button>
-            </div>
-            <Dialog 
-                open={signatureDialogOpen} 
-                onOpenChange={(isOpen) => {
-                    if (!isOpen) {
-                        handleSignatureCancel();
-                    }
-                    setSignatureDialogOpen(isOpen);
-                }}
-            >
-                <DialogContent className="max-w-4xl overflow-auto max-h-[80vh] space-y-4">
+            {/* Signature dialog */}
+            <Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
+                <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
                     <DialogHeader>
-                        <DialogTitle>החתמה - עריכת פרטים וחתימה</DialogTitle>
-                        <DialogDescription>
-                            יש לעדכן את הפרטים ולחתום במקום המיועד
+                        <DialogTitle className="text-right">החתם על פריטים</DialogTitle>
+                        <DialogDescription className="text-right">
+                            {currentItem && `החתמה על ${currentItem.פריט} (${currentItem.מידה})`}
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-1 py-1 rtl">
-                        {editedItems.map((item, index) => (
-                            <div key={index} className="border p-3 rounded-md">
-                                <div className="flex justify-between items-center mb-2">
-                                    <h4 className="font-medium">פריט {index + 1}</h4>
-                                    {editedItems.length > 1 && (
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-8 px-2"
-                                            onClick={() => {
-                                                setEditedItems(editedItems.filter((_, i) => i !== index));
-                                            }}
-                                        >
-                                            הסר
-                                        </Button>
-                                    )}
+
+                    <div className="space-y-4 py-4">
+                        {/*<div className="space-y-4 py-4 text-right">*/}
+                        {items.map((item, index) => (
+                            <div key={index} className="grid grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
+                                    <CreatableSelect
+                                        id={`item-${index}`}
+                                        options={uniqueItemNames.map(name => ({ value: name, label: name }))}
+                                        value={item.פריט ? { value: item.פריט, label: item.פריט } : null}
+                                        getOptionLabel={(option: any) => option.label}
+                                        getOptionValue={(option: any) => option.value}
+                                        onChange={(selectedOption) => {
+                                            const newItems = [...items];
+                                            // If no option is selected (user cleared the field)
+                                            if (!selectedOption) {
+                                                newItems[index].פריט = '';
+                                                setItems(newItems);
+                                                return;
+                                            }
+                                            
+                                            // Use the value directly
+                                            newItems[index].פריט = selectedOption.value;
+                                            setItems(newItems);
+                                        }}
+                                        onCreateOption={(inputValue) => {
+                                            // Create a new option when user enters custom text
+                                            const newItems = [...items];
+                                            newItems[index].פריט = inputValue;
+                                            setItems(newItems);
+                                            // Also update custom item input for potential future use
+                                            setCustomItemInput(inputValue);
+                                        }}
+                                        placeholder="בחר או הכנס פריט"
+                                        noOptionsMessage={() => "לא נמצאו פריטים"}
+                                        formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
+                                        classNamePrefix="item-select"
+                                        isClearable
+                                        isSearchable
+                                        styles={{
+                                            control: (provided) => ({
+                                                ...provided,
+                                                textAlign: 'right',
+                                                direction: 'rtl'
+                                            }),
+                                            menu: (provided) => ({
+                                                ...provided,
+                                                textAlign: 'right',
+                                                direction: 'rtl'
+                                            }),
+                                            option: (provided) => ({
+                                                ...provided,
+                                                textAlign: 'right',
+                                                direction: 'rtl'
+                                            }),
+                                            placeholder: (provided) => ({
+                                                ...provided,
+                                                textAlign: 'right'
+                                            }),
+                                            singleValue: (provided) => ({
+                                                ...provided,
+                                                textAlign: 'right'
+                                            })
+                                        }}
+                                        theme={(theme) => ({
+                                            ...theme,
+                                            colors: {
+                                                ...theme.colors,
+                                                primary: '#3b82f6', // Blue color for selection
+                                                primary25: '#eff6ff' // Light blue for hover
+                                            }
+                                        })}
+                                    />
                                 </div>
-                                
-                                <div className="grid gap-3">
-                                    <div className="grid grid-cols-2 items-center gap-4">
-                                        <Label htmlFor={`item-${index}`}>פריט</Label>
-                                        <div className="flex gap-2">
-                                            <select 
-                                                id={`item-${index}`}
-                                                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
-                                                value={item?.פריט || ""}
-                                                onChange={(e) => {
-                                                    const selectedValue = e.target.value;
-                                                    const matchingItem = dataByStatus['החתמה']?.find(
-                                                        (item: { [x: string]: string; }) => item['פריט'] === selectedValue
-                                                    );
-                                                    
-                                                    setEditedItems(editedItems.map((editedItem, i) => {
-                                                        if (i === index) {
-                                                            return {
-                                                                ...editedItem, 
-                                                                פריט: selectedValue,
-                                                                מידה: matchingItem?.['מידה'] || ''
-                                                            };
-                                                        }
-                                                        return editedItem;
-                                                    }));
-                                                }}
-                                            >
-                                                <option value="">בחר פריט</option>
-                                                {uniqueSignatureItems.map((itemName, idx) => (
-                                                    <option key={`${itemName}-${idx}`} value={itemName}>
-                                                        {itemName}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <Input
-                                                placeholder="או הוסף פריט חדש"
-                                                className="max-w-[150px]"
-                                                value={item?.פריט || ''}
-                                                onChange={(e) => {
-                                                    setEditedItems(editedItems.map((editedItem, i) => {
-                                                        if (i === index) {
-                                                            return {...editedItem, פריט: e.target.value};
-                                                        }
-                                                        return editedItem;
-                                                    }));
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 items-center gap-4">
-                                        <Label htmlFor={`measure-${index}`}>מידה</Label>
-                                        <Input
-                                            id={`measure-${index}`}
-                                            value={item?.מידה || ''}
-                                            onChange={(e) => {
-                                                setEditedItems(editedItems.map((editedItem, i) => {
-                                                    if (i === index) {
-                                                        return {...editedItem, מידה: e.target.value};
-                                                    }
-                                                    return editedItem;
-                                                }));
-                                            }}
-                                        />
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 items-center gap-4">
-                                        <Label htmlFor={`quantity-${index}`}>כמות</Label>
-                                        <Input
-                                            id={`quantity-${index}`}
-                                            type="number"
-                                            value={item?.כמות}
-                                            onChange={(e) => {
-                                                setEditedItems(editedItems.map((editedItem, i) => {
-                                                    if (i === index) {
-                                                        const newValue = e.target.value === '' ? 0 : Number(e.target.value);
-                                                        return {...editedItem, כמות: newValue};
-                                                    }
-                                                    return editedItem;
-                                                }));
-                                            }}
-                                        />
-                                    </div>
+
+                                <div>
+                                    <Label htmlFor={`size-${index}`} className="text-right block mb-2">מידה</Label>
+                                    <Select
+                                        value={item.מידה || 'ללא מידה'}
+                                        onValueChange={(value) => {
+                                            const newItems = [...items];
+                                            newItems[index].מידה = value === 'ללא מידה' ? '' : value;
+                                            setItems(newItems);
+                                        }}
+                                    >
+                                        <SelectTrigger className="text-right">
+                                            <SelectValue placeholder="בחר מידה"/>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ללא מידה">ללא מידה</SelectItem>
+                                            <SelectItem value="XXL">XXL</SelectItem>
+                                            <SelectItem value="XL">XL</SelectItem>
+                                            <SelectItem value="L">L</SelectItem>
+                                            <SelectItem value="M">M</SelectItem>
+                                            <SelectItem value="S">S</SelectItem>
+                                            <SelectItem value="XS">XS</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
+
+                                <div>
+                                    <Label htmlFor={`qty-${index}`} className="text-right block mb-2">כמות</Label>
+                                    <Input
+                                        id={`qty-${index}`}
+                                        type="number"
+                                        value={item.כמות || ''}
+                                        onChange={(e) => {
+                                            const newItems = [...items];
+                                            newItems[index].כמות = parseInt(e.target.value, 10) || 0;
+                                            setItems(newItems);
+                                        }}
+                                        className="text-right"
+                                        min="1"
+                                    />
+                                </div>
+
+                                <div className="col-span-2">
+                                    <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
+                                    <Select
+                                        value={item.צורך || 'ניפוק'}
+                                        onValueChange={(value) => {
+                                            const newItems = [...items];
+                                            newItems[index].צורך = value;
+                                            setItems(newItems);
+                                        }}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="בחר צורך"/>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ניפוק">ניפוק</SelectItem>
+                                            <SelectItem value="בלאי">בלאי/ החלפה</SelectItem>
+                                            <SelectItem value="זיכוי">זיכוי</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div>
+                                    <Label htmlFor={`note-${index}`} className="text-right block mb-2">הערה</Label>
+                                    <Input
+                                        id={`note-${index}`}
+                                        value={item.הערה || ''}
+                                        onChange={(e) => {
+                                            const newItems = [...items];
+                                            newItems[index].הערה = e.target.value;
+                                            setItems(newItems);
+                                        }}
+                                        className="text-right"
+                                    />
+                                </div>
+
+                                {index > 0 && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                            setItems(items.filter((_, i) => i !== index));
+                                        }}
+                                        className="col-span-1 text-red-500 hover:text-red-700"
+                                    >
+                                        <Trash className="h-5 w-5"/>
+                                    </Button>
+                                )}
                             </div>
                         ))}
-                        
-                        <div className="flex justify-center mt-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="w-full"
-                                onClick={() => {
-                                    setEditedItems([...editedItems, getEmptyItem()]);
-                                }}
-                            >
-                                <PlusCircledIcon className="h-4 w-4 mr-1" />
-                                הוסף פריט נוסף
-                            </Button>
-                        </div>
-                    </div>
-                    <div className="grid gap-1 py-1 rtl">
-                        <div className="grid grid-cols-2 items-center gap-4">
-                            <Label htmlFor="signerName">שם החותם</Label>
+
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                                setItems([...items, {...defaultItem}]);
+                            }}
+                            className="w-full"
+                        >
+                            הוסף פריט נוסף
+                        </Button>
+
+                        <div>
+                            <Label htmlFor="signer-name" className="text-right block mb-2">שם החותם</Label>
                             <Input
-                                id="signerName"
+                                id="signer-name"
                                 value={signerName}
                                 onChange={(e) => setSignerName(e.target.value)}
-                                placeholder="הכנס את שם החותם"
-                                required
+                                className="text-right mb-4"
                             />
                         </div>
-                    </div>
-                    <div className="border p-2 rounded-md">
-                        <div className="text-center mb-2">
-                            <Label htmlFor="signature" className="text-base font-medium">חתימה</Label>
-                        </div>
-                        <div 
-                            className="border mt-2 bg-white" 
-                            style={{
-                                touchAction: 'none',
-                                width: '100%',
-                                display: 'flex',
-                                justifyContent: 'center'
-                            }}
-                        >
+
+                        <div className="border rounded p-2">
+                            <label className="block text-right font-medium mb-1">חתימה</label>
                             <SignatureCanvas
-                                ref={signatureRef}
-                                canvasProps={{
-                                    width: 400,
-                                    height: 150,
-                                    className: 'sigCanvas',
-                                    style: {
-                                        width: '100%',
-                                        height: '150px',
-                                        maxWidth: '400px',
-                                        cursor: 'crosshair'
-                                    }
-                                }}
+                                ref={sigPadRef}
                                 penColor="black"
-                                onEnd={() => {
-                                    // This ensures the signature data is captured when drawing ends
-                                    if (signatureRef.current) {
-                                        const dataURL = signatureRef.current.toDataURL();
-                                        console.log("Signature captured:", dataURL.substring(0, 20) + "...");
-                                    }
+                                onEnd={saveSignature}  // Automatically saves when drawing ends
+                                canvasProps={{
+                                    width: 300,
+                                    height: 150,
+                                    className: "border border-gray-300 rounded",
+                                    style: {direction: "ltr"},
                                 }}
+                                clearOnResize={false}
+                                backgroundColor="white"
                             />
                         </div>
-                        <div className="flex justify-center mt-1">
-                            <Button 
-                                type="button" 
-                                variant="outline"
-                                size="sm" 
-                                onClick={() => {
-                                    if (signatureRef.current) {
-                                        signatureRef.current.clear();
-                                    }
-                                }}
-                            >
-                                נקה חתימה
-                            </Button>
-                        </div>
-                    </div>
-                    <DialogFooter className="flex space-x-2 justify-end mt-4">
+
                         <Button
-                            className="bg-gray-200 hover:bg-gray-300 text-gray-800"
-                            onClick={handleSignatureCancel}
+                            type="button"
+                            variant="outline"
+                            onClick={() => sigPadRef.current?.clear()}
+                            className="w-full"
                         >
+                            נקה חתימה
+                        </Button>
+                    </div>
+
+                    <DialogFooter>
+                        <Button type="button" onClick={handleCloseModal} variant="outline">
                             ביטול
                         </Button>
-                        <Button
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                            onClick={() => {
-                                // Validate items before submission
-                                const emptyItems = editedItems.filter(item => !item.פריט || item.פריט.trim() === '');
-                                if (emptyItems.length > 0) {
-                                    alert('אנא מלא את שם הפריט בכל השורות לפני השליחה');
-                                    return;
-                                }
-                                handleSignatureSubmit();
-                            }}
-                            disabled={isSignatureSubmitDisabled}
-                        >
-                            שלח
+                        <Button type="button" onClick={handleAddItem}>
+                            {dialogMode === 'הזמנה' ? 'שלח דרישות' : 'החתם על פריטים'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
