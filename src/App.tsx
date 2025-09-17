@@ -9,6 +9,7 @@ import './css/App.css'
 import SoldierPage from './components/SoldierPage'
 import AdminPage from './components/AdminPage'
 import { PermissionsProvider } from './contexts/PermissionsContext'
+import DivideComponents from "@/components/route/DivideComponentSections";
 
 function App() {
     const [user, setUser] = useState<TokenResponse | null>(null)
@@ -61,10 +62,11 @@ function App() {
                                                 accessToken={user.access_token}
                                                 onSignOut={handleSignOut}
                                             />
-                                            <SheetGroupPage
-                                                accessToken={user.access_token}
-                                                sheetGroups={sheetGroups}
-                                            />
+                                            {/*<SheetGroupPage*/}
+                                            {/*    accessToken={user.access_token}*/}
+                                            {/*    sheetGroups={sheetGroups}*/}
+                                            {/*/>*/}
+                                            <DivideComponents accessToken={user.access_token} sheetGroups={sheetGroups} />
                                         </div>
                                     </div>
                                 }

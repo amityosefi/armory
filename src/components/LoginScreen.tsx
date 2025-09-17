@@ -1,12 +1,13 @@
 import React, {useEffect, useState} from 'react'
-import {useGoogleLogin} from '@react-oauth/google'
-import type {TokenResponse} from '@react-oauth/google'
-import {Navigate} from 'react-router-dom'
+import {TokenResponse, useGoogleLogin} from '@react-oauth/google'
+import {Label} from '@/components/ui/label'
+import {Button} from '@/components/ui/button'
 import {useAuthStore} from '@/stores/useAuthStore'
 import {usePermissions} from '@/contexts/PermissionsContext'
 import {supabase} from '@/lib/supabaseClient' // <-- your supabase client
 import logo from '@/assets/logo.jpeg' // Import the logo
-import '../css/LoginScreen.css' // Import the login screen styles
+import '../css/LoginScreen.css'
+import {Navigate} from "react-router-dom"; // Import the login screen styles
 
 interface LoginScreenProps {
     onLoginSuccess: (response: TokenResponse) => void
@@ -87,14 +88,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                 localStorage.setItem('googleAuthToken', JSON.stringify(codeResponse))
                 localStorage.setItem('userEmail', email)
 
-                onLoginSuccess(codeResponse)
-                setIsAuthenticated(true)
-                await supabase
-                    .from('users')
-                    .update({ last_login: new Date().toLocaleString('he-IL') }) // sets current timestamp
-                    .eq('email', email)
-                    .select()
-                    .maybeSingle();
+                onLoginSuccess(codeResponse);
+                setIsAuthenticated(true);
 
             } catch (err) {
                 console.error('Login failed:', err)
