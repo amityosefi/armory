@@ -24,14 +24,13 @@ import {Label} from "@/components/ui/label";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
-import StatusMessageProps from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
+import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
 // Import logo for PDF export
-import logoImg from "../assets/logo.jpeg";
+import logoImg from "@/assets/logo.jpeg";
 
 const STATUSES = ['החתמה', 'הזמנה', 'התעצמות'] as const;
 
 interface LogisticProps {
-    accessToken: string;
     selectedSheet: {
         name: string;
         range: string;
@@ -55,11 +54,11 @@ type LogisticItem = {
     חתימה?: string;
     שם_החותם?: string;
     פלוגה: string;
-    חתימת_מחתים: string;
+    חתימת_מחתים?: string;
     created_at?: string;
 };
 
-const Logistic: React.FC<LogisticProps> = ({accessToken, selectedSheet}) => {
+const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     const {permissions} = usePermissions();
     const [rowData, setRowData] = useState<LogisticItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -90,38 +89,22 @@ const Logistic: React.FC<LogisticProps> = ({accessToken, selectedSheet}) => {
     useEffect(() => {
         const loadLogo = async () => {
             try {
-                const response = await fetch('/src/assets/logo.jpeg');
-                const blob = await response.blob();
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64data = reader.result as string;
-                    setLogoBase64(base64data);
+                // Use the imported logoImg directly instead of fetching
+                const img = new Image();
+                img.src = logoImg;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0);
+                    setLogoBase64(canvas.toDataURL('image/jpeg'));
                 };
-                reader.readAsDataURL(blob);
-            } catch (err) {
-                console.error("Error loading logo:", err);
+            } catch (error) {
+                console.error('Error loading logo:', error);
             }
         };
-
         loadLogo();
-    }, []);
-
-    // Load and prepare logo for PDF
-    useEffect(() => {
-        const img = new Image();
-        img.src = '/src/assets/logo.jpeg';
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.drawImage(img, 0, 0);
-                const logoDataUrl = canvas.toDataURL('image/jpeg');
-                // Store in component state or ref
-                localStorage.setItem('logoCache', logoDataUrl);
-            }
-        };
     }, []);
 
     // Default item template for form
@@ -133,7 +116,8 @@ const Logistic: React.FC<LogisticProps> = ({accessToken, selectedSheet}) => {
         הערה: '',
         שם_החותם: '',
         חתימה: '',
-        סטטוס: 'הזמנה'
+        סטטוס: 'הזמנה',
+        חתימת_מחתים: '',
     };
 
     // Form items state (dynamic rows)
@@ -470,13 +454,13 @@ const Logistic: React.FC<LogisticProps> = ({accessToken, selectedSheet}) => {
         }
         // Format items for insertion
         const formattedDate = new Date().toLocaleString('he-IL');
-        const formattedItems = items.map(item => ({
+        let formattedItems = items.map(item => ({
             תאריך: formattedDate,
             פריט: item.פריט,
             מידה: item.מידה,
             כמות: (item.צורך === 'זיכוי' && item.כמות) ? -item.כמות : item.כמות,
             שם_החותם: signerName,
-            חתימת_מחתים: permissions['signature'],
+            חתימת_מחתים: permissions['signature'] ? String(permissions['signature']) : '',
             חתימה: dataURL,
             צורך: item.צורך || 'ניפוק',
             הערה: item.הערה || '',
@@ -484,6 +468,29 @@ const Logistic: React.FC<LogisticProps> = ({accessToken, selectedSheet}) => {
             משתמש: permissions['name'] || '',
             פלוגה: selectedSheet.range,
         }));
+
+        // If it's a formal signature (החתמה), create battalion entries
+        if (dialogMode === 'החתמה') {
+            // Create mirror entries for battalion inventory tracking
+            const battalionEntries = items.map(item => ({
+                תאריך: formattedDate,
+                פריט: item.פריט,
+                מידה: '',
+                // Opposite quantity logic: negative for issues, positive for credits
+                כמות: (item.צורך === 'זיכוי' && item.כמות !== undefined) ? (item.כמות || 0) : -(item.כמות || 0),
+                שם_החותם: '',
+                חתימת_מחתים: '',
+                חתימה: '',
+                צורך: item.צורך || 'ניפוק',
+                הערה: item.הערה || '',
+                סטטוס: dialogMode,
+                משתמש: permissions['name'] || '',
+                פלוגה: 'גדוד', // Battalion inventory
+            }));
+            
+            // Combine original items with battalion entries
+            formattedItems = [...formattedItems, ...battalionEntries];
+        }
 
         try {
             setLoading(true);
@@ -792,7 +799,7 @@ const Logistic: React.FC<LogisticProps> = ({accessToken, selectedSheet}) => {
         <div className="container mx-auto p-4">
 
             {statusMessage.text && (
-                <StatusMessageProps
+                <StatusMessage
                     message={statusMessage.text}
                     isSuccess={statusMessage.type === 'success'}
                     onClose={() => setStatusMessage({text: '', type: ''})}

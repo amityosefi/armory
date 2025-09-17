@@ -944,17 +944,20 @@ const SheetGroupPage: React.FC<SheetGroupPageProps> = ({accessToken, sheetGroups
     return (
         // <div className={`page-container ${backgroundClass}`}>
         <div>
-            <h2 className="text-xl font-semibold mb-4">{currentGroup.name}</h2>
+            {/*<h2 className="text-xl font-semibold mb-4">{currentGroup.name}</h2>*/}
 
-            <TabsNavigation sheets={currentGroup.sheets} activeTabIndex={activeTabIndex} onTabChange={handleTabChange}
-                            creditButton={creditButton}
-                            storedButton={storedButton}
-                            assignWeaponButton={assignWeaponButton} addWeaponOrOptic={addWeaponOrOptic}
-                            addNewSerialWeaponOrOptic={addNewSerialWeaponOrOptic} addOpticToGroup={addOpticToGroup}
-                            downloadSadbaData={downloadSadbaData}
-                            downloadGroupData={downloadGroupData}
-                // showSoldierModal={showSoldierModal}
-            />
+            {/*<TabsNavigation*/}
+            {/*    sheets={currentGroup.sheets}*/}
+            {/*    activeTabIndex={activeTabIndex}*/}
+            {/*    onTabChange={handleTabChange}*/}
+            {/*                creditButton={creditButton}*/}
+            {/*                storedButton={storedButton}*/}
+            {/*                assignWeaponButton={assignWeaponButton} addWeaponOrOptic={addWeaponOrOptic}*/}
+            {/*                addNewSerialWeaponOrOptic={addNewSerialWeaponOrOptic} addOpticToGroup={addOpticToGroup}*/}
+            {/*                downloadSadbaData={downloadSadbaData}*/}
+            {/*                downloadGroupData={downloadGroupData}*/}
+            {/*    // showSoldierModal={showSoldierModal}*/}
+            {/*/>*/}
 
             {showSignaturePrompt && (
                 <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -1120,12 +1123,6 @@ const SheetGroupPage: React.FC<SheetGroupPageProps> = ({accessToken, sheetGroups
                 </div>
             ) : ['טבלת נשקיה'].includes(selectedSheet.name) ? (
                 <SummaryComponent accessToken={accessToken}/>
-            ) : currentGroup.name === 'לוגיסטיקה' ? (
-                <Equipment accessToken={accessToken} selectedSheet={selectedSheet}
-                />
-            ) : currentGroup.name === 'תחמושת' ? (
-                <Munitions accessToken={accessToken} selectedSheet={selectedSheet}
-                />
             ) : (permissions[selectedSheet.range] || permissions['Armory']) && sheetData.length > 0 || isCreditingInProgress ? (
                 <SheetDataGrid accessToken={accessToken} columnDefs={columnDefs} rowData={sheetData}
                                selectedSheet={selectedSheet} onRowSelected={setSelectedRow}

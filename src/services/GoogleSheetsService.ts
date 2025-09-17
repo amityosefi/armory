@@ -1,5 +1,5 @@
-import {DEFAULT_SPREADSHEET_ID, DEFAULT_SPREADSHEET_ID_EQUIPMENT, PERMISSIONS_SPREADSHEET_ID} from "../constants";
-import { sheetGroups } from "../constants";
+import {DEFAULT_SPREADSHEET_ID} from "@/constants";
+import { sheetGroups } from "@/constants";
 
 type SheetData = {
     title: string;
@@ -12,7 +12,7 @@ class GoogleSheetsService {
 
     static async fetchSheetData(accessToken: string, range: string, isArmory: boolean | undefined) {
         try {
-            const defaultSpreadSheet = isArmory || isArmory === undefined ? DEFAULT_SPREADSHEET_ID : DEFAULT_SPREADSHEET_ID_EQUIPMENT;
+            const defaultSpreadSheet = isArmory || isArmory === undefined ? DEFAULT_SPREADSHEET_ID : DEFAULT_SPREADSHEET_ID;
             const response = await fetch(
                 `https://sheets.googleapis.com/v4/spreadsheets/${defaultSpreadSheet}/values/${range}`,
                 {
@@ -36,34 +36,6 @@ class GoogleSheetsService {
             return false;
         }
     }
-
-    static async fetchUserPermissions(
-        accessToken: string,
-        email: string
-    ): Promise<Record<string, boolean>> {
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${PERMISSIONS_SPREADSHEET_ID}/values/Sheet1!A1:Z1000`;
-
-        const res = await fetch(url, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-        });
-
-        const data = await res.json();
-        if (!data.values) return {};
-
-        const [headers, ...rows] = data.values;
-        const userRow = rows.find((row: string[]) => row[0]?.toLowerCase() === email.toLowerCase());
-        if (!userRow) return {};
-
-        const permissions: Record<string, boolean> = {};
-
-        headers.forEach((header: string | number, i: number) => {
-            if (i === 0) return; // Skip "Email"
-            permissions[header] = userRow[i] === 'yes';
-        });
-        return permissions;
-    }
-
-
 
 
     static async fetchAllSheetData(
@@ -241,7 +213,7 @@ static async searchAcrossAllSheets({
     }) {
 
         try {
-            const defaultSpreadSheet = isArmory ? DEFAULT_SPREADSHEET_ID : DEFAULT_SPREADSHEET_ID_EQUIPMENT;
+            const defaultSpreadSheet = isArmory ? DEFAULT_SPREADSHEET_ID : DEFAULT_SPREADSHEET_ID;
 
             const requests: any[] = [];
             // Add updateCells requests

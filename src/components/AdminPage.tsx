@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
-import { supabase } from "@/lib/supabaseClient"
-import { AgGridReact } from "ag-grid-react";
-import { useNavigate } from "react-router-dom";
+import React, {useEffect, useState, useRef} from "react";
+import {supabase} from "@/lib/supabaseClient"
+import {AgGridReact} from "ag-grid-react";
+import {useNavigate} from "react-router-dom";
 import SignatureCanvas from "react-signature-canvas";
 
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import StatusMessageProps from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
+import {usePermissions} from "@/contexts/PermissionsContext";
 
 type SignaturePad = SignatureCanvas | null;
 
@@ -16,13 +17,13 @@ const AdminPage = () => {
 
     const navigate = useNavigate();
     const sigPadRef = useRef<SignaturePad>(null);
-
+    const {permissions} = usePermissions();
     const [rowData, setRowData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
     const [showDeleteForm, setShowDeleteForm] = useState(false);
     const [emailToDelete, setEmailToDelete] = useState("");
-    const [statusMessage, setStatusMessage] = useState({ text: "", type: "" });
+    const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
     const [formErrors, setFormErrors] = useState({
         email: "",
         name: "",
@@ -74,49 +75,50 @@ const AdminPage = () => {
 
     // Reverse the column order to display from left to right
     const columnDefs = [
-        { field: "פלסם", headerName: "פלסם", width: 80 },
-        { field: "מכלול", headerName: "מכלול", width: 80 },
-        { field: "אלון", headerName: "אלון", width: 80 },
-        { field: "מסייעת", headerName: "מסייעת", width: 100 },
-        { field: "ג", headerName: "ג", width: 80 },
-        { field: "ב", headerName: "ב", width: 80 },
-        { field: "א", headerName: "א", width: 80 },
-        { field: "Logistic", headerName: "Logistic", width: 100 },
-        { field: "munitions", headerName: "Munitions", width: 100 },
-        { field: "Armory", headerName: "Armory", width: 100 },
-        { field: "admin", headerName: "Admin", width: 100 },
-        { 
-            field: "email", 
-            headerName: "Email", 
+        {field: "פלסם", headerName: "פלסם", width: 80},
+        {field: "מכלול", headerName: "מכלול", width: 80},
+        {field: "אלון", headerName: "אלון", width: 80},
+        {field: "מסייעת", headerName: "מסייעת", width: 100},
+        {field: "ג", headerName: "ג", width: 80},
+        {field: "ב", headerName: "ב", width: 80},
+        {field: "א", headerName: "א", width: 80},
+        {field: "Logistic", headerName: "Logistic", width: 100},
+        {field: "munitions", headerName: "Munitions", width: 100},
+        {field: "Armory", headerName: "Armory", width: 100},
+        {field: "admin", headerName: "Admin", width: 100},
+        {
+            field: "email",
+            headerName: "Email",
             width: 200,
-            cellStyle: { 
+            cellStyle: {
                 textAlign: 'right',
                 userSelect: 'text', // Enable text selection
                 cursor: 'text'      // Show text cursor on hover
             }
         },
-        { field: "name", headerName: "Name", width: 150 },
+        {field: "name", headerName: "Name", width: 150},
     ];
 
     // Default column definition to ensure consistent alignment
     const defaultColDef = {
         headerClass: 'ag-right-aligned-header',
-        cellStyle: { textAlign: 'right' },
+        cellStyle: {textAlign: 'right'},
     };
 
     const fetchUsers = async () => {
         // const { data: { user } } = await supabase.auth.getUser();
+        if (permissions['admin']) {
+            const {data, error} = await supabase.from("users").select("*");
 
-        const { data, error } = await supabase.from("users").select("*");
+            if (error) {
+                console.error("Supabase fetch error:", error);
+                setStatusMessage({text: `Error fetching users: ${error.message}`, type: "error"});
+            } else {
+                setRowData(data || []);
+            }
 
-        if (error) {
-            console.error("Supabase fetch error:", error);
-            setStatusMessage({ text: `Error fetching users: ${error.message}`, type: "error" });
-        } else {
-            setRowData(data || []);
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
     useEffect(() => {
@@ -128,9 +130,9 @@ const AdminPage = () => {
         if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
             const dataURL = sigPadRef.current.getCanvas().toDataURL("image/png");
             setNewUser((prev) => ({...prev, signature: dataURL}));
-            setFormErrors(prev => ({ ...prev, signature: "" }));
+            setFormErrors(prev => ({...prev, signature: ""}));
         } else {
-            setFormErrors(prev => ({ ...prev, signature: "חתימה נדרשת" }));
+            setFormErrors(prev => ({...prev, signature: "חתימה נדרשת"}));
         }
     };
 
@@ -138,12 +140,12 @@ const AdminPage = () => {
     const clearSignature = () => {
         if (sigPadRef.current) {
             sigPadRef.current.clear();
-            setNewUser(prev => ({ ...prev, signature: "" }));
+            setNewUser(prev => ({...prev, signature: ""}));
         }
     };
 
     const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value, type, checked } = e.target;
+        const {name, value, type, checked} = e.target;
         setNewUser(prev => ({
             ...prev,
             [name]: type === 'checkbox' ? checked : value
@@ -153,27 +155,27 @@ const AdminPage = () => {
         if (name === 'email') {
             const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
             if (!emailRegex.test(value)) {
-                setFormErrors(prev => ({ ...prev, email: "כתובת אימייל לא תקינה" }));
+                setFormErrors(prev => ({...prev, email: "כתובת אימייל לא תקינה"}));
             } else {
-                setFormErrors(prev => ({ ...prev, email: "" }));
+                setFormErrors(prev => ({...prev, email: ""}));
             }
         }
-        
+
         if (name === 'name') {
             if (value.trim() === "") {
-                setFormErrors(prev => ({ ...prev, name: "שם נדרש" }));
+                setFormErrors(prev => ({...prev, name: "שם נדרש"}));
             } else {
-                setFormErrors(prev => ({ ...prev, name: "" }));
+                setFormErrors(prev => ({...prev, name: ""}));
             }
         }
     };
 
     const addUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         // Validate form
         let formValid = true;
-        const errors = { ...formErrors };
+        const errors = {...formErrors};
 
         // Validate email
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -207,21 +209,21 @@ const AdminPage = () => {
         }
 
         setLoading(true);
-        setStatusMessage({ text: "", type: "" });
+        setStatusMessage({text: "", type: ""});
 
         try {
             // Add user to the users table
-            const { data, error } = await supabase
+            const {data, error} = await supabase
                 .from("users")
                 .insert([newUser])
                 .select();
 
             if (error) {
                 console.error("Error adding user:", error);
-                setStatusMessage({ text: `בעיה בהוספת משתמש`, type: "error" });
+                setStatusMessage({text: `בעיה בהוספת משתמש`, type: "error"});
             } else {
                 console.log("User added successfully:", data);
-                setStatusMessage({ text:"המשתמש " + newUser.name + " נוסף בהצלחה", type: "success" });
+                setStatusMessage({text: "המשתמש " + newUser.name + " נוסף בהצלחה", type: "success"});
                 setNewUser({
                     email: "",
                     name: "",
@@ -247,7 +249,7 @@ const AdminPage = () => {
             }
         } catch (err: any) {
             console.error("Unexpected error:", err);
-            setStatusMessage({ text: `Error: ${err.message}`, type: "error" });
+            setStatusMessage({text: `Error: ${err.message}`, type: "error"});
         } finally {
             setLoading(false);
         }
@@ -255,37 +257,37 @@ const AdminPage = () => {
 
     const deleteUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         if (!emailRegex.test(emailToDelete)) {
-            setStatusMessage({ text: "נא הכנס מייל תיקני", type: "error" });
+            setStatusMessage({text: "נא הכנס מייל תיקני", type: "error"});
             return;
         }
 
         setLoading(true);
-        setStatusMessage({ text: "", type: "" });
+        setStatusMessage({text: "", type: ""});
 
         try {
-            const { data, error } = await supabase
+            const {data, error} = await supabase
                 .from("users")
                 .delete()
                 .eq("email", emailToDelete)
                 .select("*"); // get deleted rows
 
             if (error) {
-                setStatusMessage({ text: `Failed to delete user: ${error.message}`, type: "error" });
+                setStatusMessage({text: `Failed to delete user: ${error.message}`, type: "error"});
             } else {
                 if (!data || data.length === 0) {
-                    setStatusMessage({ text: `המייל ${emailToDelete} לא קיים באפליקציה`, type: "error" });
+                    setStatusMessage({text: `המייל ${emailToDelete} לא קיים באפליקציה`, type: "error"});
                 } else {
-                    setStatusMessage({ text: `המייל ${emailToDelete} נמחק בהצלחה`, type: "success" });
+                    setStatusMessage({text: `המייל ${emailToDelete} נמחק בהצלחה`, type: "success"});
                     setEmailToDelete("");
                     setShowDeleteForm(false);
                     await fetchUsers();
                 }
             }
         } catch (err: any) {
-            setStatusMessage({ text: `Error: ${err.message}`, type: "error" });
+            setStatusMessage({text: `Error: ${err.message}`, type: "error"});
         } finally {
             setLoading(false);
         }
@@ -302,44 +304,46 @@ const AdminPage = () => {
 
     return (
         <div className="container mx-auto p-4">
-            <div className="flex justify-between mb-4">
-                <button
-                    onClick={() => navigate(-1)}
-                    className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-6 rounded"
-                >
-                    חזור
-                </button>
-                <div className="space-x-2">
+            {permissions['admin'] && (
+                <div className="flex justify-between mb-4">
                     <button
-                        onClick={() => {
-                            setShowAddForm(!showAddForm);
-                            if (!showAddForm) {
-                                setShowDeleteForm(false);
-                            }
-                        }}
-                        className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded mx-2"
+                        onClick={() => navigate(-1)}
+                        className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-6 rounded"
                     >
-                        {showAddForm ? 'ביטול' : 'הוסף משתמש'}
+                        חזור
                     </button>
-                    <button
-                        onClick={() => {
-                            setShowDeleteForm(!showDeleteForm);
-                            if (!showDeleteForm) {
-                                setShowAddForm(false);
-                            }
-                        }}
-                        className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded"
-                    >
-                        {showDeleteForm ? 'ביטול' : 'מחק משתמש'}
-                    </button>
+                    <div className="space-x-2">
+                        <button
+                            onClick={() => {
+                                setShowAddForm(!showAddForm);
+                                if (!showAddForm) {
+                                    setShowDeleteForm(false);
+                                }
+                            }}
+                            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded mx-2"
+                        >
+                            {showAddForm ? 'ביטול' : 'הוסף משתמש'}
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowDeleteForm(!showDeleteForm);
+                                if (!showDeleteForm) {
+                                    setShowAddForm(false);
+                                }
+                            }}
+                            className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded"
+                        >
+                            {showDeleteForm ? 'ביטול' : 'מחק משתמש'}
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {statusMessage.text && (
                 <StatusMessageProps
                     isSuccess={statusMessage.type === 'success'}
                     message={statusMessage.text}
-                    onClose={() => setStatusMessage({ text: "", type: "" })}
+                    onClose={() => setStatusMessage({text: "", type: ""})}
                 />
             )}
 
@@ -591,7 +595,7 @@ const AdminPage = () => {
 
             <div
                 className="ag-theme-alpine w-full h-[40vh] ag-rtl mb-8"
-                style={{ direction: 'ltr' }} // Change direction to left-to-right
+                style={{direction: 'ltr'}} // Change direction to left-to-right
             >
                 <style>
                     {`
@@ -600,7 +604,7 @@ const AdminPage = () => {
                     }
                     `}
                 </style>
-                <div className="ag-theme-alpine w-full h-[40vh] ag-rtl mb-8" style={{ direction: "ltr" }}>
+                <div className="ag-theme-alpine w-full h-[40vh] ag-rtl mb-8" style={{direction: "ltr"}}>
                     <AgGridReact
                         rowData={rowData}
                         columnDefs={columnDefs}
