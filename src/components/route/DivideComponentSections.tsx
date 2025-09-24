@@ -5,10 +5,14 @@ import TabsNavigation from "@/components/route/TabsNavigation";
 import {useNavigate} from "react-router-dom";
 import {sheetGroups} from "@/constants";
 import SheetGroupPage from "@/components/SheetGroupPage";
-import Logistic from "@/components/Logistic";
-import Equipment from "@/components/Logistic";
-import EquipmentStock from "@/components/EquipmentStock";
-import EquipmentSum from "@/components/EquipmentSum";
+import Logistic from "@/components/logistics/Logistic";
+import Equipment from "@/components/logistics/Logistic";
+import EquipmentStock from "@/components/logistics/EquipmentStock";
+import EquipmentSum from "@/components/logistics/EquipmentSum";
+import Ammo from "@/components/ammo/Ammo";
+import AmmoStock from "@/components/ammo/AmmoStock";
+import AmmoSum from "@/components/ammo/AmmoSum";
+import AmmoOrders from "@/components/ammo/AmmoOrders";
 
 interface DivideComponentsProps {
     accessToken: string;
@@ -27,8 +31,6 @@ const DivideComponents: React.FC<DivideComponentsProps> = ({accessToken, sheetGr
         setActiveTabIndex(newSheetIndex);
         navigate(`/group/${groupId}/sheet/${newSheetIndex}/row/0`);
     };
-
-
 
 
     return (
@@ -59,8 +61,22 @@ const DivideComponents: React.FC<DivideComponentsProps> = ({accessToken, sheetGr
             ) : (groupIndex === 2) && (
                 <Logistic selectedSheet={selectedSheet}
                 />
-            )
-            }
+            )}
+
+            {/* ammo section */}
+            {(groupIndex === 3 && (selectedSheet.range === 'גדוד' || selectedSheet.range === 'מחסן')) ? (
+                <AmmoStock selectedSheet={selectedSheet}
+                />
+            ) : (groupIndex === 3 && selectedSheet.range === 'סיכום') ? (
+                <AmmoSum selectedSheet={selectedSheet}
+                />
+            ) : (groupIndex === 3 && selectedSheet.range === 'שצל') ? (
+                <AmmoOrders selectedSheet={selectedSheet}
+                />
+            ) : (groupIndex === 3) && (
+                <Ammo selectedSheet={selectedSheet}
+                />
+            )}
 
 
         </>

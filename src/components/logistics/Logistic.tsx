@@ -21,12 +21,13 @@ import {
 import {usePermissions} from "@/contexts/PermissionsContext";
 import SignatureCanvas from "react-signature-canvas";
 import {Label} from "@/components/ui/label";
-import jsPDF from "jspdf";
+// import jsPDF from "/../../../jsPDF";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
 // Import logo for PDF export
 import logoImg from "@/assets/logo.jpeg";
+import jsPDF from "jspdf";
 
 const STATUSES = ['החתמה', 'הזמנה', 'התעצמות'] as const;
 
@@ -38,7 +39,7 @@ interface LogisticProps {
     };
 }
 
-// Define the structure for our Logistic items in Supabase
+// Define the structure for our Ammo items in Supabase
 type LogisticItem = {
     id?: string;
     תאריך: string;
