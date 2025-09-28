@@ -1,10 +1,12 @@
 import {useState} from 'react';
 import useIsMobile from '../../hooks/useIsMobile';
+import {usePermissions} from "@/contexts/PermissionsContext";
 
 interface TabsNavigationProps {
     sheets: Array<{ name: string, range: string }>;
     activeTabIndex: number;
     onTabChange: (index: number) => void;
+    section: string,
     creditButton?: React.ReactNode;
     storedButton?: React.ReactNode;
     downloadedData?: React.ReactNode;
@@ -21,6 +23,7 @@ function TabsNavigation({
                             sheets,
                             activeTabIndex,
                             onTabChange,
+                            section,
                             creditButton,
                             storedButton,
                             downloadedData,
@@ -34,6 +37,7 @@ function TabsNavigation({
                         }: TabsNavigationProps) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const isMobile = useIsMobile();
+    const {permissions} = usePermissions();
 
     const toggleDropdown = () => {
         setIsDropdownOpen(!isDropdownOpen);
@@ -58,36 +62,42 @@ function TabsNavigation({
 
                     {isDropdownOpen && (
                         <ul className="absolute left-0 z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
-                            {sheets.map((sheet, index) => (
-                                <li key={index}>
-                                    <button
-                                        className={`w-full text-left p-3 ${activeTabIndex === index ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
-                                        onClick={() => {
-                                            onTabChange(index);
-                                            setIsDropdownOpen(false);
-                                        }}
-                                    >
-                                        {sheet.name}
-                                    </button>
-                                </li>
-                            ))}
+                            {sheets
+                                .map((sheet, idx) => ({ sheet, idx }))
+                                .filter(({ sheet }) => permissions[sheet.range] || permissions[section])
+                                .map(({ sheet, idx }) => (
+                                    <li key={idx}>
+                                        <button
+                                            className={`w-full text-left p-3 ${activeTabIndex === idx ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
+                                            onClick={() => {
+                                                onTabChange(idx);
+                                                setIsDropdownOpen(false);
+                                            }}
+                                        >
+                                            {sheet.name}
+                                        </button>
+                                    </li>
+                                ))}
                         </ul>
                     )}
                 </div>
             ) : (
                 <ul className="flex flex-wrap -mb-px">
-                    {sheets.map((sheet, index) => (
-                        <li key={index} className="mr-2">
-                            <button
-                                className={`inline-block p-4 ${activeTabIndex === index
-                                    ? 'text-blue-600 border-b-2 border-blue-600 rounded-t-lg'
-                                    : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'}`}
-                                onClick={() => onTabChange(index)}
-                            >
-                                {sheet.name}
-                            </button>
-                        </li>
-                    ))}
+                    {sheets
+                        .map((sheet, idx) => ({ sheet, idx }))
+                        .filter(({ sheet }) => permissions[sheet.range] || permissions[section])
+                        .map(({ sheet, idx }) => (
+                            <li key={idx} className="mr-2">
+                                <button
+                                    className={`inline-block p-4 ${activeTabIndex === idx
+                                        ? 'text-blue-600 border-b-2 border-blue-600 rounded-t-lg'
+                                        : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'}`}
+                                    onClick={() => onTabChange(idx)}
+                                >
+                                    {sheet.name}
+                                </button>
+                            </li>
+                        ))}
                 </ul>
             )}
 

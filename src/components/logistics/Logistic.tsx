@@ -64,7 +64,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     const [rowData, setRowData] = useState<LogisticItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
-
     // Dialog states
     const [open, setOpen] = useState(false);
     const [dataURL, setDataURL] = useState('');
@@ -680,18 +679,19 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
                 // First column: משתמש and חתימת_מחתים
                 doc.setFontSize(12);
-                doc.text(mirrorHebrewSmart('משתמש:'), pageWidth - margin, y, {align: 'right'});
+                doc.text(mirrorHebrewSmart('שם המחתים:'), pageWidth - margin, y, {align: 'right'});
                 y += 6;
                 doc.text(mirrorHebrewSmart(items[0].משתמש || ''), pageWidth - margin - 10, y, {align: 'right'});
 
-                y += 12; // Increased from 10
+                // Add unit/department line between name and signature
+                y += 8;
+                doc.text(mirrorHebrewSmart('מחלקת הלוגיסטיקה'), pageWidth - margin - 10, y, {align: 'right'});
+
+                y += 12; // spacing before signature label
                 doc.text(mirrorHebrewSmart('חתימת מחתים:'), pageWidth - margin, y, {align: 'right'});
-                y += 10; // Increased from 8
+                y += 10; // spacing before signature image
 
-                // Add signature box for מחתים - make it bigger
-                doc.rect(pageWidth / 2, y, columnWidth - 5, 35); // Increased height from 25 to 35
-
-                // Add signature image if available
+                // Remove border box: draw only the signature image if available
                 if (items[0].חתימת_מחתים && items[0].חתימת_מחתים.startsWith('data:image/')) {
                     try {
                         doc.addImage(items[0].חתימת_מחתים, 'PNG', pageWidth / 2 + 5, y + 2, columnWidth - 15, 30); // Increased height
@@ -707,14 +707,15 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 y += 6;
                 doc.text(mirrorHebrewSmart(items[0].שם_החותם || ''), pageWidth / 2 - 15, y, {align: 'right'});
 
-                y += 12; // Increased from 10
+                // Add selected sheet name between signer name and signature
+                y += 8;
+                doc.text(mirrorHebrewSmart(selectedSheet.name || ''), pageWidth / 2 - 15, y, {align: 'right'});
+
+                y += 12; // spacing before signature label
                 doc.text(mirrorHebrewSmart('חתימה:'), pageWidth / 2 - 5, y, {align: 'right'});
-                y += 10; // Increased from 8
+                y += 10; // spacing before signature image
 
-                // Add signature box for חותם - make it bigger
-                doc.rect(margin, y, columnWidth - 5, 35); // Increased height from 25 to 35
-
-                // Add signature image if available
+                // Remove border box: draw only the signature image if available
                 if (items[0].חתימה && items[0].חתימה.startsWith('data:image/')) {
                     try {
                         doc.addImage(items[0].חתימה, 'PNG', margin + 5, y + 2, columnWidth - 15, 30); // Increased height
@@ -824,7 +825,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             }}
                             className="bg-blue-500 hover:bg-blue-600"
                         >
-                            {permissions['Logistic'] ? 'החתמת פריטים' : 'הוספת דרישות'}
+                            {permissions['Logistic'] ? 'החתמה/ זיכוי פריטים' : 'הוספת דרישות'}
                         </Button>
 
                         {(activeTab === 'הזמנה' || activeTab === 'התעצמות') && (
@@ -833,7 +834,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                 className="bg-red-500 hover:bg-red-600"
                                 disabled={selectedRows.length === 0}
                             >
-                                מחק פריטים ({selectedRows.length})
+                                מחק דרישה ({selectedRows.length})
                             </Button>
                         )}
 

@@ -47,7 +47,6 @@ type LogisticItem = {
     תאריך: string;
     מקט?: string;
     פריט: string;
-    מידה: string;
     כמות: number;
     צורך: string;
     הערה?: string;
@@ -69,6 +68,7 @@ type AggregatedItem = {
 type ItemFormData = {
     פריט: string;
     כמות: number;
+    tableType?: TableType;
 };
 
 type TableType = "ammo_ball" | "ammo_explosion";
@@ -91,9 +91,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [transferDialogOpen, setTransferDialogOpen] = useState(false);
 
     // Form data states
-    const [addItems, setAddItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1}]);
-    const [creditItems, setCreditItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1}]);
-    const [transferItems, setTransferItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1}]);
+    const [addItems, setAddItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, tableType: "ammo_ball"}]);
+    const [creditItems, setCreditItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, tableType: "ammo_ball"}]);
+    const [transferItems, setTransferItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, tableType: "ammo_ball"}]);
 
     // Grid configuration
     const ballGridRef = useRef<AgGridReact>(null);
@@ -123,7 +123,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
     // Fetch data from Supabase
     const fetchData = async () => {
-        if (permissions['Logistic']) {
+        if (permissions['munitions']) {
             try {
                 setLoading(true);
                 
@@ -142,7 +142,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 if (ballResponse.error) {
                     console.error("Error fetching ball data:", ballResponse.error);
                     setStatusMessage({
-                        text: `שגיאה בטעינת נתוני תחמושת כדורית: ${ballResponse.error.message}`,
+                        text: `שגיאה בטעינת נתוני תחמושת קליעית: ${ballResponse.error.message}`,
                         type: "error"
                     });
                 } 
@@ -238,11 +238,13 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 return;
             }
 
-            // Prepare items for insertion
-            const itemsToInsert = validItems.map(item => ({
+            // Prepare items for insertion (group by per-item tableType)
+            const byTable: Record<TableType, any[]> = { ammo_ball: [], ammo_explosion: [] };
+            validItems.forEach(item => {
+                const table = (item.tableType || selectedTable);
+                byTable[table].push({
                 תאריך: new Date().toLocaleString('he-IL'),
                 פריט: item.פריט,
-                מידה: '',
                 כמות: item.כמות,
                 צורך: 'ניפוק',
                 סטטוס: 'החתמה',
@@ -250,15 +252,22 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 משתמש: permissions['name'] || '',
                 פלוגה: selectedSheet.range,
                 חתימת_מחתים: ''
-            }));
+                });
+            });
 
-            // Insert into Supabase with the selected table
-            const {error} = await supabase.from(selectedTable).insert(itemsToInsert);
+            // Insert per table
+            let errorMsg = "";
+            for (const table of ["ammo_ball", "ammo_explosion"] as TableType[]) {
+                if (byTable[table].length) {
+                    const { error } = await supabase.from(table).insert(byTable[table]);
+                    if (error) errorMsg += `${table}: ${error.message} `;
+                }
+            }
 
-            if (error) {
-                console.error("Error inserting items:", error);
+            if (errorMsg) {
+                console.error("Error inserting items:", errorMsg);
                 setStatusMessage({
-                    text: `שגיאה בהוספת פריטים: ${error.message}`,
+                    text: `שגיאה בהוספת פריטים: ${errorMsg}`,
                     type: "error"
                 });
             } else {
@@ -267,7 +276,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setAddDialogOpen(false);
-                setAddItems([{פריט: "", כמות: 1}]);
+                setAddItems([{פריט: "", כמות: 1, tableType: selectedTable}]);
                 fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -297,11 +306,13 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 return;
             }
 
-            // Prepare items for insertion
-            const itemsToInsert = validItems.map(item => ({
+            // Prepare items for insertion (group by per-item tableType)
+            const byTable: Record<TableType, any[]> = { ammo_ball: [], ammo_explosion: [] };
+            validItems.forEach(item => {
+                const table = (item.tableType || selectedTable);
+                byTable[table].push({
                 תאריך: new Date().toLocaleString('he-IL'),
                 פריט: item.פריט,
-                מידה: '',
                 כמות: item.כמות,
                 צורך: 'זיכוי',
                 סטטוס: 'החתמה',
@@ -309,15 +320,22 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 משתמש: permissions['name'] || '',
                 פלוגה: selectedSheet.range,
                 חתימת_מחתים: ''
-            }));
+                });
+            });
 
-            // Insert into Supabase with the selected table
-            const {error} = await supabase.from(selectedTable).insert(itemsToInsert);
+            // Insert per table
+            let errorMsg = "";
+            for (const table of ["ammo_ball", "ammo_explosion"] as TableType[]) {
+                if (byTable[table].length) {
+                    const { error } = await supabase.from(table).insert(byTable[table]);
+                    if (error) errorMsg += `${table}: ${error.message} `;
+                }
+            }
 
-            if (error) {
-                console.error("Error crediting items:", error);
+            if (errorMsg) {
+                console.error("Error crediting items:", errorMsg);
                 setStatusMessage({
-                    text: `שגיאה בזיכוי פריטים: ${error.message}`,
+                    text: `שגיאה בזיכוי פריטים: ${errorMsg}`,
                     type: "error"
                 });
             } else {
@@ -326,7 +344,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setCreditDialogOpen(false);
-                setCreditItems([{פריט: "", כמות: 1}]);
+                setCreditItems([{פריט: "", כמות: 1, tableType: selectedTable}]);
                 fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -356,15 +374,14 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 return;
             }
 
-            // Prepare items for insertion - create pairs of entries
-            const itemsToInsert = [];
-
+            // Prepare items for insertion - create pairs of entries, grouped by per-item tableType
+            const byTable: Record<TableType, any[]> = { ammo_ball: [], ammo_explosion: [] };
             for (const item of validItems) {
+                const table = (item.tableType || selectedTable);
                 // Credit from current unit (גדוד)
-                itemsToInsert.push({
+                byTable[table].push({
                     תאריך: new Date().toLocaleString('he-IL'),
                     פריט: item.פריט,
-                    מידה: '',
                     כמות: item.כמות,
                     צורך: 'זיכוי',
                     סטטוס: 'החתמה',
@@ -375,10 +392,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 });
 
                 // Issue to storage (מחסן)
-                itemsToInsert.push({
+                byTable[table].push({
                     תאריך: new Date().toLocaleString('he-IL'),
                     פריט: item.פריט,
-                    מידה: '',
                     כמות: item.כמות,
                     צורך: 'ניפוק',
                     סטטוס: 'החתמה',
@@ -389,13 +405,19 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 });
             }
 
-            // Insert into Supabase using the selected table
-            const {error} = await supabase.from(selectedTable).insert(itemsToInsert);
+            // Insert per table
+            let errorMsg = "";
+            for (const table of ["ammo_ball", "ammo_explosion"] as TableType[]) {
+                if (byTable[table].length) {
+                    const { error } = await supabase.from(table).insert(byTable[table]);
+                    if (error) errorMsg += `${table}: ${error.message} `;
+                }
+            }
 
-            if (error) {
-                console.error("Error transferring items:", error);
+            if (errorMsg) {
+                console.error("Error transferring items:", errorMsg);
                 setStatusMessage({
-                    text: `שגיאה בהעברת פריטים: ${error.message}`,
+                    text: `שגיאה בהעברת פריטים: ${errorMsg}`,
                     type: "error"
                 });
             } else {
@@ -404,7 +426,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setTransferDialogOpen(false);
-                setTransferItems([{פריט: "", כמות: 1}]);
+                setTransferItems([{פריט: "", כמות: 1, tableType: selectedTable}]);
                 fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -420,7 +442,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
     // Helper function to add an empty item to a form
     const addEmptyItem = (items: ItemFormData[], setItems: React.Dispatch<React.SetStateAction<ItemFormData[]>>) => {
-        setItems([...items, {פריט: "", כמות: 1}]);
+        setItems([...items, {פריט: "", כמות: 1, tableType: selectedTable}]);
     };
 
     // Helper function to remove an item from a form
@@ -445,6 +467,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
         const newItems = [...items];
         if (field === 'כמות') {
             newItems[index][field] = typeof value === 'string' ? parseInt(value) || 0 : value;
+        } else if (field === 'tableType') {
+            // Ensure correct union type assignment for TableType
+            newItems[index].tableType = value as TableType;
         } else {
             newItems[index][field] = value as string;
         }
@@ -466,7 +491,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             )}
 
             {/* Buttons row */}
-            {permissions['Logistic'] && (
+            {permissions['munitions'] && (
                 <div className="flex flex-col sm:flex-row gap-2 mb-4">
                     <Button
                         onClick={() => setAddDialogOpen(true)}
@@ -493,7 +518,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
             {/* Ammo Ball Data Grid */}
             <div className="mb-8">
-                <h2 className="text-xl font-bold mb-4 text-right">תחמושת כדורית</h2>
+                <h2 className="text-xl font-bold mb-4 text-right">קליעית</h2>
                 <div className="ag-theme-alpine rtl" style={{height: "40vh", width: "40vh", direction: "rtl"}}>
                     <AgGridReact
                         ref={ballGridRef}
@@ -518,7 +543,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
             {/* Ammo Explosion Data Grid */}
             <div className="mt-8">
-                <h2 className="text-xl font-bold mb-4 text-right">תחמושת נפיצה</h2>
+                <h2 className="text-xl font-bold mb-4 text-right">נפיצה</h2>
                 <div className="ag-theme-alpine rtl" style={{height: "40vh", width: "40vh", direction: "rtl"}}>
                     <AgGridReact
                         ref={explosionGridRef}
@@ -550,27 +575,28 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
                     <div className="space-y-4 py-4">
                         {/* Table selection */}
-                        <div className="mb-4">
-                            <Label className="text-right block mb-2">סוג תחמושת</Label>
-                            <Select 
-                                defaultValue="ammo_ball"
-                                onValueChange={(value) => setSelectedTable(value as TableType)}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="בחר סוג תחמושת" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="ammo_ball">תחמושת כדורית</SelectItem>
-                                    <SelectItem value="ammo_explosion">תחמושת נפיצה</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
                         
                         {addItems.map((item, index) => (
                             <div key={index} className="flex items-center gap-4">
+                                <div className="w-40">
+                                    <Label className="text-right block mb-2">סוג תחמושת</Label>
+                                    <Select
+                                        value={(item.tableType || selectedTable)}
+                                        onValueChange={(val) => updateItem(index, 'tableType' as any, val, addItems, setAddItems)}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="בחר סוג תחמושת" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ammo_ball">קליעית</SelectItem>
+                                            <SelectItem value="ammo_explosion">נפיצה</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                                 <div className="flex-1">
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
-                                        options={selectedTable === "ammo_ball" ? 
+                                        options={(item.tableType || selectedTable) === "ammo_ball" ? 
                                             uniqueBallItems.map(name => ({value: name, label: name})) :
                                             uniqueExplosionItems.map(name => ({value: name, label: name}))}
                                         value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
@@ -675,77 +701,66 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
                     <div className="space-y-4 py-4">
                         {/* Table selection */}
-                        <div className="mb-4">
-                            <Label className="text-right block mb-2">סוג תחמושת</Label>
-                            <Select 
-                                defaultValue="ammo_ball"
-                                onValueChange={(value) => setSelectedTable(value as TableType)}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="בחר סוג תחמושת" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="ammo_ball">תחמושת כדורית</SelectItem>
-                                    <SelectItem value="ammo_explosion">תחמושת נפיצה</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
                         
                         {creditItems.map((item, index) => (
-                            <div key={index} className="flex items-center gap-4">
-                                <div className="flex-1">
-                                    <Label className="text-right block mb-2">פריט</Label>
-                                    <CreatableSelect
-                                        options={selectedTable === "ammo_ball" ? 
-                                            uniqueBallItems.map(name => ({value: name, label: name})) :
-                                            uniqueExplosionItems.map(name => ({value: name, label: name}))}
-                                        value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
-                                        onChange={(selectedOption) => {
-                                            updateItem(
+                            <div key={index} className="flex items-start gap-4 mb-4">
+                                <div className="w-40">
+                                    <Label className="text-right block mb-2">סוג תחמושת</Label>
+                                    <Select
+                                        value={(item.tableType || selectedTable)}
+                                        onValueChange={(val) => updateItem(index, 'tableType' as any, val, creditItems, setCreditItems)}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="בחר סוג תחמושת" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ammo_ball">קליעית</SelectItem>
+                                            <SelectItem value="ammo_explosion">נפיצה</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="flex-1 flex gap-2">
+                                    <div className="flex-1">
+                                        <Label className="text-right block mb-2">פריט</Label>
+                                        <Select
+                                            value={item.פריט || ""}
+                                            onValueChange={(value) => updateItem(
                                                 index,
                                                 'פריט',
-                                                selectedOption ? selectedOption.value : '',
+                                                value,
                                                 creditItems,
                                                 setCreditItems
-                                            );
-                                        }}
-                                        isSearchable
-                                        placeholder="בחר פריט"
-                                        classNamePrefix="select"
-                                        styles={{
-                                            control: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            menu: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            option: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            })
-                                        }}
-                                    />
-                                </div>
+                                            )}
+                                        >
+                                            <SelectTrigger className="text-right">
+                                                <SelectValue placeholder="בחר פריט" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {((item.tableType || selectedTable) === "ammo_ball" ? uniqueBallItems : uniqueExplosionItems)
+                                                    .map(name => (
+                                                        <SelectItem key={name} value={name}>{name}</SelectItem>
+                                                    ))
+                                                }
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
-                                <div className="w-20">
-                                    <Label className="text-right block mb-2">כמות</Label>
-                                    <Input
-                                        type="number"
-                                        value={item.כמות}
-                                        onChange={(e) => updateItem(
-                                            index,
-                                            'כמות',
-                                            e.target.value,
-                                            creditItems,
-                                            setCreditItems
-                                        )}
-                                        min="1"
-                                        className="text-right"
-                                    />
+                                    <div className="w-24">
+                                        <Label className="text-right block mb-2">כמות</Label>
+                                        <Input
+                                            type="number"
+                                            value={item.כמות}
+                                            onChange={(e) => updateItem(
+                                                index,
+                                                'כמות',
+                                                e.target.value,
+                                                creditItems,
+                                                setCreditItems
+                                            )}
+                                            min="1"
+                                            className="text-right"
+                                        />
+                                    </div>
                                 </div>
 
                                 <Button
@@ -753,6 +768,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                     size="icon"
                                     onClick={() => removeItem(index, creditItems, setCreditItems)}
                                     disabled={creditItems.length === 1}
+                                    className="mt-8"
                                 >
                                     <Trash className="h-4 w-4"/>
                                 </Button>
@@ -799,77 +815,66 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
                     <div className="space-y-4 py-4">
                         {/* Table selection */}
-                        <div className="mb-4">
-                            <Label className="text-right block mb-2">סוג תחמושת</Label>
-                            <Select 
-                                defaultValue="ammo_ball"
-                                onValueChange={(value) => setSelectedTable(value as TableType)}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="בחר סוג תחמושת" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="ammo_ball">תחמושת כדורית</SelectItem>
-                                    <SelectItem value="ammo_explosion">תחמושת נפיצה</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
                         
                         {transferItems.map((item, index) => (
-                            <div key={index} className="flex items-center gap-4">
-                                <div className="flex-1">
-                                    <Label className="text-right block mb-2">פריט</Label>
-                                    <CreatableSelect
-                                        options={selectedTable === "ammo_ball" ? 
-                                            uniqueBallItems.map(name => ({value: name, label: name})) :
-                                            uniqueExplosionItems.map(name => ({value: name, label: name}))}
-                                        value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
-                                        onChange={(selectedOption) => {
-                                            updateItem(
+                            <div key={index} className="flex items-start gap-4 mb-4">
+                                <div className="w-40">
+                                    <Label className="text-right block mb-2">סוג תחמושת</Label>
+                                    <Select
+                                        value={(item.tableType || selectedTable)}
+                                        onValueChange={(val) => updateItem(index, 'tableType' as any, val, transferItems, setTransferItems)}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="בחר סוג תחמושת" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ammo_ball">קליעית</SelectItem>
+                                            <SelectItem value="ammo_explosion">נפיצה</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="flex-1 flex gap-2">
+                                    <div className="flex-1">
+                                        <Label className="text-right block mb-2">פריט</Label>
+                                        <Select
+                                            value={item.פריט || ""}
+                                            onValueChange={(value) => updateItem(
                                                 index,
                                                 'פריט',
-                                                selectedOption ? selectedOption.value : '',
+                                                value,
                                                 transferItems,
                                                 setTransferItems
-                                            );
-                                        }}
-                                        isSearchable
-                                        placeholder="בחר פריט"
-                                        classNamePrefix="select"
-                                        styles={{
-                                            control: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            menu: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            option: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            })
-                                        }}
-                                    />
-                                </div>
+                                            )}
+                                        >
+                                            <SelectTrigger className="text-right">
+                                                <SelectValue placeholder="בחר פריט" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {((item.tableType || selectedTable) === "ammo_ball" ? uniqueBallItems : uniqueExplosionItems)
+                                                    .map(name => (
+                                                        <SelectItem key={name} value={name}>{name}</SelectItem>
+                                                    ))
+                                                }
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
-                                <div className="w-20">
-                                    <Label className="text-right block mb-2">כמות</Label>
-                                    <Input
-                                        type="number"
-                                        value={item.כמות}
-                                        onChange={(e) => updateItem(
-                                            index,
-                                            'כמות',
-                                            e.target.value,
-                                            transferItems,
-                                            setTransferItems
-                                        )}
-                                        min="1"
-                                        className="text-right"
-                                    />
+                                    <div className="w-24">
+                                        <Label className="text-right block mb-2">כמות</Label>
+                                        <Input
+                                            type="number"
+                                            value={item.כמות}
+                                            onChange={(e) => updateItem(
+                                                index,
+                                                'כמות',
+                                                e.target.value,
+                                                transferItems,
+                                                setTransferItems
+                                            )}
+                                            min="1"
+                                            className="text-right"
+                                        />
+                                    </div>
                                 </div>
 
                                 <Button
@@ -877,6 +882,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                     size="icon"
                                     onClick={() => removeItem(index, transferItems, setTransferItems)}
                                     disabled={transferItems.length === 1}
+                                    className="mt-8"
                                 >
                                     <Trash className="h-4 w-4"/>
                                 </Button>
