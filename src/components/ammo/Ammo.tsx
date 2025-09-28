@@ -9,6 +9,7 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/c
 import {Check, ChevronsUpDown, Trash} from "lucide-react";
 import {ColDef} from "ag-grid-community";
 import CreatableSelect from 'react-select/creatable';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 
 import {
     Dialog,
@@ -28,7 +29,8 @@ import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageP
 // Import logo for PDF export
 import logoImg from "@/assets/logo.jpeg";
 
-const STATUSES = ['החתמה', 'הזמנה', 'התעצמות'] as const;
+const STATUSES = ['החתמה', 'הזמנה'] as const;
+type AmmoTableType = 'ammo_ball' | 'ammo_explosion';
 
 interface LogisticProps {
     selectedSheet: {
@@ -38,16 +40,14 @@ interface LogisticProps {
     };
 }
 
-// Define the structure for our Logistic items in Supabase
+// Define the structure for our Ammo items in Supabase
 type LogisticItem = {
     id?: string;
     תאריך: string;
     מקט?: string;
     פריט: string;
-    מידה: string;
     כמות: number;
     צורך: string;
-    הערה?: string;
     סטטוס: string;
     משתמש: string;
     נקרא?: string;
@@ -58,11 +58,12 @@ type LogisticItem = {
     created_at?: string;
 };
 
-const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
+const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const {permissions} = usePermissions();
     const [rowData, setRowData] = useState<LogisticItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
+    const [selectedTable, setSelectedTable] = useState<AmmoTableType>('ammo_ball');
 
     // Dialog states
     const [open, setOpen] = useState(false);
@@ -110,14 +111,13 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Default item template for form
     const defaultItem = {
         פריט: '',
-        מידה: '',
         כמות: 1,
         צורך: 'ניפוק',
-        הערה: '',
         שם_החותם: '',
         חתימה: '',
         סטטוס: 'הזמנה',
-        חתימת_מחתים: '',
+        משתמש: '',
+        פלוגה: selectedSheet.range,
     };
 
     // Form items state (dynamic rows)
@@ -129,21 +129,24 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     function getEmptyItem(): Partial<LogisticItem> {
         return {
             פריט: '',
-            מידה: '',
             כמות: 1,
             צורך: 'ניפוק',
-            הערה: ''
         };
     }
 
+    // Get the current table name based on selected type
+    const getCurrentTableName = (): string => {
+        return selectedTable;
+    };
+
     // Fetch data from Supabase
     const fetchData = async () => {
-
-        if (permissions[selectedSheet.range] || permissions['Logistic']) {
+        if (permissions[selectedSheet.range] || permissions['munitions']) {
             try {
                 setLoading(true);
+                const tableName = getCurrentTableName();
                 const {data, error} = await supabase
-                    .from("logistic")
+                    .from(tableName)
                     .select("*")
                     .eq("פלוגה", selectedSheet.range);
 
@@ -174,11 +177,11 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Initial data fetch
     useEffect(() => {
         fetchData();
-    }, [selectedSheet.range]);
+    }, [selectedSheet.range, selectedTable]);
 
     // Group data by סטטוס
     const dataByStatus = useMemo(() => {
-        const grouped = {הזמנה: [], החתמה: [], התעצמות: []} as Record<string, LogisticItem[]>;
+        const grouped = {הזמנה: [], החתמה: []} as Record<string, LogisticItem[]>;
 
         // First group the items by status
         rowData.forEach(item => {
@@ -190,8 +193,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
         });
 
-        // Now sort הזמנה and התעצמות items by date (newest first)
-        ['הזמנה', 'התעצמות'].forEach(status => {
+        // Now sort הזמנה items by date (newest first)
+        ['הזמנה'].forEach(status => {
             if (grouped[status] && grouped[status].length > 0) {
                 grouped[status].sort((a, b) => {
                     const dateA = new Date(a.תאריך || '').getTime();
@@ -268,7 +271,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 // New item, add to map
                 itemSummary.set(item, {
                     פריט: item,
-                    מידה: row.מידה || '',
                     כמות: quantity,
                     תאריך: row.תאריך || '',
                     משתמש: row.משתמש || '',
@@ -298,12 +300,11 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             {field: 'פריט' as keyof LogisticItem, headerName: 'פריט', sortable: true, filter: true, width: 110},
             {field: 'כמות' as keyof LogisticItem, headerName: 'כמות', sortable: true, filter: true, width: 70,},
             {field: 'צורך' as keyof LogisticItem, headerName: 'צורך', sortable: true, filter: true, width: 80},
-            {field: 'מידה' as keyof LogisticItem, headerName: 'מידה', sortable: true, filter: true, width: 70},
             {
                 field: 'סטטוס' as keyof LogisticItem, headerName: 'סטטוס', sortable: true, filter: true, width: 100,
-                editable: permissions['Logistic'],
+                editable: permissions['munitions'],
                 cellEditor: 'agSelectCellEditor',
-                cellEditorParams: {values: ['הזמנה', 'התעצמות', 'החתמה']},
+                cellEditorParams: {values: ['הזמנה', 'החתמה']},
                 onCellValueChanged: async (params: any) => {
                     await handleStatusChange(params);
                 }
@@ -314,14 +315,13 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 sortable: true,
                 filter: true,
                 width: 80,
-                editable: permissions['Logistic'],
+                editable: permissions['munitions'],
                 cellEditor: 'agSelectCellEditor',
                 cellEditorParams: {values: ['כן', 'לא']},
                 onCellValueChanged: async (params: any) => {
                     await handleReadStatusChange(params);
                 }
             },
-            {field: 'הערה' as keyof LogisticItem, headerName: 'הערה', sortable: true, filter: true, width: 110},
             {field: 'משתמש' as keyof LogisticItem, headerName: 'דורש', sortable: true, filter: true, width: 110},
         ];
 
@@ -337,10 +337,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         // Create items array from matching rows
         const itemsToShow = matchingRows.map(row => ({
             פריט: row.פריט || '',
-            מידה: row.מידה || '',
             כמות: (row.צורך === 'זיכוי') ? -row.כמות : row.כמות || 1,
             צורך: row.צורך || 'ניפוק',
-            הערה: row.הערה || '',
         }));
 
         // Set the items state to populate the dialog
@@ -360,8 +358,9 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
         try {
             // Update the status in Supabase
+            const tableName = getCurrentTableName();
             const {error} = await supabase
-                .from('logistic')
+                .from(tableName)
                 .update({סטטוס: newStatus})
                 .eq('id', id);
 
@@ -391,27 +390,18 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     const handleReadStatusChange = async (params: any) => {
         const {data} = params;
         const id = data.id;
-        const ddate = data['תאריך'];
-        const ditem = data['פריט'];
-        const damount = data['כמות'];
         const newReadStatus = params.newValue;
 
         try {
             // Update the read status in Supabase
-            // console.log(newReadStatus);
-            // console.log(id);
-            // console.log("id value:", id, typeof id);
-
+            const tableName = getCurrentTableName();
             const {data, error} = await supabase
-                .from("logistic")
+                .from(tableName)
                 .update({"נקרא": newReadStatus}) // key must be quoted
                 .eq("id", id)
-                // .eq("פריט", ditem)
-                // .eq("כמות", damount)
                 .select();
 
             console.log("Updated:", data, "Error:", error);
-
 
             if (error) {
                 console.error("Error updating read status:", error);
@@ -442,7 +432,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     const handleAddItem = async () => {
         setStatusMessage({text: "", type: ""});
 
-
         // Input validation
         const invalidItems = items.filter(item => !item.פריט);
         console.log("invalidItems", invalidItems);
@@ -457,13 +446,12 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         let formattedItems = items.map(item => ({
             תאריך: formattedDate,
             פריט: item.פריט,
-            מידה: item.מידה,
             כמות: (item.צורך === 'זיכוי' && item.כמות) ? -item.כמות : item.כמות,
             שם_החותם: signerName,
             חתימת_מחתים: permissions['signature'] ? String(permissions['signature']) : '',
             חתימה: dataURL,
-            צורך: item.צורך || 'ניפוק',
-            הערה: item.הערה || '',
+            // Force זיכוי for non-munitions users
+            צורך: !permissions['munitions'] ? 'זיכוי' : (item.צורך || 'ניפוק'),
             סטטוס: dialogMode,
             משתמש: permissions['name'] || '',
             פלוגה: selectedSheet.range,
@@ -475,14 +463,12 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             const battalionEntries = items.map(item => ({
                 תאריך: formattedDate,
                 פריט: item.פריט,
-                מידה: '',
                 // Opposite quantity logic: negative for issues, positive for credits
                 כמות: (item.צורך === 'זיכוי' && item.כמות !== undefined) ? (item.כמות || 0) : -(item.כמות || 0),
                 שם_החותם: '',
                 חתימת_מחתים: '',
                 חתימה: '',
                 צורך: item.צורך || 'ניפוק',
-                הערה: item.הערה || '',
                 סטטוס: dialogMode,
                 משתמש: permissions['name'] || '',
                 פלוגה: 'גדוד', // Battalion inventory
@@ -494,11 +480,12 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
         try {
             setLoading(true);
+            const tableName = getCurrentTableName();
 
             console.log('before insert: ', formattedItems)
             // Insert new items to Supabase
             const {data, error} = await supabase
-                .from('logistic')
+                .from(tableName)
                 .insert(formattedItems)
                 .select();
 
@@ -525,7 +512,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     };
 
     const handleDeleteSelectedItems = async () => {
-
         try {
             setLoading(true);
 
@@ -535,9 +521,10 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
             // Extract IDs from selected rows
             const selectedIds = selectedRows.map(row => row.id);
+            const tableName = getCurrentTableName();
 
             const {error} = await supabase
-                .from('logistic')
+                .from(tableName)
                 .delete()
                 .in('id', selectedIds);
 
@@ -679,18 +666,19 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
                 // First column: משתמש and חתימת_מחתים
                 doc.setFontSize(12);
-                doc.text(mirrorHebrewSmart('משתמש:'), pageWidth - margin, y, {align: 'right'});
+                doc.text(mirrorHebrewSmart('שם המחתים:'), pageWidth - margin, y, {align: 'right'});
                 y += 6;
                 doc.text(mirrorHebrewSmart(items[0].משתמש || ''), pageWidth - margin - 10, y, {align: 'right'});
 
-                y += 12; // Increased from 10
+                // Add unit/department line between name and signature
+                y += 8;
+                doc.text(mirrorHebrewSmart('מחלקת הלוגיסטיקה'), pageWidth - margin - 10, y, {align: 'right'});
+
+                y += 12; // spacing before signature label
                 doc.text(mirrorHebrewSmart('חתימת מחתים:'), pageWidth - margin, y, {align: 'right'});
-                y += 10; // Increased from 8
+                y += 10; // spacing before signature image
 
-                // Add signature box for מחתים - make it bigger
-                doc.rect(pageWidth / 2, y, columnWidth - 5, 35); // Increased height from 25 to 35
-
-                // Add signature image if available
+                // Remove border box: draw only the signature image if available
                 if (items[0].חתימת_מחתים && items[0].חתימת_מחתים.startsWith('data:image/')) {
                     try {
                         doc.addImage(items[0].חתימת_מחתים, 'PNG', pageWidth / 2 + 5, y + 2, columnWidth - 15, 30); // Increased height
@@ -706,14 +694,15 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 y += 6;
                 doc.text(mirrorHebrewSmart(items[0].שם_החותם || ''), pageWidth / 2 - 15, y, {align: 'right'});
 
-                y += 12; // Increased from 10
+                // Add selected sheet name between signer name and signature
+                y += 8;
+                doc.text(mirrorHebrewSmart(selectedSheet.name || ''), pageWidth / 2 - 15, y, {align: 'right'});
+
+                y += 12; // spacing before signature label
                 doc.text(mirrorHebrewSmart('חתימה:'), pageWidth / 2 - 5, y, {align: 'right'});
-                y += 10; // Increased from 8
+                y += 10; // spacing before signature image
 
-                // Add signature box for חותם - make it bigger
-                doc.rect(margin, y, columnWidth - 5, 35); // Increased height from 25 to 35
-
-                // Add signature image if available
+                // Remove border box: draw only the signature image if available
                 if (items[0].חתימה && items[0].חתימה.startsWith('data:image/')) {
                     try {
                         doc.addImage(items[0].חתימה, 'PNG', margin + 5, y + 2, columnWidth - 15, 30); // Increased height
@@ -806,14 +795,26 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 />
             )}
 
-            {(permissions[selectedSheet.range] || permissions['Logistic']) && (
+            {/* Table Selection Tabs */}
+            <Tabs 
+                defaultValue="ammo_ball" 
+                onValueChange={(value) => setSelectedTable(value as AmmoTableType)}
+                className="mb-4"
+            >
+                <TabsList className="grid grid-cols-2 mb-2">
+                    <TabsTrigger value="ammo_ball">קליעית</TabsTrigger>
+                    <TabsTrigger value="ammo_explosion">נפיצה</TabsTrigger>
+                </TabsList>
+            </Tabs>
+
+            {(permissions[selectedSheet.range] || permissions['munitions']) && (
                 <div className="flex justify-between mb-4">
                     <h2 className="text-2xl font-bold">{selectedSheet.name}</h2>
 
                     <div className="space-x-2">
                         <Button
                             onClick={() => {
-                                if (permissions['Logistic']) {
+                                if (permissions['munitions']) {
                                     setDialogMode('החתמה');
                                     setSignatureDialogOpen(true);
                                 } else {
@@ -823,16 +824,16 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             }}
                             className="bg-blue-500 hover:bg-blue-600"
                         >
-                            {permissions['Logistic'] ? 'החתמת פריטים' : 'הוספת דרישות'}
+                            {permissions['munitions'] ? 'החתמת תחמושת' : 'דיווח שצל'}
                         </Button>
 
-                        {(activeTab === 'הזמנה' || activeTab === 'התעצמות') && (
+                        {(permissions['munitions']) && (
                             <Button
                                 onClick={handleDeleteSelectedItems}
                                 className="bg-red-500 hover:bg-red-600"
                                 disabled={selectedRows.length === 0}
                             >
-                                מחק פריטים ({selectedRows.length})
+                                מחיקת דיווח ({selectedRows.length})
                             </Button>
                         )}
 
@@ -868,37 +869,35 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
             {/* AG Grid component with improved layout */}
             <div className="ag-theme-alpine w-[110vh] h-[45vh] mb-8 overflow-auto" style={{maxWidth: '100%'}}>
-                <div className="ag-theme-alpine w-[110vh] h-[45vh] mb-8 overflow-auto" style={{maxWidth: '100%'}}>
-                    <AgGridReact
-                        ref={gridRef}
-                        rowData={activeTab === 'החתמה' ? summarizedSignatureData : dataByStatus[activeTab] || []}
-                        columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
-                        enableRtl={true}
-                        defaultColDef={{
-                            ...defaultColDef,
-                            checkboxSelection: activeTab !== 'החתמה' ? (params) => {
-                                // This will make the checkbox appear only in the first column
-                                return params.column.getColId() === 'checkboxCol';
-                            } : false
-                        }}
-                        suppressHorizontalScroll={false}
-                        rowSelection={activeTab !== 'החתמה' ? 'multiple' : undefined}
-                        suppressRowClickSelection={true} /* Changed to always true to prevent row selection on click */
-                        onSelectionChanged={(params) => {
-                            const selectedRows = params.api.getSelectedRows();
-                            setSelectedRows(selectedRows);
-                        }}
-                        onCellClicked={(event) => {
-                            if (permissions['Logistic'] && event.colDef && event.colDef.field === 'תאריך')
-                                handleDateClicked(event.data)
-                        }}
-                        getRowStyle={(params) => {
-                            if (params.data && params.data.נקרא === 'כן') {
-                                return {backgroundColor: '#ffcccc'}; // Light red background
-                            }
-                        }}
-                    />
-                </div>
+                <AgGridReact
+                    ref={gridRef}
+                    rowData={activeTab === 'החתמה' ? summarizedSignatureData : dataByStatus[activeTab] || []}
+                    columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
+                    enableRtl={true}
+                    defaultColDef={{
+                        ...defaultColDef,
+                        checkboxSelection: activeTab !== 'החתמה' ? (params) => {
+                            // This will make the checkbox appear only in the first column
+                            return params.column.getColId() === 'checkboxCol';
+                        } : false
+                    }}
+                    suppressHorizontalScroll={false}
+                    rowSelection={activeTab !== 'החתמה' ? 'multiple' : undefined}
+                    suppressRowClickSelection={true} /* Changed to always true to prevent row selection on click */
+                    onSelectionChanged={(params) => {
+                        const selectedRows = params.api.getSelectedRows();
+                        setSelectedRows(selectedRows);
+                    }}
+                    onCellClicked={(event) => {
+                        if (permissions['munitions'] && event.colDef && event.colDef.field === 'תאריך')
+                            handleDateClicked(event.data)
+                    }}
+                    getRowStyle={(params) => {
+                        if (params.data && params.data.נקרא === 'כן') {
+                            return {backgroundColor: '#ffcccc'}; // Light red background
+                        }
+                    }}
+                />
             </div>
 
             {/* Item form dialog */}
@@ -906,7 +905,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
                     <DialogHeader>
                         <DialogTitle
-                            className="text-right">{dialogMode === 'הזמנה' ? 'דרישות' : 'החתם על פריט'}</DialogTitle>
+                            className="text-right">{dialogMode === 'הזמנה' ? 'דיווח שצל' : 'החתם על פריט'}</DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-4 py-4 text-right">
@@ -914,98 +913,94 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             <div key={index} className="grid grid-cols-3 gap-4 mb-4">
                                 <div>
                                     <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
-                                    <CreatableSelect
-                                        id={`item-${index}`}
-                                        options={uniqueItemNames.map(name => ({ value: name, label: name }))}
-                                        value={item.פריט ? { value: item.פריט, label: item.פריט } : null}
-                                        getOptionLabel={(option: any) => option.label}
-                                        getOptionValue={(option: any) => option.value}
-                                        onChange={(selectedOption) => {
-                                            const newItems = [...items];
-                                            // If no option is selected (user cleared the field)
-                                            if (!selectedOption) {
-                                                newItems[index].פריט = '';
+                                    {permissions['munitions'] ? (
+                                        <CreatableSelect
+                                            id={`item-${index}`}
+                                            options={uniqueItemNames.map(name => ({ value: name, label: name }))}
+                                            value={item.פריט ? { value: item.פריט, label: item.פריט } : null}
+                                            getOptionLabel={(option: any) => option.label}
+                                            getOptionValue={(option: any) => option.value}
+                                            onChange={(selectedOption) => {
+                                                const newItems = [...items];
+                                                // If no option is selected (user cleared the field)
+                                                if (!selectedOption) {
+                                                    newItems[index].פריט = '';
+                                                    setItems(newItems);
+                                                    return;
+                                                }
+                                                
+                                                // Use the value directly
+                                                newItems[index].פריט = selectedOption.value;
                                                 setItems(newItems);
-                                                return;
-                                            }
-                                            
-                                            // Use the value directly
-                                            newItems[index].פריט = selectedOption.value;
-                                            setItems(newItems);
-                                        }}
-                                        onCreateOption={(inputValue) => {
-                                            // Create a new option when user enters custom text
-                                            const newItems = [...items];
-                                            newItems[index].פריט = inputValue;
-                                            setItems(newItems);
-                                            // Also update custom item input for potential future use
-                                            setCustomItemInput(inputValue);
-                                        }}
-                                        placeholder="בחר או הכנס פריט"
-                                        noOptionsMessage={() => "לא נמצאו פריטים"}
-                                        formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
-                                        classNamePrefix="item-select"
-                                        isClearable
-                                        isSearchable
-                                        styles={{
-                                            control: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            menu: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            option: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            placeholder: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right'
-                                            }),
-                                            singleValue: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right'
-                                            })
-                                        }}
-                                        theme={(theme) => ({
-                                            ...theme,
-                                            colors: {
-                                                ...theme.colors,
-                                                primary: '#3b82f6', // Blue color for selection
-                                                primary25: '#eff6ff' // Light blue for hover
-                                            }
-                                        })}
-                                    />
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`size-${index}`} className="text-right block mb-2">מידה</Label>
-                                    <Select
-                                        value={item.מידה || 'ללא מידה'}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].מידה = value === 'ללא מידה' ? '' : value;
-                                            setItems(newItems);
-                                        }}
-                                    >
-                                        <SelectTrigger className="text-right">
-                                            <SelectValue placeholder="בחר מידה"/>
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="ללא מידה">ללא מידה</SelectItem>
-                                            <SelectItem value="XXL">XXL</SelectItem>
-                                            <SelectItem value="XL">XL</SelectItem>
-                                            <SelectItem value="L">L</SelectItem>
-                                            <SelectItem value="M">M</SelectItem>
-                                            <SelectItem value="S">S</SelectItem>
-                                            <SelectItem value="XS">XS</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                            }}
+                                            onCreateOption={(inputValue) => {
+                                                // Create a new option when user enters custom text
+                                                const newItems = [...items];
+                                                newItems[index].פריט = inputValue;
+                                                setItems(newItems);
+                                                // Also update custom item input for potential future use
+                                                setCustomItemInput(inputValue);
+                                            }}
+                                            placeholder="בחר או הכנס פריט"
+                                            noOptionsMessage={() => "לא נמצאו פריטים"}
+                                            formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
+                                            classNamePrefix="item-select"
+                                            isClearable
+                                            isSearchable
+                                            styles={{
+                                                control: (provided) => ({
+                                                    ...provided,
+                                                    textAlign: 'right',
+                                                    direction: 'rtl'
+                                                }),
+                                                menu: (provided) => ({
+                                                    ...provided,
+                                                    textAlign: 'right',
+                                                    direction: 'rtl'
+                                                }),
+                                                option: (provided) => ({
+                                                    ...provided,
+                                                    textAlign: 'right',
+                                                    direction: 'rtl'
+                                                }),
+                                                placeholder: (provided) => ({
+                                                    ...provided,
+                                                    textAlign: 'right'
+                                                }),
+                                                singleValue: (provided) => ({
+                                                    ...provided,
+                                                    textAlign: 'right'
+                                                })
+                                            }}
+                                            theme={(theme) => ({
+                                                ...theme,
+                                                colors: {
+                                                    ...theme.colors,
+                                                    primary: '#3b82f6', // Blue color for selection
+                                                    primary25: '#eff6ff' // Light blue for hover
+                                                }
+                                            })}
+                                        />
+                                    ) : (
+                                        // Non-munitions users get a regular Select without create option
+                                        <Select
+                                            value={item.פריט || ''}
+                                            onValueChange={(value) => {
+                                                const newItems = [...items];
+                                                newItems[index].פריט = value;
+                                                setItems(newItems);
+                                            }}
+                                        >
+                                            <SelectTrigger className="text-right">
+                                                <SelectValue placeholder="בחר פריט"/>
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {uniqueItemNames.map((name, i) => (
+                                                    <SelectItem key={i} value={name}>{name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
                                 </div>
 
                                 <div>
@@ -1024,39 +1019,25 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     />
                                 </div>
 
-                                <div className="col-span-2">
+                                <div>
                                     <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
                                     <Select
-                                        value={item.צורך || 'ניפוק'}
+                                        value={!permissions['munitions'] ? 'זיכוי' : (item.צורך || 'ניפוק')}
                                         onValueChange={(value) => {
                                             const newItems = [...items];
                                             newItems[index].צורך = value;
                                             setItems(newItems);
                                         }}
+                                        disabled={!permissions['munitions']} // Disable for non-munitions users
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר צורך"/>
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="ניפוק">ניפוק</SelectItem>
-                                            <SelectItem value="בלאי">בלאי/ החלפה</SelectItem>
                                             <SelectItem value="זיכוי">זיכוי</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`note-${index}`} className="text-right block mb-2">הערה</Label>
-                                    <Input
-                                        id={`note-${index}`}
-                                        value={item.הערה || ''}
-                                        onChange={(e) => {
-                                            const newItems = [...items];
-                                            newItems[index].הערה = e.target.value;
-                                            setItems(newItems);
-                                        }}
-                                        className="text-right"
-                                    />
                                 </div>
 
                                 {index > 0 && (
@@ -1104,7 +1085,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                     <DialogHeader>
                         <DialogTitle className="text-right">החתם על פריטים</DialogTitle>
                         <DialogDescription className="text-right">
-                            {currentItem && `החתמה על ${currentItem.פריט} (${currentItem.מידה})`}
+                            {currentItem && `החתמה על ${currentItem.פריט} `}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -1114,98 +1095,94 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             <div key={index} className="grid grid-cols-3 gap-4 mb-4">
                                 <div>
                                     <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
-                                    <CreatableSelect
-                                        id={`item-${index}`}
-                                        options={uniqueItemNames.map(name => ({ value: name, label: name }))}
-                                        value={item.פריט ? { value: item.פריט, label: item.פריט } : null}
-                                        getOptionLabel={(option: any) => option.label}
-                                        getOptionValue={(option: any) => option.value}
-                                        onChange={(selectedOption) => {
-                                            const newItems = [...items];
-                                            // If no option is selected (user cleared the field)
-                                            if (!selectedOption) {
-                                                newItems[index].פריט = '';
+                                    {permissions['munitions'] ? (
+                                        <CreatableSelect
+                                            id={`item-${index}`}
+                                            options={uniqueItemNames.map(name => ({ value: name, label: name }))}
+                                            value={item.פריט ? { value: item.פריט, label: item.פריט } : null}
+                                            getOptionLabel={(option: any) => option.label}
+                                            getOptionValue={(option: any) => option.value}
+                                            onChange={(selectedOption) => {
+                                                const newItems = [...items];
+                                                // If no option is selected (user cleared the field)
+                                                if (!selectedOption) {
+                                                    newItems[index].פריט = '';
+                                                    setItems(newItems);
+                                                    return;
+                                                }
+                                                
+                                                // Use the value directly
+                                                newItems[index].פריט = selectedOption.value;
                                                 setItems(newItems);
-                                                return;
-                                            }
-                                            
-                                            // Use the value directly
-                                            newItems[index].פריט = selectedOption.value;
-                                            setItems(newItems);
-                                        }}
-                                        onCreateOption={(inputValue) => {
-                                            // Create a new option when user enters custom text
-                                            const newItems = [...items];
-                                            newItems[index].פריט = inputValue;
-                                            setItems(newItems);
-                                            // Also update custom item input for potential future use
-                                            setCustomItemInput(inputValue);
-                                        }}
-                                        placeholder="בחר או הכנס פריט"
-                                        noOptionsMessage={() => "לא נמצאו פריטים"}
-                                        formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
-                                        classNamePrefix="item-select"
-                                        isClearable
-                                        isSearchable
-                                        styles={{
-                                            control: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            menu: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            option: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            placeholder: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right'
-                                            }),
-                                            singleValue: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right'
-                                            })
-                                        }}
-                                        theme={(theme) => ({
-                                            ...theme,
-                                            colors: {
-                                                ...theme.colors,
-                                                primary: '#3b82f6', // Blue color for selection
-                                                primary25: '#eff6ff' // Light blue for hover
-                                            }
-                                        })}
-                                    />
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`size-${index}`} className="text-right block mb-2">מידה</Label>
-                                    <Select
-                                        value={item.מידה || 'ללא מידה'}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].מידה = value === 'ללא מידה' ? '' : value;
-                                            setItems(newItems);
-                                        }}
-                                    >
-                                        <SelectTrigger className="text-right">
-                                            <SelectValue placeholder="בחר מידה"/>
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="ללא מידה">ללא מידה</SelectItem>
-                                            <SelectItem value="XXL">XXL</SelectItem>
-                                            <SelectItem value="XL">XL</SelectItem>
-                                            <SelectItem value="L">L</SelectItem>
-                                            <SelectItem value="M">M</SelectItem>
-                                            <SelectItem value="S">S</SelectItem>
-                                            <SelectItem value="XS">XS</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                            }}
+                                            onCreateOption={(inputValue) => {
+                                                // Create a new option when user enters custom text
+                                                const newItems = [...items];
+                                                newItems[index].פריט = inputValue;
+                                                setItems(newItems);
+                                                // Also update custom item input for potential future use
+                                                setCustomItemInput(inputValue);
+                                            }}
+                                            placeholder="בחר או הכנס פריט"
+                                            noOptionsMessage={() => "לא נמצאו פריטים"}
+                                            formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
+                                            classNamePrefix="item-select"
+                                            isClearable
+                                            isSearchable
+                                            styles={{
+                                                control: (provided) => ({
+                                                    ...provided,
+                                                    textAlign: 'right',
+                                                    direction: 'rtl'
+                                                }),
+                                                menu: (provided) => ({
+                                                    ...provided,
+                                                    textAlign: 'right',
+                                                    direction: 'rtl'
+                                                }),
+                                                option: (provided) => ({
+                                                    ...provided,
+                                                    textAlign: 'right',
+                                                    direction: 'rtl'
+                                                }),
+                                                placeholder: (provided) => ({
+                                                    ...provided,
+                                                    textAlign: 'right'
+                                                }),
+                                                singleValue: (provided) => ({
+                                                    ...provided,
+                                                    textAlign: 'right'
+                                                })
+                                            }}
+                                            theme={(theme) => ({
+                                                ...theme,
+                                                colors: {
+                                                    ...theme.colors,
+                                                    primary: '#3b82f6', // Blue color for selection
+                                                    primary25: '#eff6ff' // Light blue for hover
+                                                }
+                                            })}
+                                        />
+                                    ) : (
+                                        // Non-munitions users get a regular Select without create option
+                                        <Select
+                                            value={item.פריט || ''}
+                                            onValueChange={(value) => {
+                                                const newItems = [...items];
+                                                newItems[index].פריט = value;
+                                                setItems(newItems);
+                                            }}
+                                        >
+                                            <SelectTrigger className="text-right">
+                                                <SelectValue placeholder="בחר פריט"/>
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {uniqueItemNames.map((name, i) => (
+                                                    <SelectItem key={i} value={name}>{name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
                                 </div>
 
                                 <div>
@@ -1224,7 +1201,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     />
                                 </div>
 
-                                <div className="col-span-2">
+                                <div>
                                     <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
                                     <Select
                                         value={item.צורך || 'ניפוק'}
@@ -1239,24 +1216,9 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="ניפוק">ניפוק</SelectItem>
-                                            <SelectItem value="בלאי">בלאי/ החלפה</SelectItem>
                                             <SelectItem value="זיכוי">זיכוי</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`note-${index}`} className="text-right block mb-2">הערה</Label>
-                                    <Input
-                                        id={`note-${index}`}
-                                        value={item.הערה || ''}
-                                        onChange={(e) => {
-                                            const newItems = [...items];
-                                            newItems[index].הערה = e.target.value;
-                                            setItems(newItems);
-                                        }}
-                                        className="text-right"
-                                    />
                                 </div>
 
                                 {index > 0 && (
@@ -1337,4 +1299,4 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     );
 };
 
-export default Logistic;
+export default Ammo;

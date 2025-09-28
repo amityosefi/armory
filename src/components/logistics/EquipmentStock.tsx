@@ -416,7 +416,9 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
             {/* Buttons row */}
             {permissions['Logistic'] && (
-                <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                <div className="flex justify-between mb-1">
+                    <div className="space-x-2">
+                    <h2 className="text-2xl font-bold">{selectedSheet.name}</h2>
                     <Button
                         onClick={() => setAddDialogOpen(true)}
                         className="bg-green-500 hover:bg-green-600 text-white"
@@ -437,6 +439,7 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     >
                         {selectedSheet.range === "מחסן" ? "העברה לגדוד" : "העברה למחסן"}
                     </Button>
+                        </div>ֿ
                 </div>
             )}
 

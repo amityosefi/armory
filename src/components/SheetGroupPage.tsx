@@ -19,10 +19,8 @@ import PromptNewSerialWeaponOrOptic from "./PromptNewSerialWeaponOrOptic";
 import AddOpticToGroupColumn from "./AddOpticToGroupColumn";
 import {useNavigate} from "react-router-dom";
 import SummaryComponent from "./SummaryComponent";
-import Equipment from "./Logistic";
 import SignatureCanvas from "react-signature-canvas";
 import {usePermissions} from "@/contexts/PermissionsContext";
-import Munitions from "@/components/Munitions";
 
 interface SheetGroupPageProps {
     accessToken: string;

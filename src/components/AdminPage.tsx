@@ -82,7 +82,7 @@ const AdminPage = () => {
         {field: "ג", headerName: "ג", width: 80},
         {field: "ב", headerName: "ב", width: 80},
         {field: "א", headerName: "א", width: 80},
-        {field: "Logistic", headerName: "Logistic", width: 100},
+        {field: "Ammo", headerName: "Ammo", width: 100},
         {field: "munitions", headerName: "Munitions", width: 100},
         {field: "Armory", headerName: "Armory", width: 100},
         {field: "admin", headerName: "Admin", width: 100},

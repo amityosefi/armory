@@ -5,10 +5,15 @@ import TabsNavigation from "@/components/route/TabsNavigation";
 import {useNavigate} from "react-router-dom";
 import {sheetGroups} from "@/constants";
 import SheetGroupPage from "@/components/SheetGroupPage";
-import Logistic from "@/components/Logistic";
-import Equipment from "@/components/Logistic";
-import EquipmentStock from "@/components/EquipmentStock";
-import EquipmentSum from "@/components/EquipmentSum";
+import Logistic from "@/components/logistics/Logistic";
+import Equipment from "@/components/logistics/Logistic";
+import EquipmentStock from "@/components/logistics/EquipmentStock";
+import EquipmentSum from "@/components/logistics/EquipmentSum";
+import Ammo from "@/components/ammo/Ammo";
+import AmmoStock from "@/components/ammo/AmmoStock";
+import AmmoSum from "@/components/ammo/AmmoSum";
+import AmmoOrders from "@/components/ammo/AmmoOrders";
+import {hasPermission} from "@/utils/permissions";
 
 interface DivideComponentsProps {
     accessToken: string;
@@ -28,8 +33,13 @@ const DivideComponents: React.FC<DivideComponentsProps> = ({accessToken, sheetGr
         navigate(`/group/${groupId}/sheet/${newSheetIndex}/row/0`);
     };
 
-
-
+    const whichSection = () => {
+        switch (currentGroup.name){
+            case 'נשקיה': return 'Armory'
+            case 'לוגיסטיקה': return 'Logistic'
+            default: return 'munitions'
+        }
+    }
 
     return (
         <>
@@ -39,10 +49,11 @@ const DivideComponents: React.FC<DivideComponentsProps> = ({accessToken, sheetGr
                 sheets={currentGroup.sheets}
                 activeTabIndex={activeTabIndex}
                 onTabChange={handleTabChange}
+                section={whichSection()}
             />
 
             {/* armory*/}
-            {(groupIndex === 0 || groupIndex === 1) && (
+            {(groupIndex === 0 ) && (
                 <SheetGroupPage
                     accessToken={accessToken}
                     sheetGroups={sheetGroups}
@@ -50,17 +61,31 @@ const DivideComponents: React.FC<DivideComponentsProps> = ({accessToken, sheetGr
             )}
 
             {/* logistic*/}
-            {(groupIndex === 2 && (selectedSheet.range === 'גדוד' || selectedSheet.range === 'מחסן')) ? (
+            {(groupIndex === 1 && (selectedSheet.range === 'גדוד' || selectedSheet.range === 'מחסן')) ? (
                 <EquipmentStock selectedSheet={selectedSheet}
                 />
-            ) : (groupIndex === 2 && selectedSheet.range === 'סיכום') ? (
+            ) : (groupIndex === 1 && selectedSheet.range === 'סיכום') ? (
                 <EquipmentSum selectedSheet={selectedSheet}
                 />
-            ) : (groupIndex === 2) && (
+            ) : (groupIndex === 1) && (
                 <Logistic selectedSheet={selectedSheet}
                 />
-            )
-            }
+            )}
+
+            {/* ammo section */}
+            {(groupIndex === 2 && (selectedSheet.range === 'גדוד' || selectedSheet.range === 'מחסן')) ? (
+                <AmmoStock selectedSheet={selectedSheet}
+                />
+            ) : (groupIndex === 2 && selectedSheet.range === 'סיכום') ? (
+                <AmmoSum selectedSheet={selectedSheet}
+                />
+            ) : (groupIndex === 2 && selectedSheet.range === 'שצל') ? (
+                <AmmoOrders selectedSheet={selectedSheet}
+                />
+            ) : (groupIndex === 2) && (
+                <Ammo selectedSheet={selectedSheet}
+                />
+            )}
 
 
         </>

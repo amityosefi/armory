@@ -16,7 +16,7 @@ interface EquipmentSumProps {
     };
 }
 
-// Define the structure for our Logistic items in Supabase
+// Define the structure for our Ammo items in Supabase
 type LogisticItem = {
     id?: string;
     תאריך: string;
