@@ -181,13 +181,15 @@ const AmmoSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
                     record.פריט === item && record.פלוגה === company
                 );
 
-                // Sum up quantities
+                // Sum up quantities (decrease when צורך === 'זיכוי')
                 let totalQuantity = 0;
                 records.forEach(record => {
                     // Handle any potential non-numeric values
-                    const quantity = typeof record.כמות === 'number' ?
-                        record.כמות : parseFloat(String(record.כמות)) || 0;
-                    totalQuantity += quantity;
+                    const qty = typeof record.כמות === 'number'
+                        ? record.כמות
+                        : parseFloat(String(record.כמות)) || 0;
+                    const signed = record.צורך === 'זיכוי' ? -Math.abs(qty) : Math.abs(qty);
+                    totalQuantity += signed;
                 });
 
                 // Add the total quantity to the row

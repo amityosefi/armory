@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import useIsMobile from '../../hooks/useIsMobile';
 import {usePermissions} from "@/contexts/PermissionsContext";
 
@@ -43,6 +43,33 @@ function TabsNavigation({
         setIsDropdownOpen(!isDropdownOpen);
     };
 
+    // Build visible tabs with original indices BEFORE filtering
+    const visibleTabs = useMemo(
+        () => sheets
+            .map((sheet, idx) => ({sheet, idx}))
+            .filter(({sheet}) => permissions[sheet.range] || permissions[section]),
+        [sheets, permissions, section]
+    );
+
+    // Ensure activeTabIndex always points to a permitted tab
+    const isActivePermitted = useMemo(
+        () => visibleTabs.some(t => t.idx === activeTabIndex),
+        [visibleTabs, activeTabIndex]
+    );
+
+    useEffect(() => {
+        if (!isActivePermitted && visibleTabs.length > 0) {
+            // Snap to first permitted tab using original index
+            onTabChange(visibleTabs[0].idx);
+        }
+    }, [isActivePermitted, visibleTabs, onTabChange]);
+
+    // Compute label for mobile header from permitted tabs
+    const activeLabel = useMemo(() => {
+        const active = visibleTabs.find(t => t.idx === activeTabIndex);
+        return active?.sheet.name ?? visibleTabs[0]?.sheet.name ?? 'Select Tab';
+    }, [visibleTabs, activeTabIndex]);
+
     return (
         <div className="mb-4 border-b border-gray-200 flex justify-between items-center">
             {isMobile ? (
@@ -51,7 +78,7 @@ function TabsNavigation({
                         onClick={toggleDropdown}
                         className="flex items-center justify-between w-full p-4 text-left border-b-2 border-transparent text-blue-600"
                     >
-                        <span>{sheets[activeTabIndex]?.name || "Select Tab"}</span>
+                        <span>{activeLabel}</span>
                         <svg className={`w-5 h-5 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`}
                              fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd"
@@ -62,9 +89,7 @@ function TabsNavigation({
 
                     {isDropdownOpen && (
                         <ul className="absolute left-0 z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
-                            {sheets
-                                .map((sheet, idx) => ({ sheet, idx }))
-                                .filter(({ sheet }) => permissions[sheet.range] || permissions[section])
+                            {visibleTabs
                                 .map(({ sheet, idx }) => (
                                     <li key={idx}>
                                         <button
@@ -83,9 +108,7 @@ function TabsNavigation({
                 </div>
             ) : (
                 <ul className="flex flex-wrap -mb-px">
-                    {sheets
-                        .map((sheet, idx) => ({ sheet, idx }))
-                        .filter(({ sheet }) => permissions[sheet.range] || permissions[section])
+                    {visibleTabs
                         .map(({ sheet, idx }) => (
                             <li key={idx} className="mr-2">
                                 <button
