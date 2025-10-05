@@ -209,16 +209,21 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             כמות
         }));
 
-        // Sort by פריט alphabetically
-        aggregated.sort((a, b) => a.פריט.localeCompare(b.פריט));
+        // Filter out items with 0 quantity and sort by פריט alphabetically
+        const filteredAggregated = aggregated
+            .filter(item => item.כמות !== 0)
+            .sort((a, b) => a.פריט.localeCompare(b.פריט));
+
+        // Sort unique items alphabetically for dropdowns
+        const sortedUniqueItems = Array.from(uniqueItemsSet).sort((a, b) => a.localeCompare(b));
 
         // Update the appropriate state based on table type
         if (tableType === "ammo_ball") {
-            setAggregatedBallData(aggregated);
-            setUniqueBallItems(Array.from(uniqueItemsSet));
+            setAggregatedBallData(filteredAggregated);
+            setUniqueBallItems(sortedUniqueItems);
         } else {
-            setAggregatedExplosionData(aggregated);
-            setUniqueExplosionItems(Array.from(uniqueItemsSet));
+            setAggregatedExplosionData(filteredAggregated);
+            setUniqueExplosionItems(sortedUniqueItems);
         }
     };
 
@@ -306,6 +311,33 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 return;
             }
 
+            // Validate that crediting won't result in negative quantities
+            const invalidItems: string[] = [];
+            for (const item of validItems) {
+                const table = (item.tableType || selectedTable);
+                const aggregatedData = table === "ammo_ball" ? aggregatedBallData : aggregatedExplosionData;
+                
+                // Find current quantity for this item
+                const currentItem = aggregatedData.find(aggItem => aggItem.פריט === item.פריט);
+                const currentQuantity = currentItem ? currentItem.כמות : 0;
+                
+                // Check if crediting would result in negative quantity
+                // Note: זיכוי (credit) reduces the quantity, so we subtract
+                if (currentQuantity - item.כמות < 0) {
+                    invalidItems.push(`${item.פריט} (כמות נוכחית: ${currentQuantity}, מנסה לזכות: ${item.כמות})`);
+                }
+            }
+
+            if (invalidItems.length > 0) {
+                setStatusMessage({
+                    text: `לא ניתן לזכות פריטים - הכמות תהפוך לשלילית:\n${invalidItems.join('\n')}`,
+                    type: "error"
+                });
+                setLoading(false);
+                setCreditDialogOpen(false);
+                return;
+            }
+
             // Prepare items for insertion (group by per-item tableType)
             const byTable: Record<TableType, any[]> = { ammo_ball: [], ammo_explosion: [] };
             validItems.forEach(item => {
@@ -371,6 +403,32 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     text: "אין פריטים תקינים להעברה",
                     type: "error"
                 });
+                return;
+            }
+
+            // Validate that transferring won't result in negative quantities in the source unit
+            const invalidTransfers: string[] = [];
+            for (const item of validItems) {
+                const table = (item.tableType || selectedTable);
+                const aggregatedData = table === "ammo_ball" ? aggregatedBallData : aggregatedExplosionData;
+
+                // Find current quantity for this item in the CURRENT unit (selectedSheet.range)
+                const currentItem = aggregatedData.find(aggItem => aggItem.פריט === item.פריט);
+                const currentQuantity = currentItem ? currentItem.כמות : 0;
+
+                // Transfer credits from the current unit first (like זיכוי)
+                if (currentQuantity - item.כמות < 0) {
+                    invalidTransfers.push(`${item.פריט} (כמות נוכחית: ${currentQuantity}, מנסה להעביר: ${item.כמות})`);
+                }
+            }
+
+            if (invalidTransfers.length > 0) {
+                setStatusMessage({
+                    text: `לא ניתן להעביר פריטים - הכמות ביחידה תהפוך לשלילית:\n${invalidTransfers.join('\n')}`,
+                    type: "error"
+                });
+                setLoading(false);
+                setTransferDialogOpen(false);
                 return;
             }
 

@@ -8,8 +8,6 @@ import {Input} from '@/components/ui/input';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {Check, ChevronsUpDown, Trash} from "lucide-react";
 import {ColDef} from "ag-grid-community";
-import CreatableSelect from 'react-select/creatable';
-import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 
 import {
     Dialog,
@@ -29,8 +27,7 @@ import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageP
 // Import logo for PDF export
 import logoImg from "@/assets/logo.jpeg";
 
-const STATUSES = ['החתמה', 'הזמנה'] as const;
-type AmmoTableType = 'ammo_ball' | 'ammo_explosion';
+const STATUSES = ['החתמה', 'דיווח'] as const;
 
 interface LogisticProps {
     selectedSheet: {
@@ -56,32 +53,27 @@ type LogisticItem = {
     פלוגה: string;
     חתימת_מחתים?: string;
     created_at?: string;
+    סוג_תחמושת?: string;
 };
 
 const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const {permissions} = usePermissions();
-    const [rowData, setRowData] = useState<LogisticItem[]>([]);
+    const [ballRowData, setBallRowData] = useState<LogisticItem[]>([]);
+    const [explosionRowData, setExplosionRowData] = useState<LogisticItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
-    const [selectedTable, setSelectedTable] = useState<AmmoTableType>('ammo_ball');
 
     // Dialog states
     const [open, setOpen] = useState(false);
     const [dataURL, setDataURL] = useState('');
-    const [dialogMode, setDialogMode] = useState<'הזמנה' | 'החתמה'>('הזמנה');
+    const [dialogMode, setDialogMode] = useState<'דיווח' | 'החתמה'>('דיווח');
     const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
     const [currentItem, setCurrentItem] = useState<LogisticItem | null>(null);
-    const [selectedMatchingRows, setSelectedMatchingRows] = useState<LogisticItem[]>([]);
-    const [matchingDateRows, setMatchingDateRows] = useState<LogisticItem[]>([]);
-    const signatureRef = useRef<SignatureCanvas>(null);
     const [selectedRows, setSelectedRows] = useState<LogisticItem[]>([]);
-    const gridRef = useRef<any>(null);
-    const [customItemInput, setCustomItemInput] = useState(''); // For tracking custom item input
 
     const [signerName, setSignerName] = useState('');
-    const [signatureItemPopoverOpen, setSignatureItemPopoverOpen] = useState(false);
     const sigPadRef = useRef<SignatureCanvas>(null);
-    const [activeTab, setActiveTab] = useState<string>('הזמנה'); // Track active tab
+    const [activeTab, setActiveTab] = useState<string>('דיווח'); // Track active tab
 
     // Import logo image for PDF
     const [logoBase64, setLogoBase64] = useState<string>('');
@@ -115,9 +107,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         צורך: 'ניפוק',
         שם_החותם: '',
         חתימה: '',
-        סטטוס: 'הזמנה',
+        סטטוס: 'דיווח',
         משתמש: '',
         פלוגה: selectedSheet.range,
+        סוג_תחמושת: 'קליעית', // Track ammo type
     };
 
     // Form items state (dynamic rows)
@@ -134,31 +127,47 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         };
     }
 
-    // Get the current table name based on selected type
-    const getCurrentTableName = (): string => {
-        return selectedTable;
-    };
-
-    // Fetch data from Supabase
+    // Fetch data from Supabase for both tables
     const fetchData = async () => {
         if (permissions[selectedSheet.range] || permissions['munitions']) {
             try {
                 setLoading(true);
-                const tableName = getCurrentTableName();
-                const {data, error} = await supabase
-                    .from(tableName)
-                    .select("*")
-                    .eq("פלוגה", selectedSheet.range);
 
-                if (error) {
-                    console.error("Error fetching data:", error);
+                // Fetch ball data
+                const {data: ballData, error: ballError} = await supabase
+                    .from('ammo_ball')
+                    .select("*")
+                    .in("פלוגה", [selectedSheet.range, 'גדוד']);
+
+
+                // Fetch explosion data
+                const {data: explosionData, error: explosionError} = await supabase
+                    .from('ammo_explosion')
+                    .select("*")
+                    .in("פלוגה", [selectedSheet.range, 'גדוד']);
+
+
+                if (ballError) {
+                    console.error("Error fetching ball data:", ballError);
                     setStatusMessage({
-                        text: `שגיאה בטעינת נתונים: ${error.message}`,
+                        text: `שגיאה בטעינת נתוני קליעית: ${ballError.message}`,
                         type: "error"
                     });
-                } else {
+                }
+
+                if (explosionError) {
+                    console.error("Error fetching explosion data:", explosionError);
+                    setStatusMessage({
+                        text: `שגיאה בטעינת נתוני נפיצה: ${explosionError.message}`,
+                        type: "error"
+                    });
+                }
+
+                if (!ballError && !explosionError) {
                     // @ts-ignore
-                    setRowData(data || []);
+                    setBallRowData(ballData || []);
+                    // @ts-ignore
+                    setExplosionRowData(explosionData || []);
                 }
             } catch (err: any) {
                 console.error("Unexpected error:", err);
@@ -177,14 +186,14 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Initial data fetch
     useEffect(() => {
         fetchData();
-    }, [selectedSheet.range, selectedTable]);
+    }, [selectedSheet.range]);
 
-    // Group data by סטטוס
-    const dataByStatus = useMemo(() => {
-        const grouped = {הזמנה: [], החתמה: []} as Record<string, LogisticItem[]>;
+    // Group data by סטטוס for ball table
+    const ballDataByStatus = useMemo(() => {
+        const grouped = {דיווח: [], החתמה: []} as Record<string, LogisticItem[]>;
 
         // First group the items by status
-        rowData.forEach(item => {
+        ballRowData.forEach(item => {
             if (STATUSES.includes(item.סטטוס as any)) {
                 if (!grouped[item.סטטוס]) {
                     grouped[item.סטטוס] = [];
@@ -193,8 +202,8 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
         });
 
-        // Now sort הזמנה items by date (newest first)
-        ['הזמנה'].forEach(status => {
+        // Now sort דיווח items by date (newest first)
+        ['דיווח'].forEach(status => {
             if (grouped[status] && grouped[status].length > 0) {
                 grouped[status].sort((a, b) => {
                     const dateA = new Date(a.תאריך || '').getTime();
@@ -205,21 +214,64 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         });
 
         return grouped;
-    }, [rowData]);
+    }, [ballRowData]);
 
-    // Get unique item names from החתמה items for dropdown
-    const uniqueItemNames = useMemo(() => {
-        const items = dataByStatus['החתמה'] || [];
+    // Group data by סטטוס for explosion table
+    const explosionDataByStatus = useMemo(() => {
+        const grouped = {דיווח: [], החתמה: []} as Record<string, LogisticItem[]>;
+
+        // First group the items by status
+        explosionRowData.forEach(item => {
+            if (STATUSES.includes(item.סטטוס as any)) {
+                if (!grouped[item.סטטוס]) {
+                    grouped[item.סטטוס] = [];
+                }
+                grouped[item.סטטוס].push(item);
+            }
+        });
+
+        // Now sort דיווח items by date (newest first)
+        ['דיווח'].forEach(status => {
+            if (grouped[status] && grouped[status].length > 0) {
+                grouped[status].sort((a, b) => {
+                    const dateA = new Date(a.תאריך || '').getTime();
+                    const dateB = new Date(b.תאריך || '').getTime();
+                    return dateB - dateA; // Sort in descending order (newest first)
+                });
+            }
+        });
+
+        return grouped;
+    }, [explosionRowData]);
+
+    // Get unique item names from החתמה items for dropdown (separate lists for ball and explosion ammo from גדוד)
+    const uniqueBallItemNames = useMemo(() => {
+        // Filter items from גדוד only
+        const ballGadudItems = ballRowData.filter(item => item.פלוגה === 'גדוד');
         const uniqueItems = new Set<string>();
 
-        items.forEach(item => {
+        ballGadudItems.forEach(item => {
             if (item.פריט) {
                 uniqueItems.add(item.פריט);
             }
         });
 
         return Array.from(uniqueItems).sort();
-    }, [dataByStatus]);
+    }, [ballRowData]);
+
+    const uniqueExplosionItemNames = useMemo(() => {
+        // Filter items from גדוד only
+        const explosionGadudItems = explosionRowData.filter(item => item.פלוגה === 'גדוד');
+        const uniqueItems = new Set<string>();
+
+        explosionGadudItems.forEach(item => {
+            if (item.פריט) {
+                uniqueItems.add(item.פריט);
+            }
+        });
+
+        return Array.from(uniqueItems).sort();
+    }, [explosionRowData]);
 
     const summaryColumns = useMemo<ColDef<LogisticItem>[]>(() => {
         return [
@@ -237,10 +289,61 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         ];
     }, []);
 
-    // Create summary data for החתמה table
-    const summarizedSignatureData = useMemo(() => {
-        // Get only החתמה data
-        const signatureData = dataByStatus['החתמה'] || [];
+    // Create summary data for החתמה table - Ball
+    const summarizedBallSignatureData = useMemo(() => {
+        // Get only החתמה data for current פלוגה
+        const signatureData = (ballDataByStatus['החתמה'] || []).filter(r => r.פלוגה === selectedSheet.range);
+
+        if (signatureData.length === 0) {
+            return [];
+        }
+
+        // Create a map to group by פריט (item) and sum up כמות (quantity)
+        const itemSummary = new Map<string, LogisticItem>();
+
+        // Process each row
+        signatureData.forEach((row: LogisticItem) => {
+            const item = row.פריט;
+            const quantity = typeof row.כמות === 'number' ? row.כמות : parseInt(String(row.כמות), 10) || 0;
+            const signedQuantity = row.צורך === 'זיכוי' ? -Math.abs(quantity) : Math.abs(quantity);
+
+            if (itemSummary.has(item)) {
+                // Item exists, update quantity
+                const existing = itemSummary.get(item)!;
+                existing.כמות = (existing.כמות || 0) + signedQuantity;
+
+                // Keep the latest date
+                const existingDate = new Date(existing.תאריך || '').getTime() || 0;
+                const currentDate = new Date(row.תאריך || '').getTime() || 0;
+                if (currentDate > existingDate) {
+                    existing.תאריך = row.תאריך;
+                    existing.משתמש = row.משתמש || '';
+                    existing.שם_החותם = row.שם_החותם || '';
+                }
+            } else {
+                // New item, add to map
+                itemSummary.set(item, {
+                    פריט: item,
+                    כמות: signedQuantity,
+                    תאריך: row.תאריך || '',
+                    משתמש: row.משתמש || '',
+                    שם_החותם: row.שם_החותם || '',
+                    סטטוס: 'החתמה',
+                    פלוגה: row.פלוגה,
+                    צורך: row.צורך,
+                    חתימת_מחתים: row.חתימת_מחתים
+                });
+            }
+        });
+
+        // Convert map to array
+        return Array.from(itemSummary.values());
+    }, [ballDataByStatus]);
+
+    // Create summary data for החתמה table - Explosion
+    const summarizedExplosionSignatureData = useMemo(() => {
+        // Get only החתמה data for current פלוגה
+        const signatureData = (explosionDataByStatus['החתמה'] || []).filter(r => r.פלוגה === selectedSheet.range);
 
         if (signatureData.length === 0) {
             return [];
@@ -285,7 +388,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
         // Convert map to array
         return Array.from(itemSummary.values());
-    }, [dataByStatus]);
+    }, [explosionDataByStatus]);
 
     // AG Grid column definitions
     const baseColumns = useMemo<ColDef<LogisticItem>[]>(() => {
@@ -300,15 +403,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             {field: 'פריט' as keyof LogisticItem, headerName: 'פריט', sortable: true, filter: true, width: 110},
             {field: 'כמות' as keyof LogisticItem, headerName: 'כמות', sortable: true, filter: true, width: 70,},
             {field: 'צורך' as keyof LogisticItem, headerName: 'צורך', sortable: true, filter: true, width: 80},
-            {
-                field: 'סטטוס' as keyof LogisticItem, headerName: 'סטטוס', sortable: true, filter: true, width: 100,
-                editable: permissions['munitions'],
-                cellEditor: 'agSelectCellEditor',
-                cellEditorParams: {values: ['הזמנה', 'החתמה']},
-                onCellValueChanged: async (params: any) => {
-                    await handleStatusChange(params);
-                }
-            },
+            {field: 'סטטוס' as keyof LogisticItem, headerName: 'סטטוס', sortable: true, filter: true, width: 80},
             {
                 headerName: 'נקרא',
                 field: 'נקרא' as keyof LogisticItem,
@@ -322,7 +417,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                     await handleReadStatusChange(params);
                 }
             },
-            {field: 'משתמש' as keyof LogisticItem, headerName: 'דורש', sortable: true, filter: true, width: 110},
+            {field: 'משתמש' as keyof LogisticItem, headerName: 'שם דורש', sortable: true, filter: true, width: 110},
         ];
 
         return columnDefs;
@@ -330,14 +425,17 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
     const handleDateClicked = async (data: any) => {
         const date = data.תאריך;
+        // Infer which table this row belongs to by id (preferred) or by তুলন of fields
+        const isBall = ballRowData.some(r => r.id === data.id);
+        const rowData = isBall ? ballRowData : explosionRowData;
 
         // Find all rows with the same date in rowData
-        const matchingRows = rowData.filter(item => item.תאריך === date && item.סטטוס === 'הזמנה');
+        const matchingRows = rowData.filter(item => item.תאריך === date && item.סטטוס === 'דיווח');
 
         // Create items array from matching rows
         const itemsToShow = matchingRows.map(row => ({
             פריט: row.פריט || '',
-            כמות: (row.צורך === 'זיכוי') ? -row.כמות : row.כמות || 1,
+            כמות: row.כמות || 1,
             צורך: row.צורך || 'ניפוק',
         }));
 
@@ -350,41 +448,6 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         // Open the signature dialog
         setSignatureDialogOpen(true);
     }
-    // Handle AG Grid status change
-    const handleStatusChange = async (params: any) => {
-        const {data} = params;
-        const id = data.id;
-        const newStatus = params.newValue;
-
-        try {
-            // Update the status in Supabase
-            const tableName = getCurrentTableName();
-            const {error} = await supabase
-                .from(tableName)
-                .update({סטטוס: newStatus})
-                .eq('id', id);
-
-            if (error) {
-                console.error("Error updating status:", error);
-                // Revert to old value if there was an error
-                params.node.setDataValue('סטטוס', params.oldValue);
-                setStatusMessage({
-                    text: `שגיאה בעדכון סטטוס: ${error.message}`,
-                    type: "error"
-                });
-                return;
-            }
-
-            // Refresh data after update
-            fetchData();
-            setStatusMessage({text: "סטטוס עודכן בהצלחה", type: "success"});
-        } catch (err: any) {
-            console.error("Unexpected error during status update:", err);
-            // Revert to old value
-            params.node.setDataValue('סטטוס', params.oldValue);
-            setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
-        }
-    };
 
     // Handle read status change
     const handleReadStatusChange = async (params: any) => {
@@ -394,8 +457,8 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
         try {
             // Update the read status in Supabase
-            const tableName = getCurrentTableName();
-            const {data, error} = await supabase
+            const tableName = ballRowData.some(r => r.id === id) ? 'ammo_ball' : 'ammo_explosion';
+            const {data: updatedData, error} = await supabase
                 .from(tableName)
                 .update({"נקרא": newReadStatus}) // key must be quoted
                 .eq("id", id)
@@ -432,75 +495,190 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const handleAddItem = async () => {
         setStatusMessage({text: "", type: ""});
 
-        // Input validation
-        const invalidItems = items.filter(item => !item.פריט);
-        console.log("invalidItems", invalidItems);
-        if (invalidItems.length > 0) {
-            setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
-            setOpen(false);
-            setSignatureDialogOpen(false);
-            return;
+        if (dialogMode === 'דיווח') {
+            let invalidItems = items.filter(item => !item.פריט);
+            if (invalidItems.length > 0) {
+                setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
+                setOpen(false);
+                setSignatureDialogOpen(false);
+                return;
+            }
         }
-        // Format items for insertion
-        const formattedDate = new Date().toLocaleString('he-IL');
-        let formattedItems = items.map(item => ({
-            תאריך: formattedDate,
-            פריט: item.פריט,
-            כמות: (item.צורך === 'זיכוי' && item.כמות) ? -item.כמות : item.כמות,
-            שם_החותם: signerName,
-            חתימת_מחתים: permissions['signature'] ? String(permissions['signature']) : '',
-            חתימה: dataURL,
-            // Force זיכוי for non-munitions users
-            צורך: !permissions['munitions'] ? 'זיכוי' : (item.צורך || 'ניפוק'),
-            סטטוס: dialogMode,
-            משתמש: permissions['name'] || '',
-            פלוגה: selectedSheet.range,
-        }));
 
-        // If it's a formal signature (החתמה), create battalion entries
+
+        // Validation for החתמה mode
         if (dialogMode === 'החתמה') {
-            // Create mirror entries for battalion inventory tracking
-            const battalionEntries = items.map(item => ({
+            let invalidItems = items.filter(item => !item.פריט);
+            if (invalidItems.length > 0 || !signerName || !dataURL) {
+                setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
+                setOpen(false);
+                setSignatureDialogOpen(false);
+                return;
+            }
+
+            for (const item of items) {
+                // Determine which table this item belongs to (for now, we'll need to check both)
+                // Check in ball data
+                const ballSignatureData = ballDataByStatus['החתמה'] || [];
+                const explosionSignatureData = explosionDataByStatus['החתמה'] || [];
+
+                // Calculate current quantities
+                const ballItemData = ballSignatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
+                const explosionItemData = explosionSignatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
+                const ballCurrentQty = ballItemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
+                const explosionCurrentQty = explosionItemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
+                // Check if זיכוי would lead to negative
+                if (item.צורך === 'זיכוי') {
+                    const itemQty = item.כמות || 0;
+
+                    if (ballCurrentQty - itemQty < 0 && explosionCurrentQty - itemQty < 0) {
+                        setStatusMessage({
+                            text: `לא ניתן להחתים פריטים:\n${item.פריט} (כמות נוכחית: ${Math.max(ballCurrentQty, explosionCurrentQty)}, מנסה לזכות: ${itemQty})`,
+                            type: "error"
+                        });
+                        setLoading(false);
+                        setOpen(false);
+                        setOpen(false);
+                        setSignatureDialogOpen(false);
+                        return;
+                    }
+                }
+
+                // Check if ניפוק would lead to negative in גדוד
+                if (item.צורך === 'ניפוק' && item.פריט) {
+                    // Fetch גדוד data for this item
+                    const {data: ballGadudData} = await supabase
+                        .from('ammo_ball')
+                        .select('*')
+                        .eq('פלוגה', 'גדוד')
+                        .eq('פריט', item.פריט);
+
+                    // @ts-ignore
+                    const {data: explosionGadudData} = await supabase
+                        .from('ammo_explosion')
+                        .select('*')
+                        .eq('פלוגה', 'גדוד')
+                        .eq('פריט', item.פריט);
+
+                    // Calculate גדוד quantity
+                    const ballGadudQty = (ballGadudData || []).reduce((sum: number, i: any) => {
+                        const qty = (i.צורך === 'זיכוי') ? -i.כמות : i.כמות;
+                        return sum + qty;
+                    }, 0);
+
+                    const explosionGadudQty = (explosionGadudData || []).reduce((sum: number, i: any) => {
+                        const qty = (i.צורך === 'זיכוי') ? -i.כמות : i.כמות;
+                        return sum + qty;
+                    }, 0);
+
+                    const itemQty = item.כמות || 0;
+                    if (ballGadudQty - itemQty < 0 && explosionGadudQty - itemQty < 0) {
+                        setStatusMessage({
+                            text: `לא ניתן להחתים פריטים:\n${item.פריט} (כמות בגדוד: ${Math.max(ballGadudQty, explosionGadudQty)}, מנסה לנפק: ${itemQty})`,
+                            type: "error"
+                        });
+                        setLoading(false);
+                        setOpen(false);
+                        setOpen(false);
+                        setSignatureDialogOpen(false);
+                        return;
+                    }
+                }
+            }
+
+        }
+
+        // Format items for insertion - group by table
+        const formattedDate = new Date().toLocaleString('he-IL');
+        const ballItems: any[] = [];
+        const explosionItems: any[] = [];
+
+        items.forEach(item => {
+            // Determine table based on selected ammo type
+            const formattedItem = {
                 תאריך: formattedDate,
                 פריט: item.פריט,
-                // Opposite quantity logic: negative for issues, positive for credits
-                כמות: (item.צורך === 'זיכוי' && item.כמות !== undefined) ? (item.כמות || 0) : -(item.כמות || 0),
-                שם_החותם: '',
-                חתימת_מחתים: '',
-                חתימה: '',
-                צורך: item.צורך || 'ניפוק',
+                כמות: item.כמות,
+                שם_החותם: signerName,
+                חתימת_מחתים: permissions['signature'] ? String(permissions['signature']) : '',
+                חתימה: dataURL,
+                צורך: !permissions['munitions'] ? 'זיכוי' : (item.צורך || 'ניפוק'),
                 סטטוס: dialogMode,
                 משתמש: permissions['name'] || '',
-                פלוגה: 'גדוד', // Battalion inventory
-            }));
-            
-            // Combine original items with battalion entries
-            formattedItems = [...formattedItems, ...battalionEntries];
-        }
+                פלוגה: selectedSheet.range,
+            };
+
+            // Add to appropriate table based on selected ammo type
+            if (item.סוג_תחמושת === 'נפיצה') {
+                explosionItems.push(formattedItem);
+            } else {
+                // Default to ball (קליעית)
+                ballItems.push(formattedItem);
+            }
+
+            // If החתמה, create battalion entries
+            if (dialogMode === 'החתמה') {
+                const battalionEntry = {
+                    תאריך: formattedDate,
+                    פריט: item.פריט,
+                    כמות: item.כמות,
+                    שם_החותם: '',
+                    חתימת_מחתים: '',
+                    חתימה: '',
+                    צורך: (item.צורך === 'ניפוק') ? 'זיכוי' : 'ניפוק',
+                    סטטוס: dialogMode,
+                    משתמש: permissions['name'] || '',
+                    פלוגה: 'גדוד',
+                    הערה: 'זיכוי מועבר מפלוגה ' + selectedSheet.range,
+                };
+
+                if (item.סוג_תחמושת === 'נפיצה') {
+                    explosionItems.push(battalionEntry);
+                } else {
+                    ballItems.push(battalionEntry);
+                }
+            }
+        });
 
         try {
             setLoading(true);
-            const tableName = getCurrentTableName();
 
-            console.log('before insert: ', formattedItems)
-            // Insert new items to Supabase
-            const {data, error} = await supabase
-                .from(tableName)
-                .insert(formattedItems)
-                .select();
+            // Insert to ball table
+            if (ballItems.length > 0) {
+                const {error: ballError} = await supabase
+                    .from('ammo_ball')
+                    .insert(ballItems);
 
-            if (error) {
-                console.error("Error adding items:", error);
-                setStatusMessage({text: `שגיאה בהוספת פריטים: ${error.message}`, type: "error"});
-            } else {
-                // Reset form and close dialog
-                setItems([{...defaultItem}]);
-                await fetchData();
-                setOpen(false);
-                setSignatureDialogOpen(false);
-                setSignerName('');
-                setStatusMessage({text: "פריטים נוספו בהצלחה", type: "success"});
+                if (ballError) {
+                    console.error("Error adding ball items:", ballError);
+                    setStatusMessage({text: `שגיאה בהוספת פריטי קליעית: ${ballError.message}`, type: "error"});
+                    setLoading(false);
+                    return;
+                }
             }
+
+            // Insert to explosion table
+            if (explosionItems.length > 0) {
+                const {error: explosionError} = await supabase
+                    .from('ammo_explosion')
+                    .insert(explosionItems);
+
+                if (explosionError) {
+                    console.error("Error adding explosion items:", explosionError);
+                    setStatusMessage({text: `שגיאה בהוספת פריטי נפיצה: ${explosionError.message}`, type: "error"});
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            // Reset form and close dialog
+            setItems([{...defaultItem}]);
+            await fetchData();
+            setOpen(false);
+            setSignatureDialogOpen(false);
+            setSignerName('');
+            setDataURL('');
+            setStatusMessage({text: "פריטים נוספו בהצלחה", type: "success"});
         } catch (err: any) {
             console.error("Unexpected error:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
@@ -515,27 +693,45 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         try {
             setLoading(true);
 
-            if (selectedRows.filter(row => row.נקרא).length > 0) {
+            console.log(selectedRows)
+            if (selectedRows.filter(row => row.נקרא === 'כן').length > 0) {
                 setStatusMessage({text: `לא ניתן למחוק פריטים שנקראו`, type: "error"});
                 return;
             }
             // Extract IDs from selected rows
-            const selectedIds = selectedRows.map(row => row.id);
-            const tableName = getCurrentTableName();
+            const ballIds = selectedRows.filter(r => ballRowData.some(b => b.id === r.id)).map(r => r.id);
+            const explosionIds = selectedRows.filter(r => explosionRowData.some(e => e.id === r.id)).map(r => r.id);
 
-            const {error} = await supabase
-                .from(tableName)
-                .delete()
-                .in('id', selectedIds);
-
-            if (error) {
-                console.error("Error deleting items:", error);
-                setStatusMessage({text: `שגיאה במחיקת פריטים: ${error.message}`, type: "error"});
-            } else {
-                await fetchData();
-                setSelectedRows([]);
-                setStatusMessage({text: `${selectedRows.length} פריטים נמחקו בהצלחה`, type: "success"});
+            // Delete from each table separately
+            if (ballIds.length > 0) {
+                const {error: ballDeleteError} = await supabase
+                    .from('ammo_ball')
+                    .delete()
+                    .in('id', ballIds);
+                if (ballDeleteError) {
+                    console.error("Error deleting ball items:", ballDeleteError);
+                    setStatusMessage({text: `שגיאה במחיקת פריטי קליעית: ${ballDeleteError.message}`, type: "error"});
+                    setLoading(false);
+                    return;
+                }
             }
+
+            if (explosionIds.length > 0) {
+                const {error: expDeleteError} = await supabase
+                    .from('ammo_explosion')
+                    .delete()
+                    .in('id', explosionIds);
+                if (expDeleteError) {
+                    console.error("Error deleting explosion items:", expDeleteError);
+                    setStatusMessage({text: `שגיאה במחיקת פריטי נפיצה: ${expDeleteError.message}`, type: "error"});
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            await fetchData();
+            setSelectedRows([]);
+            setStatusMessage({text: `${selectedRows.length} פריטים נמחקו בהצלחה`, type: "success"});
         } catch (err: any) {
             console.error("Unexpected error during deletion:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
@@ -558,8 +754,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Function to create PDF export
     const handlePdfExport = async () => {
         try {
-            // Get active tab data to export
-            const dataToExport = dataByStatus['החתמה'] || [];
+            // Get active tab data to export from both tables
+            const ballDataToExport = ballDataByStatus['החתמה'] || [];
+            const explosionDataToExport = explosionDataByStatus['החתמה'] || [];
+            const dataToExport = [...ballDataToExport, ...explosionDataToExport];
 
             if (dataToExport.length === 0) {
                 return;
@@ -638,13 +836,15 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
                 doc.setFontSize(12);
                 doc.text(mirrorHebrewSmart('פריט'), pageWidth - margin - 10, y + 7, {align: 'right'});
-                doc.text(mirrorHebrewSmart('כמות'), pageWidth / 2, y + 7, {align: 'right'});
+                doc.text(mirrorHebrewSmart('כמות'), pageWidth / 2 + 20, y + 7, {align: 'right'});
+                doc.text(mirrorHebrewSmart('צורך'), pageWidth / 2 - 20, y + 7, {align: 'right'});
 
                 // Add item details
                 y += 15;
                 items.forEach((item: LogisticItem, i: number) => {
                     doc.text(mirrorHebrewSmart(item.פריט || ''), pageWidth - margin - 10, y, {align: 'right'});
-                    doc.text(mirrorHebrewSmart(`${item.כמות || '0'}`), pageWidth / 2, y, {align: 'right'});
+                    doc.text(mirrorHebrewSmart(`${item.כמות || '0'}`), pageWidth / 2 + 20, y, {align: 'right'});
+                    doc.text(mirrorHebrewSmart(item.צורך || ''), pageWidth / 2 - 20, y, {align: 'right'});
                     y += 8;
 
                     // Add a light separator line
@@ -729,14 +929,15 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Function to export data to Excel
     const handleExcelExport = () => {
         try {
+            const combinedData = [...ballRowData, ...explosionRowData];
 
-            if (!rowData || rowData.length === 0) {
+            if (!combinedData || combinedData.length === 0) {
                 setStatusMessage({text: "אין נתונים להורדה", type: "error"});
                 return;
             }
 
             // Process data to remove 'id' field
-            const exportData = rowData.map(item => {
+            const exportData = combinedData.map(item => {
                 const {id, ...rest} = item; // Destructure to separate id from other fields
                 return rest; // Return object without id field
             });
@@ -795,18 +996,6 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 />
             )}
 
-            {/* Table Selection Tabs */}
-            <Tabs 
-                defaultValue="ammo_ball" 
-                onValueChange={(value) => setSelectedTable(value as AmmoTableType)}
-                className="mb-4"
-            >
-                <TabsList className="grid grid-cols-2 mb-2">
-                    <TabsTrigger value="ammo_ball">קליעית</TabsTrigger>
-                    <TabsTrigger value="ammo_explosion">נפיצה</TabsTrigger>
-                </TabsList>
-            </Tabs>
-
             {(permissions[selectedSheet.range] || permissions['munitions']) && (
                 <div className="flex justify-between mb-4">
                     <h2 className="text-2xl font-bold">{selectedSheet.name}</h2>
@@ -818,7 +1007,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     setDialogMode('החתמה');
                                     setSignatureDialogOpen(true);
                                 } else {
-                                    setDialogMode('הזמנה');
+                                    setDialogMode('דיווח');
                                     setOpen(true);
                                 }
                             }}
@@ -827,7 +1016,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             {permissions['munitions'] ? 'החתמת תחמושת' : 'דיווח שצל'}
                         </Button>
 
-                        {(permissions['munitions']) && (
+                        {(permissions[selectedSheet.range]) && (
                             <Button
                                 onClick={handleDeleteSelectedItems}
                                 className="bg-red-500 hover:bg-red-600"
@@ -862,42 +1051,109 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                         className={`py-2 px-4 ${activeTab === status ? 'border-b-2 border-blue-500 font-bold' : ''}`}
                         onClick={() => setActiveTab(status)}
                     >
-                        {status} ({dataByStatus[status]?.length || 0})
+                        {status}
                     </button>
                 ))}
             </div>
 
-            {/* AG Grid component with improved layout */}
-            <div className="ag-theme-alpine w-[110vh] h-[45vh] mb-8 overflow-auto" style={{maxWidth: '100%'}}>
-                <AgGridReact
-                    ref={gridRef}
-                    rowData={activeTab === 'החתמה' ? summarizedSignatureData : dataByStatus[activeTab] || []}
-                    columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
-                    enableRtl={true}
-                    defaultColDef={{
-                        ...defaultColDef,
-                        checkboxSelection: activeTab !== 'החתמה' ? (params) => {
-                            // This will make the checkbox appear only in the first column
-                            return params.column.getColId() === 'checkboxCol';
-                        } : false
-                    }}
-                    suppressHorizontalScroll={false}
-                    rowSelection={activeTab !== 'החתמה' ? 'multiple' : undefined}
-                    suppressRowClickSelection={true} /* Changed to always true to prevent row selection on click */
-                    onSelectionChanged={(params) => {
-                        const selectedRows = params.api.getSelectedRows();
-                        setSelectedRows(selectedRows);
-                    }}
-                    onCellClicked={(event) => {
-                        if (permissions['munitions'] && event.colDef && event.colDef.field === 'תאריך')
-                            handleDateClicked(event.data)
-                    }}
-                    getRowStyle={(params) => {
-                        if (params.data && params.data.נקרא === 'כן') {
-                            return {backgroundColor: '#ffcccc'}; // Light red background
-                        }
-                    }}
-                />
+            {/* Ball Ammo Grid */}
+            <div className="mb-8">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-xl font-bold">קליעית</h3>
+                    {(permissions['munitions']) && activeTab !== 'החתמה' && (
+                        <Button
+                            onClick={() => handleDeleteSelectedItems()}
+                            className="bg-red-500 hover:bg-red-600"
+                            disabled={selectedRows.length === 0}
+                        >
+                            מחיקת דיווח ({selectedRows.length})
+                        </Button>
+                    )}
+                </div>
+                <div className="ag-theme-alpine w-[110vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
+                    <AgGridReact
+                        rowData={activeTab === 'החתמה' ? summarizedBallSignatureData : ballDataByStatus[activeTab] || []}
+                        columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
+                        enableRtl={true}
+                        defaultColDef={{
+                            ...defaultColDef,
+                            checkboxSelection: activeTab !== 'החתמה' ? (params) => {
+                                return params.column.getColId() === 'checkboxCol';
+                            } : false
+                        }}
+                        suppressHorizontalScroll={false}
+                        rowSelection={activeTab !== 'החתמה' ? 'multiple' : undefined}
+                        suppressRowClickSelection={true}
+                        onSelectionChanged={(params) => {
+                            const selectedRows = params.api.getSelectedRows();
+                            setSelectedRows(selectedRows);
+                        }}
+                        onCellClicked={(event) => {
+                            if (permissions['munitions'] && event.colDef && event.colDef.field === 'תאריך')
+                                handleDateClicked(event.data)
+                        }}
+                        onCellValueChanged={(params) => {
+                            if (params.colDef.field === 'נקרא') {
+                                handleReadStatusChange(params);
+                            }
+                        }}
+                        getRowStyle={(params) => {
+                            if (params.data && params.data.נקרא === 'כן') {
+                                return {backgroundColor: '#ffcccc'};
+                            }
+                        }}
+                    />
+                </div>
+            </div>
+
+            {/* Explosion Ammo Grid */}
+            <div className="mb-8">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-xl font-bold">נפיצה</h3>
+                    {(permissions['munitions']) && activeTab !== 'החתמה' && (
+                        <Button
+                            onClick={() => handleDeleteSelectedItems()}
+                            className="bg-red-500 hover:bg-red-600"
+                            disabled={selectedRows.length === 0}
+                        >
+                            מחיקת דיווח ({selectedRows.length})
+                        </Button>
+                    )}
+                </div>
+                <div className="ag-theme-alpine w-[110vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
+                    <AgGridReact
+                        rowData={activeTab === 'החתמה' ? summarizedExplosionSignatureData : explosionDataByStatus[activeTab] || []}
+                        columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
+                        enableRtl={true}
+                        defaultColDef={{
+                            ...defaultColDef,
+                            checkboxSelection: activeTab !== 'החתמה' ? (params) => {
+                                return params.column.getColId() === 'checkboxCol';
+                            } : false
+                        }}
+                        suppressHorizontalScroll={false}
+                        rowSelection={activeTab !== 'החתמה' ? 'multiple' : undefined}
+                        suppressRowClickSelection={true}
+                        onSelectionChanged={(params) => {
+                            const selectedRows = params.api.getSelectedRows();
+                            setSelectedRows(selectedRows);
+                        }}
+                        onCellClicked={(event) => {
+                            if (permissions['munitions'] && event.colDef && event.colDef.field === 'תאריך')
+                                handleDateClicked(event.data)
+                        }}
+                        onCellValueChanged={(params) => {
+                            if (params.colDef.field === 'נקרא') {
+                                handleReadStatusChange(params);
+                            }
+                        }}
+                        getRowStyle={(params) => {
+                            if (params.data && params.data.נקרא === 'כן') {
+                                return {backgroundColor: '#ffcccc'};
+                            }
+                        }}
+                    />
+                </div>
             </div>
 
             {/* Item form dialog */}
@@ -905,102 +1161,54 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
                     <DialogHeader>
                         <DialogTitle
-                            className="text-right">{dialogMode === 'הזמנה' ? 'דיווח שצל' : 'החתם על פריט'}</DialogTitle>
+                            className="text-right">{dialogMode === 'דיווח' ? 'דיווח שצל' : 'החתם על פריט'}</DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-4 py-4 text-right">
                         {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-3 gap-4 mb-4">
+                            <div key={index} className="grid grid-cols-4 gap-4 mb-4">
+                                <div>
+                                    <Label htmlFor={`ammo-type-${index}`} className="text-right block mb-2">סוג
+                                        תחמושת</Label>
+                                    <Select
+                                        value={item.סוג_תחמושת || 'קליעית'}
+                                        onValueChange={(value) => {
+                                            const newItems = [...items];
+                                            newItems[index].סוג_תחמושת = value;
+                                            // Reset פריט when changing ammo type
+                                            newItems[index].פריט = '';
+                                            setItems(newItems);
+                                        }}
+                                    >
+                                        <SelectTrigger className="text-right">
+                                            <SelectValue placeholder="בחר סוג"/>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="קליעית">קליעית</SelectItem>
+                                            <SelectItem value="נפיצה">נפיצה</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
                                 <div>
                                     <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
-                                    {permissions['munitions'] ? (
-                                        <CreatableSelect
-                                            id={`item-${index}`}
-                                            options={uniqueItemNames.map(name => ({ value: name, label: name }))}
-                                            value={item.פריט ? { value: item.פריט, label: item.פריט } : null}
-                                            getOptionLabel={(option: any) => option.label}
-                                            getOptionValue={(option: any) => option.value}
-                                            onChange={(selectedOption) => {
-                                                const newItems = [...items];
-                                                // If no option is selected (user cleared the field)
-                                                if (!selectedOption) {
-                                                    newItems[index].פריט = '';
-                                                    setItems(newItems);
-                                                    return;
-                                                }
-                                                
-                                                // Use the value directly
-                                                newItems[index].פריט = selectedOption.value;
-                                                setItems(newItems);
-                                            }}
-                                            onCreateOption={(inputValue) => {
-                                                // Create a new option when user enters custom text
-                                                const newItems = [...items];
-                                                newItems[index].פריט = inputValue;
-                                                setItems(newItems);
-                                                // Also update custom item input for potential future use
-                                                setCustomItemInput(inputValue);
-                                            }}
-                                            placeholder="בחר או הכנס פריט"
-                                            noOptionsMessage={() => "לא נמצאו פריטים"}
-                                            formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
-                                            classNamePrefix="item-select"
-                                            isClearable
-                                            isSearchable
-                                            styles={{
-                                                control: (provided) => ({
-                                                    ...provided,
-                                                    textAlign: 'right',
-                                                    direction: 'rtl'
-                                                }),
-                                                menu: (provided) => ({
-                                                    ...provided,
-                                                    textAlign: 'right',
-                                                    direction: 'rtl'
-                                                }),
-                                                option: (provided) => ({
-                                                    ...provided,
-                                                    textAlign: 'right',
-                                                    direction: 'rtl'
-                                                }),
-                                                placeholder: (provided) => ({
-                                                    ...provided,
-                                                    textAlign: 'right'
-                                                }),
-                                                singleValue: (provided) => ({
-                                                    ...provided,
-                                                    textAlign: 'right'
-                                                })
-                                            }}
-                                            theme={(theme) => ({
-                                                ...theme,
-                                                colors: {
-                                                    ...theme.colors,
-                                                    primary: '#3b82f6', // Blue color for selection
-                                                    primary25: '#eff6ff' // Light blue for hover
-                                                }
-                                            })}
-                                        />
-                                    ) : (
-                                        // Non-munitions users get a regular Select without create option
-                                        <Select
-                                            value={item.פריט || ''}
-                                            onValueChange={(value) => {
-                                                const newItems = [...items];
-                                                newItems[index].פריט = value;
-                                                setItems(newItems);
-                                            }}
-                                        >
-                                            <SelectTrigger className="text-right">
-                                                <SelectValue placeholder="בחר פריט"/>
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {uniqueItemNames.map((name, i) => (
-                                                    <SelectItem key={i} value={name}>{name}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
+                                    <Select
+                                        value={item.פריט || ''}
+                                        onValueChange={(value) => {
+                                            const newItems = [...items];
+                                            newItems[index].פריט = value;
+                                            setItems(newItems);
+                                        }}
+                                    >
+                                        <SelectTrigger className="text-right">
+                                            <SelectValue placeholder="בחר פריט"/>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames).map((name, i) => (
+                                                <SelectItem key={i} value={name}>{name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
 
                                 <div>
@@ -1011,11 +1219,16 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         value={item.כמות || ''}
                                         onChange={(e) => {
                                             const newItems = [...items];
-                                            newItems[index].כמות = parseInt(e.target.value, 10) || 0;
+                                            const parsed = parseInt(e.target.value, 10);
+                                            const safe = Number.isNaN(parsed) ? 1 : Math.max(1, parsed);
+                                            newItems[index].כמות = safe;
                                             setItems(newItems);
                                         }}
                                         className="text-right"
-                                        min="1"
+                                        min={1}
+                                        step={1}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                     />
                                 </div>
 
@@ -1030,7 +1243,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         }}
                                         disabled={!permissions['munitions']} // Disable for non-munitions users
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger>
                                             <SelectValue placeholder="בחר צורך"/>
                                         </SelectTrigger>
                                         <SelectContent>
@@ -1073,7 +1286,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             ביטול
                         </Button>
                         <Button type="button" onClick={handleAddItem}>
-                            {dialogMode === 'הזמנה' ? 'שלח דרישות' : 'החתם על פריטים'}
+                            {dialogMode === 'דיווח' ? 'שלח דרישות' : 'החתם על פריטים'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1092,117 +1305,74 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                     <div className="space-y-4 py-4">
                         {/*<div className="space-y-4 py-4 text-right">*/}
                         {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-3 gap-4 mb-4">
+                            <div key={index} className="grid grid-cols-4 gap-4 mb-4">
                                 <div>
-                                    <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
-                                    {permissions['munitions'] ? (
-                                        <CreatableSelect
-                                            id={`item-${index}`}
-                                            options={uniqueItemNames.map(name => ({ value: name, label: name }))}
-                                            value={item.פריט ? { value: item.פריט, label: item.פריט } : null}
-                                            getOptionLabel={(option: any) => option.label}
-                                            getOptionValue={(option: any) => option.value}
-                                            onChange={(selectedOption) => {
-                                                const newItems = [...items];
-                                                // If no option is selected (user cleared the field)
-                                                if (!selectedOption) {
-                                                    newItems[index].פריט = '';
-                                                    setItems(newItems);
-                                                    return;
-                                                }
-                                                
-                                                // Use the value directly
-                                                newItems[index].פריט = selectedOption.value;
-                                                setItems(newItems);
-                                            }}
-                                            onCreateOption={(inputValue) => {
-                                                // Create a new option when user enters custom text
-                                                const newItems = [...items];
-                                                newItems[index].פריט = inputValue;
-                                                setItems(newItems);
-                                                // Also update custom item input for potential future use
-                                                setCustomItemInput(inputValue);
-                                            }}
-                                            placeholder="בחר או הכנס פריט"
-                                            noOptionsMessage={() => "לא נמצאו פריטים"}
-                                            formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
-                                            classNamePrefix="item-select"
-                                            isClearable
-                                            isSearchable
-                                            styles={{
-                                                control: (provided) => ({
-                                                    ...provided,
-                                                    textAlign: 'right',
-                                                    direction: 'rtl'
-                                                }),
-                                                menu: (provided) => ({
-                                                    ...provided,
-                                                    textAlign: 'right',
-                                                    direction: 'rtl'
-                                                }),
-                                                option: (provided) => ({
-                                                    ...provided,
-                                                    textAlign: 'right',
-                                                    direction: 'rtl'
-                                                }),
-                                                placeholder: (provided) => ({
-                                                    ...provided,
-                                                    textAlign: 'right'
-                                                }),
-                                                singleValue: (provided) => ({
-                                                    ...provided,
-                                                    textAlign: 'right'
-                                                })
-                                            }}
-                                            theme={(theme) => ({
-                                                ...theme,
-                                                colors: {
-                                                    ...theme.colors,
-                                                    primary: '#3b82f6', // Blue color for selection
-                                                    primary25: '#eff6ff' // Light blue for hover
-                                                }
-                                            })}
-                                        />
-                                    ) : (
-                                        // Non-munitions users get a regular Select without create option
-                                        <Select
-                                            value={item.פריט || ''}
-                                            onValueChange={(value) => {
-                                                const newItems = [...items];
-                                                newItems[index].פריט = value;
-                                                setItems(newItems);
-                                            }}
-                                        >
-                                            <SelectTrigger className="text-right">
-                                                <SelectValue placeholder="בחר פריט"/>
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {uniqueItemNames.map((name, i) => (
-                                                    <SelectItem key={i} value={name}>{name}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
+                                    <Label htmlFor={`sig-ammo-type-${index}`} className="text-right block mb-2">סוג
+                                        תחמושת</Label>
+                                    <Select
+                                        value={item.סוג_תחמושת || 'קליעית'}
+                                        onValueChange={(value) => {
+                                            const newItems = [...items];
+                                            newItems[index].סוג_תחמושת = value;
+                                            // Reset פריט when changing ammo type
+                                            newItems[index].פריט = '';
+                                            setItems(newItems);
+                                        }}
+                                    >
+                                        <SelectTrigger className="text-right">
+                                            <SelectValue placeholder="בחר סוג"/>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="קליעית">קליעית</SelectItem>
+                                            <SelectItem value="נפיצה">נפיצה</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
 
                                 <div>
-                                    <Label htmlFor={`qty-${index}`} className="text-right block mb-2">כמות</Label>
+                                    <Label htmlFor={`sig-item-${index}`} className="text-right block mb-2">פריט</Label>
+                                    <Select
+                                        value={item.פריט || ''}
+                                        onValueChange={(value) => {
+                                            const newItems = [...items];
+                                            newItems[index].פריט = value;
+                                            setItems(newItems);
+                                        }}
+                                    >
+                                        <SelectTrigger className="text-right">
+                                            <SelectValue placeholder="בחר פריט"/>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames).map((name, i) => (
+                                                <SelectItem key={i} value={name}>{name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div>
+                                    <Label htmlFor={`sig-qty-${index}`} className="text-right block mb-2">כמות</Label>
                                     <Input
-                                        id={`qty-${index}`}
+                                        id={`sig-qty-${index}`}
                                         type="number"
                                         value={item.כמות || ''}
                                         onChange={(e) => {
                                             const newItems = [...items];
-                                            newItems[index].כמות = parseInt(e.target.value, 10) || 0;
+                                            const parsed = parseInt(e.target.value, 10);
+                                            const safe = Number.isNaN(parsed) ? 1 : Math.max(1, parsed);
+                                            newItems[index].כמות = safe;
                                             setItems(newItems);
                                         }}
                                         className="text-right"
-                                        min="1"
+                                        min={1}
+                                        step={1}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                     />
                                 </div>
 
                                 <div>
-                                    <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
+                                    <Label htmlFor={`sig-need-${index}`} className="text-right block mb-2">צורך</Label>
                                     <Select
                                         value={item.צורך || 'ניפוק'}
                                         onValueChange={(value) => {
@@ -1290,7 +1460,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             ביטול
                         </Button>
                         <Button type="button" onClick={handleAddItem}>
-                            {dialogMode === 'הזמנה' ? 'שלח דרישות' : 'החתם על פריטים'}
+                            {dialogMode === 'דיווח' ? 'שלח דרישות' : 'החתם על פריטים'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
