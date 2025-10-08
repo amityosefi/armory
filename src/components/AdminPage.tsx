@@ -1,6 +1,6 @@
 "use client";
 
-import React, {useEffect, useState, useRef} from "react";
+import React, {useEffect, useState, useRef, useMemo} from "react";
 import {supabase} from "@/lib/supabaseClient"
 import {AgGridReact} from "ag-grid-react";
 import {useNavigate} from "react-router-dom";
@@ -57,10 +57,24 @@ const AdminPage = () => {
     const [newArmoryItem, setNewArmoryItem] = useState({
         אמצעי: "",
         חתימה: 0,
-        סוג: "נשק",
+        סוג: "",
     });
     const [miniConfirmOpen, setMiniConfirmOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string>("");
+
+    // Compute unique categories dynamically from armoryItems
+    const uniqueCategories = useMemo(() => {
+        const categories = new Set(armoryItems.map(item => item.סוג));
+        return Array.from(categories).sort();
+    }, [armoryItems]);
+
+    // Set default category when opening add form
+    useEffect(() => {
+        if (showArmoryForm && !editingArmoryItem && newArmoryItem.סוג === "") {
+            const defaultCategory = uniqueCategories[0] || "נשק";
+            setNewArmoryItem(prev => ({...prev, סוג: defaultCategory}));
+        }
+    }, [showArmoryForm, editingArmoryItem, uniqueCategories]);
 
     // Check if form is valid
     const isFormValid = () => {
@@ -380,7 +394,7 @@ const AdminPage = () => {
             } else {
                 await logAction(`הוספת אמצעי חדש: ${newArmoryItem.אמצעי}, סוג: ${newArmoryItem.סוג}, חתימה: ${newArmoryItem.חתימה}`);
                 setStatusMessage({text: "האמצעי נוסף בהצלחה", type: "success"});
-                setNewArmoryItem({אמצעי: "", חתימה: 0, סוג: "נשק"});
+                setNewArmoryItem({אמצעי: "", חתימה: 0, סוג: ""});
                 setShowArmoryForm(false);
                 await fetchArmoryItems();
             }
@@ -800,7 +814,7 @@ const AdminPage = () => {
                             onClick={() => {
                                 setShowArmoryForm(!showArmoryForm);
                                 setEditingArmoryItem(null);
-                                setNewArmoryItem({אמצעי: "", חתימה: 0, סוג: "נשק"});
+                                setNewArmoryItem({אמצעי: "", חתימה: 0, סוג: ""});
                             }}
                             className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded"
                         >
@@ -857,10 +871,21 @@ const AdminPage = () => {
                                                 <SelectValue placeholder="בחר סוג" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="נשק">נשק</SelectItem>
-                                                <SelectItem value="אמרל">אמרל</SelectItem>
-                                                <SelectItem value="אופטיקה">אופטיקה</SelectItem>
-                                                <SelectItem value="ציוד">ציוד</SelectItem>
+                                                {uniqueCategories.length > 0 ? (
+                                                    uniqueCategories.map(category => (
+                                                        <SelectItem key={category} value={category}>
+                                                            {category}
+                                                        </SelectItem>
+                                                    ))
+                                                ) : (
+                                                    <>
+                                                        <SelectItem value="נשק">נשק</SelectItem>
+                                                        <SelectItem value="אמרל">אמרל</SelectItem>
+                                                        <SelectItem value="אופטיקה">אופטיקה</SelectItem>
+                                                        <SelectItem value="כוונת">כוונת</SelectItem>
+                                                        <SelectItem value="ציוד">ציוד</SelectItem>
+                                                    </>
+                                                )}
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -889,177 +914,53 @@ const AdminPage = () => {
                     {/* Armory Items Tables - Grouped by Type */}
                     {armoryItems.length > 0 ? (
                         <div className="space-y-6">
-                            {/* נשק Table */}
-                            {armoryItems.filter(item => item.סוג === 'נשק').length > 0 && (
-                                <div>
-                                    <h4 className="text-lg font-bold mb-2 text-right">נשק</h4>
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full bg-white border border-gray-300">
-                                            <thead className="bg-gray-100">
-                                            <tr>
-                                                <th className="py-2 px-4 border-b text-right">אמצעי</th>
-                                                <th className="py-2 px-4 border-b text-right">חתימה</th>
-                                                <th className="py-2 px-4 border-b text-right">פעולות</th>
-                                            </tr>
-                                            </thead>
-                                            <tbody>
-                                            {armoryItems.filter(item => item.סוג === 'נשק').map((item) => (
-                                                <tr key={item.אמצעי} className="hover:bg-gray-50">
-                                                    <td className="py-2 px-4 border-b text-right">{item.אמצעי}</td>
-                                                    <td className="py-2 px-4 border-b text-right">{item.חתימה}</td>
-                                                    <td className="py-2 px-4 border-b text-right">
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingArmoryItem(item);
-                                                                setShowArmoryForm(false);
-                                                            }}
-                                                            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm ml-2"
-                                                        >
-                                                            ערוך
-                                                        </button>
-                                                        <button
-                                                            onClick={() => deleteArmoryItem(item.אמצעי)}
-                                                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
-                                                        >
-                                                            מחק
-                                                        </button>
-                                                    </td>
+                            {/* Dynamically render tables for each category */}
+                            {uniqueCategories.map(category => {
+                                const categoryItems = armoryItems.filter(item => item.סוג === category);
+                                if (categoryItems.length === 0) return null;
+                                
+                                return (
+                                    <div key={category}>
+                                        <h4 className="text-lg font-bold mb-2 text-right">{category}</h4>
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full bg-white border border-gray-300">
+                                                <thead className="bg-gray-100">
+                                                <tr>
+                                                    <th className="py-2 px-4 border-b text-right">אמצעי</th>
+                                                    <th className="py-2 px-4 border-b text-right">חתימה</th>
+                                                    <th className="py-2 px-4 border-b text-right">פעולות</th>
                                                 </tr>
-                                            ))}
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody>
+                                                {categoryItems.map((item) => (
+                                                    <tr key={item.אמצעי} className="hover:bg-gray-50">
+                                                        <td className="py-2 px-4 border-b text-right">{item.אמצעי}</td>
+                                                        <td className="py-2 px-4 border-b text-right">{item.חתימה}</td>
+                                                        <td className="py-2 px-4 border-b text-right">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingArmoryItem(item);
+                                                                    setShowArmoryForm(false);
+                                                                }}
+                                                                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm ml-2"
+                                                            >
+                                                                ערוך
+                                                            </button>
+                                                            <button
+                                                                onClick={() => deleteArmoryItem(item.אמצעי)}
+                                                                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
+                                                            >
+                                                                מחק
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-
-                            {/* אמרל Table */}
-                            {armoryItems.filter(item => item.סוג === 'אמרל').length > 0 && (
-                                <div>
-                                    <h4 className="text-lg font-bold mb-2 text-right">אמרל</h4>
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full bg-white border border-gray-300">
-                                            <thead className="bg-gray-100">
-                                            <tr>
-                                                <th className="py-2 px-4 border-b text-right">אמצעי</th>
-                                                <th className="py-2 px-4 border-b text-right">חתימה</th>
-                                                <th className="py-2 px-4 border-b text-right">פעולות</th>
-                                            </tr>
-                                            </thead>
-                                            <tbody>
-                                            {armoryItems.filter(item => item.סוג === 'אמרל').map((item) => (
-                                                <tr key={item.אמצעי} className="hover:bg-gray-50">
-                                                    <td className="py-2 px-4 border-b text-right">{item.אמצעי}</td>
-                                                    <td className="py-2 px-4 border-b text-right">{item.חתימה}</td>
-                                                    <td className="py-2 px-4 border-b text-right">
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingArmoryItem(item);
-                                                                setShowArmoryForm(false);
-                                                            }}
-                                                            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm ml-2"
-                                                        >
-                                                            ערוך
-                                                        </button>
-                                                        <button
-                                                            onClick={() => deleteArmoryItem(item.אמצעי)}
-                                                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
-                                                        >
-                                                            מחק
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* אופטיקה Table */}
-                            {armoryItems.filter(item => item.סוג === 'אופטיקה').length > 0 && (
-                                <div>
-                                    <h4 className="text-lg font-bold mb-2 text-right">אופטיקה</h4>
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full bg-white border border-gray-300">
-                                            <thead className="bg-gray-100">
-                                            <tr>
-                                                <th className="py-2 px-4 border-b text-right">אמצעי</th>
-                                                <th className="py-2 px-4 border-b text-right">חתימה</th>
-                                                <th className="py-2 px-4 border-b text-right">פעולות</th>
-                                            </tr>
-                                            </thead>
-                                            <tbody>
-                                            {armoryItems.filter(item => item.סוג === 'אופטיקה').map((item) => (
-                                                <tr key={item.אמצעי} className="hover:bg-gray-50">
-                                                    <td className="py-2 px-4 border-b text-right">{item.אמצעי}</td>
-                                                    <td className="py-2 px-4 border-b text-right">{item.חתימה}</td>
-                                                    <td className="py-2 px-4 border-b text-right">
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingArmoryItem(item);
-                                                                setShowArmoryForm(false);
-                                                            }}
-                                                            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm ml-2"
-                                                        >
-                                                            ערוך
-                                                        </button>
-                                                        <button
-                                                            onClick={() => deleteArmoryItem(item.אמצעי)}
-                                                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
-                                                        >
-                                                            מחק
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* ציוד Table */}
-                            {armoryItems.filter(item => item.סוג === 'ציוד').length > 0 && (
-                                <div>
-                                    <h4 className="text-lg font-bold mb-2 text-right">ציוד</h4>
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full bg-white border border-gray-300">
-                                            <thead className="bg-gray-100">
-                                            <tr>
-                                                <th className="py-2 px-4 border-b text-right">אמצעי</th>
-                                                <th className="py-2 px-4 border-b text-right">חתימה</th>
-                                                <th className="py-2 px-4 border-b text-right">פעולות</th>
-                                            </tr>
-                                            </thead>
-                                            <tbody>
-                                            {armoryItems.filter(item => item.סוג === 'ציוד').map((item) => (
-                                                <tr key={item.אמצעי} className="hover:bg-gray-50">
-                                                    <td className="py-2 px-4 border-b text-right">{item.אמצעי}</td>
-                                                    <td className="py-2 px-4 border-b text-right">{item.חתימה}</td>
-                                                    <td className="py-2 px-4 border-b text-right">
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingArmoryItem(item);
-                                                                setShowArmoryForm(false);
-                                                            }}
-                                                            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm ml-2"
-                                                        >
-                                                            ערוך
-                                                        </button>
-                                                        <button
-                                                            onClick={() => deleteArmoryItem(item.אמצעי)}
-                                                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
-                                                        >
-                                                            מחק
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
+                                );
+                            })}
                         </div>
                     ) : (
                         <p className="text-gray-500 text-center py-4">אין אמצעים להצגה</p>
