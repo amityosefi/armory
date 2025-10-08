@@ -44,7 +44,7 @@ const GroupNavigation: React.FC<GroupNavigationProps> = ({ sheetGroups }) => {
                         onClick={() => navigate('/admin')}
                         className="bg-red-600 text-white px-2 py-1 rounded text-sm font-medium hover:bg-red-700"
                     >
-                        ניהול משתמשים
+                        ניהול מערכת
                     </button>
                 )}
             </div>
@@ -71,7 +71,7 @@ const GroupNavigation: React.FC<GroupNavigationProps> = ({ sheetGroups }) => {
                     to="/admin"
                     className="px-4 py-1 rounded-lg font-medium transition-colors bg-red-600 text-white hover:bg-red-700"
                 >
-                    ניהול משתמשים
+                    ניהול מערכת
                 </Link>
               )}
             </div>
