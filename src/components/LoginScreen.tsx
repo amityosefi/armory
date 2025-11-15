@@ -18,7 +18,37 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
 
     const setAuth = useAuthStore((state) => state.setAuth)
-    const {setPermissions} = usePermissions()
+    const {setPermissions, permissions} = usePermissions()
+
+    // Helper function to determine redirect path based on permissions
+    const getRedirectPath = () => {
+        // If user has Armory permission, go to armory
+        if (permissions['Armory']) {
+            return '/armory/0';
+        }
+        
+        // Check for Plugot permissions (company-level access)
+        // Map company names to their tab indices in the armory section
+        const plugotMapping: { [key: string]: number } = {
+            'א': 0,
+            'ב': 1,
+            'ג': 2,
+            'מסייעת': 3,
+            'אלון': 4,
+            'מכלול': 5,
+            'פלסם': 6
+        };
+        
+        // Find the first company permission they have and navigate to that tab
+        for (const [plugaName, tabIndex] of Object.entries(plugotMapping)) {
+            if (permissions[plugaName]) {
+                return `/armory/${tabIndex}`;
+            }
+        }
+        
+        // Fallback to armory first tab if no specific permissions found
+        return '/armory/0';
+    };
 
     // Check for existing token on mount
     useEffect(() => {
@@ -117,7 +147,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
     }
 
     if (isAuthenticated) {
-        return <Navigate to="/group/0/sheet/0/row/0" replace/>
+        return <Navigate to={getRedirectPath()} replace/>
     }
 
     return (
@@ -160,7 +190,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                                     d="M24 48c6.15 0 11.31-2.03 15.08-5.52l-7.01-5.46C29.3 38.77 26.76 39.5 24 39.5c-6.27 0-11.57-3.91-13.47-9.7l-7.98 6.2C6.5 42.3 14.6 48 24 48z"
                                 />
                             </svg>
-                            Google התחבר עם
+                            לחץ להתחברות עם גוגל
                         </button>
                     </div>
                 </div>

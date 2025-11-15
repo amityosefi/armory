@@ -1,6 +1,7 @@
 // Sheet Group interface definition
 export interface SheetGroup {
   name: string;
+  pathName: string;
   sheets: Array<{
     name: string;
     range: string;

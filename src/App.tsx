@@ -3,13 +3,14 @@ import type { TokenResponse } from '@react-oauth/google'
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import LoginScreen from './components/LoginScreen'
 import SheetGroupPage from './components/SheetGroupPage'
-import NavBar from './components/NavBar'
-import { sheetGroups } from './constants'
+import NavBar from './components/route/NavBar'
+import { sheetGroups } from "@/constants";
 import './css/App.css'
 import SoldierPage from './components/SoldierPage'
 import AdminPage from './components/AdminPage'
 import { PermissionsProvider } from './contexts/PermissionsContext'
-import DivideComponents from "@/components/route/DivideComponentSections";
+import DivideComponents from "@/components/route/DivideComponentSections"
+import SoldierArmoryPage from './components/armory/SoldierArmoryPage';
 
 function App() {
     const [user, setUser] = useState<TokenResponse | null>(null)
@@ -35,12 +36,20 @@ function App() {
 
                     {user ? (
                         <>
-                            <Route path="/" element={<Navigate to="/group/0" replace />} />
+                            <Route path="/" element={<Navigate to="/armory/0" replace />} />
                             <Route
-                                path="/sheet/:sheetName/soldier/:soldierIndex"
+                                path="sheet/:sheetName/soldier/:soldierIndex"
                                 element={
                                     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4 w-full" dir="rtl">
                                         <SoldierPage accessToken={user.access_token} />
+                                    </div>
+                                }
+                            />
+                            <Route
+                                path="/soldier/:soldierID"
+                                element={
+                                    <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4 w-full" dir="rtl">
+                                        <SoldierArmoryPage />
                                     </div>
                                 }
                             />
@@ -53,7 +62,7 @@ function App() {
                                 }
                             />
                             <Route
-                                path="/group/:groupId/sheet/:sheetIndex/row/:rowIndex/*"
+                                path="/:groupName/:tabIndex"
                                 element={
                                     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4 w-full" dir="rtl">
                                         <div className="w-full max-w-full md:px-4">

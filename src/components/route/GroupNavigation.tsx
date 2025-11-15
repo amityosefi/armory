@@ -23,17 +23,17 @@ const GroupNavigation: React.FC<GroupNavigationProps> = ({ sheetGroups }) => {
                 <select
                     className="border px-2 py-1 rounded text-sm"
                     onChange={(e) => {
-                      const index = e.target.value;
-                      navigate(`/group/${index}/sheet/0/row/0`);
+                      const pathName = e.target.value;
+                      navigate(`/${pathName}/0`);
                     }}
-                    defaultValue={sheetGroups.findIndex(
-                        (_, i) => currentPath.includes(`/group/${i}`)
-                    )}
+                    defaultValue={sheetGroups.find(
+                        (group) => currentPath.includes(`/${group.pathName}`)
+                    )?.pathName || sheetGroups[0]?.pathName}
                 >
                   {sheetGroups.map((group, index) => {
                     if (permissions[group.name] === false) return null;
                     return (
-                        <option key={index} value={index}>
+                        <option key={index} value={group.pathName}>
                           {group.name}
                         </option>
                     );
@@ -51,11 +51,11 @@ const GroupNavigation: React.FC<GroupNavigationProps> = ({ sheetGroups }) => {
         ) : (
             <div className="flex gap-3 flex-wrap">
               {sheetGroups.map((group, index) => {
-                const isActive = currentPath.includes(`/group/${index}`);
+                const isActive = currentPath.includes(`/${group.pathName}`);
                 return (
                     <Link
                         key={index}
-                        to={`/group/${index}/sheet/0/row/0`}
+                        to={`/${group.pathName}/0`}
                         className={`px-4 py-1 rounded-lg font-medium transition-colors ${
                             isActive
                                 ? 'bg-blue-700 text-white shadow-md'

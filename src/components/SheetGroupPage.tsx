@@ -712,7 +712,7 @@ const SheetGroupPage: React.FC<SheetGroupPageProps> = ({accessToken, sheetGroups
         doc.setFontSize(12);
 
         doc.setFontSize(18);
-        doc.text(mirrorHebrew('טופס חיתמת חייל גדוד .1018'), pageWidth / 2, y, { align: 'center' });
+        doc.text(mirrorHebrew('טופס חתימת חייל גדוד .1018'), pageWidth / 2, y, { align: 'center' });
         y += 10;
 
         const dateStr = new Date().toLocaleString('he-IL').split(' ');

@@ -1,8 +1,8 @@
 import React from 'react';
-import GroupNavigation from './route/GroupNavigation';
-import SearchBar from './SearchBar';
-import { SheetGroup } from '../types';
-import useIsMobile from '../hooks/useIsMobile';
+import GroupNavigation from './GroupNavigation';
+import SearchBar from '../SearchBar';
+import { SheetGroup } from '@/types';
+import useIsMobile from '../../hooks/useIsMobile';
 
 interface NavBarProps {
   sheetGroups: SheetGroup[];

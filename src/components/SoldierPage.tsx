@@ -204,7 +204,7 @@ const SoldierPage: React.FC<SoldierCardPageProps> = ({accessToken}) => {
 
             // Title in the center
             doc.setFontSize(18);
-            doc.text(mirrorHebrewSmart('טופס חיתמת חייל גדוד .1018'), pageWidth / 2, y, {align: 'center'});
+            doc.text(mirrorHebrewSmart('טופס חתימת חייל גדוד .1018'), pageWidth / 2, y, {align: 'center'});
             y += 10;
 
             // Right-up: date and time

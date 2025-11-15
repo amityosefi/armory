@@ -1,181 +1,144 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import type { SheetGroup } from '../types';
-import GoogleSheetsService from '../services/GoogleSheetsService';
-import {sheetGroups} from "../constants";
-import groupNavigation from "./route/GroupNavigation";
-import {usePermissions} from "@/contexts/PermissionsContext";
+import { usePermissions } from "@/contexts/PermissionsContext";
+import { supabase } from "@/lib/supabaseClient";
+import SearchResultsModal, { SearchResult } from './armory/SearchResultsModal';
 
 interface SearchBarProps {
   sheetGroups: SheetGroup[];
   accessToken: string;
 }
 
-interface SearchResult {
-  sheetName: string;
-  cellValue: string;
-  rowIndex: number;
-}
-
 const SearchBar: React.FC<SearchBarProps> = ({ sheetGroups, accessToken }) => {
-  const navigate = useNavigate();
   const { permissions } = usePermissions();
   const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [allPeople, setAllPeople] = useState<any[]>([]);
+  const [allItems, setAllItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  const handleSearch = async () => {
-    if (!searchText.trim()) return;
-    try {
-      const res = await GoogleSheetsService.searchAcrossAllSheets({
-        searchValue: searchText.trim(),
-        accessToken,
-      });
-      setResults(res);
-      setShowModal(true);
-    } catch (error) {
-      console.error("Error searching sheets:", error);
-    }
-  };
-
-  // Close modal when clicking outside
+  // Fetch all data on component mount
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
-        setShowModal(false);
+    const fetchData = async () => {
+      try {
+        const [peopleResponse, itemsResponse] = await Promise.all([
+          supabase.from('people').select('*'),
+          supabase.from('armory_items').select('*')
+        ]);
+
+        if (peopleResponse.data) setAllPeople(peopleResponse.data);
+        if (itemsResponse.data) setAllItems(itemsResponse.data);
+      } catch (error) {
+        console.error('Error fetching data:', error);
       }
     };
-    if (showModal) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showModal]);
 
-  const handleClick = (result: SearchResult) => {
-    const sheetNameToUrl = result.sheetName.replace(/^'(.*)'$/, '$1');
-    const sheetsWithIndexes = sheetGroups.flatMap((group, groupIndex) =>
-      group.sheets.map((sheet, sheetIndex) => ({
-        ...sheet,
-        groupIndex,
-        sheetIndex,
-      }))
-    );
+    fetchData();
+  }, []);
 
-    const sheetWithIndexes = sheetsWithIndexes.find(sheet => `'${sheet.range}'` === result.sheetName);
-    if (sheetWithIndexes) {
-      // @ts-ignore
-      navigate(`/sheet/${sheetNameToUrl}/soldier/${result.rowIndex + 2}`);
-      // navigate(`/sheet/${selectedSheet.range}/soldier/${event.data['rowRealIndex'] + 2}`);
-      setShowModal(false);
-    } else {
-      console.warn(`Sheet "${result.sheetName}" not found in "${sheetsWithIndexes}".`);
-    }
+  const handleSearch = () => {
+    if (!searchText.trim()) return;
+
+    setLoading(true);
+    const searchLower = searchText.trim().toLowerCase();
+    const foundResults: SearchResult[] = [];
+
+    // Search in people table
+    allPeople.forEach(person => {
+      const matchFields = [
+        person.id?.toString(),
+        person.name,
+        person.phone,
+        person.location
+      ].filter(Boolean);
+
+      const matches = matchFields.some(field =>
+        field.toLowerCase().includes(searchLower)
+      );
+
+      if (matches) {
+        foundResults.push({
+          type: 'person',
+          id: person.id,
+          name: person.name,
+          phone: person.phone,
+          location: person.location
+        });
+      }
+    });
+
+    // Search in armory_items table
+    allItems.forEach(item => {
+      const matchFields = [
+        item.id?.toString(),
+        item.name,
+        item.kind,
+        item.location
+      ].filter(Boolean);
+
+      const matches = matchFields.some(field =>
+        field.toLowerCase().includes(searchLower)
+      );
+
+      if (matches) {
+        // Find the person's name if item is with a soldier
+        let personName: string | undefined;
+        const location = item.location;
+        if (location !== 'גדוד' && location !== 'סדנא' && location !== 'מחסן') {
+          // Convert both to strings for comparison to handle type mismatches
+          const person = allPeople.find(p => String(p.id) === String(location));
+          personName = person?.name;
+        }
+
+        foundResults.push({
+          type: 'item',
+          id: item.id,
+          name: item.name,
+          kind: item.kind,
+          location: item.location,
+          personName: personName
+        });
+      }
+    });
+
+    setResults(foundResults);
+    setShowModal(true);
+    setLoading(false);
   };
-
-
-  const handleGroupClick = (result: SearchResult) => {
-    const sheetsWithIndexes = sheetGroups.flatMap((group, groupIndex) =>
-        group.sheets.map((sheet, sheetIndex) => ({
-          ...sheet,
-          groupIndex,
-          sheetIndex,
-          sheetRange: sheet.range,
-        }))
-    );
-
-    const sheetWithIndexes = sheetsWithIndexes.find(sheet => `'${sheet.range}'` === result.sheetName);
-    if (!sheetWithIndexes) {
-      console.warn(`Sheet "${result.sheetName}" not found in "${sheetsWithIndexes}".`);
-      return;
-    }
-    if (sheetWithIndexes.groupIndex === 0)
-      navigate(`/group/${sheetWithIndexes.groupIndex}/sheet/${sheetWithIndexes.sheetIndex}/row/0`);
-    else
-      navigate(`/group/${sheetWithIndexes.groupIndex}/sheet/${sheetWithIndexes.sheetIndex}/row/0`);
-    setShowModal(false);
-  }
 
   return (
     <>
       {/* Search Bar */}
       {!permissions['Plugot'] && (
-      <div className="flex w-full gap-2">
-        <input
+        <div className="flex w-full gap-2">
+          <input
             type="text"
-            placeholder="חפש בכל הגיליונות"
+            placeholder="חפש חיילים ואמצעים..."
             className="flex-grow px-3 py-1 border rounded-md text-right"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSearch();
             }}
-        />
-        <button
+          />
+          <button
             onClick={handleSearch}
-            className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
-        >
-          חפש
-        </button>
-      </div>
-      )}
-
-
-      {/* Search Results Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div
-            ref={modalRef}
-            className="bg-white p-6 rounded-xl border border-gray-30 shadow-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto relative"
+            disabled={loading}
+            className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {/* X button inside white box */}
-            <button
-              onClick={() => setShowModal(false)}
-              className="absolute top-2 left-2 text-red-500 font-bold text-2xl hover:text-red-700"
-            >
-              ×
-            </button>
-
-            <h2 className="text-xl font-semibold mb-4 text-right">
-              תוצאות חיפוש עבור: "{searchText}"
-            </h2>
-
-            {results.length === 0 ? (
-              <p className="text-center text-gray-500">לא נמצאו תוצאות.</p>
-            ) : (
-              <table className="min-w-[300px] table-fixed text-right border border-collapse">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="border px-3 py-2 w-1/3">גיליון</th>
-                    <th className="border px-3 py-2 w-2/3">ערך</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map((result, idx) =>
-                      <tr
-                          key={idx}
-                          className="border-t cursor-pointer hover:bg-gray-100"
-                      >
-                        <td className="border px-2 py-1 break-words w-1/3 text-blue-700 hover:underline"
-                            onClick={() => handleGroupClick(result)}>
-                          {result.sheetName}
-                        </td>
-                        <td className="border px-2 py-1 break-words w-2/3 text-blue-700 hover:underline"
-                            onClick={() => handleClick(result)}>
-                          {result.cellValue}
-                        </td>
-                      </tr>
-
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
+            {loading ? 'מחפש...' : 'חפש'}
+          </button>
         </div>
       )}
+
+      {/* Search Results Modal */}
+      <SearchResultsModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        searchText={searchText}
+        results={results}
+      />
     </>
   );
 };

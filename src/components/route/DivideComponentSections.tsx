@@ -1,19 +1,20 @@
 import type {SheetGroup} from "@/types";
-import React, {useState} from "react";
+import React, {useState, useEffect} from "react";
 import {useParams} from "react-router-dom";
 import TabsNavigation from "@/components/route/TabsNavigation";
 import {useNavigate} from "react-router-dom";
-import {sheetGroups} from "@/constants";
 import SheetGroupPage from "@/components/SheetGroupPage";
 import Logistic from "@/components/logistics/Logistic";
-import Equipment from "@/components/logistics/Logistic";
 import EquipmentStock from "@/components/logistics/EquipmentStock";
 import EquipmentSum from "@/components/logistics/EquipmentSum";
 import Ammo from "@/components/ammo/Ammo";
 import AmmoStock from "@/components/ammo/AmmoStock";
 import AmmoSum from "@/components/ammo/AmmoSum";
 import AmmoOrders from "@/components/ammo/AmmoOrders";
-import {hasPermission} from "@/utils/permissions";
+import ArmoryGroups from "@/components/armory/ArmoryGroups";
+import ArmoryStocks from "@/components/armory/ArmoryStocks";
+import ArmorySum from "@/components/armory/ArmorySum";
+import ArmoryDocumentation from "@/components/armory/ArmoryDocumentation";
 
 interface DivideComponentsProps {
     accessToken: string;
@@ -21,16 +22,24 @@ interface DivideComponentsProps {
 }
 
 const DivideComponents: React.FC<DivideComponentsProps> = ({accessToken, sheetGroups}) => {
-    const {groupId, sheetIndex} = useParams();
-    const groupIndex = parseInt(groupId || '0');
-    const currentGroup = sheetGroups[groupIndex] || sheetGroups[0];
-    const [activeTabIndex, setActiveTabIndex] = useState(parseInt(sheetIndex || '0')); // Initialize from URL
+    const {groupName, tabIndex} = useParams();
+    const currentGroup = sheetGroups.find(group => group.pathName === groupName) || sheetGroups[0];
+    const groupIndex = sheetGroups.findIndex(group => group.pathName === groupName);
+    const [activeTabIndex, setActiveTabIndex] = useState(parseInt(tabIndex || '0')); // Initialize from URL
     const selectedSheet = currentGroup.sheets[activeTabIndex] || currentGroup.sheets[0];
     const navigate = useNavigate();
 
+    // Sync activeTabIndex with URL parameter changes
+    useEffect(() => {
+        const newTabIndex = parseInt(tabIndex || '0');
+        if (newTabIndex !== activeTabIndex) {
+            setActiveTabIndex(newTabIndex);
+        }
+    }, [tabIndex]);
+
     const handleTabChange = (newSheetIndex: number) => {
         setActiveTabIndex(newSheetIndex);
-        navigate(`/group/${groupId}/sheet/${newSheetIndex}/row/0`);
+        navigate(`/${groupName}/${newSheetIndex}`);
     };
 
     const whichSection = () => {
@@ -53,10 +62,23 @@ const DivideComponents: React.FC<DivideComponentsProps> = ({accessToken, sheetGr
             />
 
             {/* armory*/}
-            {(groupIndex === 0 ) && (
-                <SheetGroupPage
-                    accessToken={accessToken}
-                    sheetGroups={sheetGroups}
+            {/*{(groupIndex === 0 ) && (*/}
+            {/*    <SheetGroupPage*/}
+            {/*        accessToken={accessToken}*/}
+            {/*        sheetGroups={sheetGroups}*/}
+            {/*    />*/}
+            {/*)}*/}
+
+            {(groupIndex === 0 && (selectedSheet.range === 'גדוד' || selectedSheet.range === 'מחסן') || selectedSheet.range === 'סדנא') ? (
+                <ArmoryStocks selectedSheet={selectedSheet}
+                />
+            ) : (groupIndex === 0 && selectedSheet.range === 'סיכום') ? (
+                <ArmorySum selectedSheet={selectedSheet}
+                />
+            ) : (groupIndex === 0 && selectedSheet.range === 'תיעוד') ? (
+                < ArmoryDocumentation/>
+            ) : (groupIndex === 0) && (
+                <ArmoryGroups selectedSheet={selectedSheet}
                 />
             )}
 
