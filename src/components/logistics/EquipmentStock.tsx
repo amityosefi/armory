@@ -38,7 +38,6 @@ type LogisticItem = {
     תאריך: string;
     מקט?: string;
     פריט: string;
-    מידה: string;
     כמות: number;
     צורך: string;
     הערה?: string;
@@ -106,7 +105,7 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
     // Fetch data from Supabase
     const fetchData = async () => {
-        if (permissions['Logistic']) {
+        if (permissions['logistic']) {
             try {
                 setLoading(true);
                 const {data, error} = await supabase
@@ -192,7 +191,6 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             const itemsToInsert = validItems.map(item => ({
                 תאריך: new Date().toLocaleString('he-IL'),
                 פריט: item.פריט,
-                מידה: '',
                 כמות: item.כמות,
                 צורך: 'ניפוק',
                 סטטוס: 'החתמה',
@@ -251,7 +249,6 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             const itemsToInsert = validItems.map(item => ({
                 תאריך: new Date().toLocaleString('he-IL'),
                 פריט: item.פריט,
-                מידה: '',
                 כמות: item.כמות,
                 צורך: 'זיכוי',
                 סטטוס: 'החתמה',
@@ -314,7 +311,6 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 itemsToInsert.push({
                     תאריך: new Date().toLocaleString('he-IL'),
                     פריט: item.פריט,
-                    מידה: '',
                     כמות: item.כמות,
                     צורך: 'זיכוי',
                     סטטוס: 'החתמה',
@@ -328,7 +324,6 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 itemsToInsert.push({
                     תאריך: new Date().toLocaleString('he-IL'),
                     פריט: item.פריט,
-                    מידה: '',
                     כמות: item.כמות,
                     צורך: 'ניפוק',
                     סטטוס: 'החתמה',
@@ -415,7 +410,7 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             )}
 
             {/* Buttons row */}
-            {permissions['Logistic'] && (
+            {permissions['logistic'] && (
                 <div className="flex justify-between mb-1">
                     <div className="space-x-2">
                     <h2 className="text-2xl font-bold">{selectedSheet.name}</h2>

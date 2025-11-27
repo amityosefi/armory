@@ -45,7 +45,6 @@ type LogisticItem = {
     תאריך: string;
     מקט?: string;
     פריט: string;
-    מידה: string;
     כמות: number;
     צורך: string;
     הערה?: string;
@@ -110,7 +109,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Default item template for form
     const defaultItem = {
         פריט: '',
-        מידה: '',
         כמות: 1,
         צורך: 'ניפוק',
         הערה: '',
@@ -129,7 +127,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     function getEmptyItem(): Partial<LogisticItem> {
         return {
             פריט: '',
-            מידה: '',
             כמות: 1,
             צורך: 'ניפוק',
             הערה: ''
@@ -139,7 +136,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Fetch data from Supabase
     const fetchData = async () => {
 
-        if (permissions[selectedSheet.range] || permissions['Logistic']) {
+        if (permissions[selectedSheet.range] || permissions['logistic']) {
             try {
                 setLoading(true);
                 const {data, error} = await supabase
@@ -268,7 +265,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 // New item, add to map
                 itemSummary.set(item, {
                     פריט: item,
-                    מידה: row.מידה || '',
                     כמות: quantity,
                     תאריך: row.תאריך || '',
                     משתמש: row.משתמש || '',
@@ -298,7 +294,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             {field: 'פריט' as keyof LogisticItem, headerName: 'פריט', sortable: true, filter: true, width: 110},
             {field: 'כמות' as keyof LogisticItem, headerName: 'כמות', sortable: true, filter: true, width: 70,},
             {field: 'צורך' as keyof LogisticItem, headerName: 'צורך', sortable: true, filter: true, width: 80},
-            {field: 'מידה' as keyof LogisticItem, headerName: 'מידה', sortable: true, filter: true, width: 70},
             {
                 field: 'סטטוס' as keyof LogisticItem, headerName: 'סטטוס', sortable: true, filter: true, width: 100,
                 editable: permissions['Logistic'],
@@ -314,7 +309,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 sortable: true,
                 filter: true,
                 width: 80,
-                editable: permissions['Logistic'],
+                editable: permissions['logistic'],
                 cellEditor: 'agSelectCellEditor',
                 cellEditorParams: {values: ['כן', 'לא']},
                 onCellValueChanged: async (params: any) => {
@@ -337,7 +332,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         // Create items array from matching rows
         const itemsToShow = matchingRows.map(row => ({
             פריט: row.פריט || '',
-            מידה: row.מידה || '',
             כמות: (row.צורך === 'זיכוי') ? -row.כמות : row.כמות || 1,
             צורך: row.צורך || 'ניפוק',
             הערה: row.הערה || '',
@@ -452,12 +446,36 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             setSignatureDialogOpen(false);
             return;
         }
+        
+        // Validate that זיכוי won't result in negative quantities in החתמה
+        if (dialogMode === 'החתמה') {
+            const signatureData = dataByStatus['החתמה'] || [];
+            
+            for (const item of items) {
+                // Calculate current quantity for this item in החתמה status
+                const itemData = signatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
+                const currentQty = itemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
+                
+                const itemQty = item.כמות || 0;
+                
+                // Check if זיכוי would lead to negative
+                if (item.צורך === 'זיכוי' && currentQty - itemQty < 0) {
+                    setStatusMessage({
+                        text: `לא ניתן להחתים פריטים:\n${item.פריט} (כמות נוכחית בהחתמה: ${currentQty}, מנסה לזכות: ${itemQty})`,
+                        type: "error"
+                    });
+                    setLoading(false);
+                    setOpen(false);
+                    setSignatureDialogOpen(false);
+                    return;
+                }
+            }
+        }
         // Format items for insertion
         const formattedDate = new Date().toLocaleString('he-IL');
         let formattedItems = items.map(item => ({
             תאריך: formattedDate,
             פריט: item.פריט,
-            מידה: item.מידה,
             כמות: (item.צורך === 'זיכוי' && item.כמות) ? -item.כמות : item.כמות,
             שם_החותם: signerName,
             חתימת_מחתים: permissions['signature'] ? String(permissions['signature']) : '',
@@ -475,7 +493,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             const battalionEntries = items.map(item => ({
                 תאריך: formattedDate,
                 פריט: item.פריט,
-                מידה: '',
                 // Opposite quantity logic: negative for issues, positive for credits
                 כמות: (item.צורך === 'זיכוי' && item.כמות !== undefined) ? (item.כמות || 0) : -(item.כמות || 0),
                 שם_החותם: '',
@@ -808,14 +825,14 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 />
             )}
 
-            {(permissions[selectedSheet.range] || permissions['Logistic']) && (
+            {(permissions[selectedSheet.range] || permissions['logistic']) && (
                 <div className="flex justify-between mb-4">
                     <h2 className="text-2xl font-bold">{selectedSheet.name}</h2>
 
                     <div className="space-x-2">
                         <Button
                             onClick={() => {
-                                if (permissions['Logistic']) {
+                                if (permissions['logistic']) {
                                     setDialogMode('החתמה');
                                     setSignatureDialogOpen(true);
                                 } else {
@@ -825,7 +842,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             }}
                             className="bg-blue-500 hover:bg-blue-600"
                         >
-                            {permissions['Logistic'] ? 'החתמה/ זיכוי פריטים' : 'הוספת דרישות'}
+                            {permissions['logistic'] ? 'החתמה/ זיכוי פריטים' : 'הוספת דרישות'}
                         </Button>
 
                         {(activeTab === 'הזמנה' || activeTab === 'התעצמות') && (
@@ -891,10 +908,18 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             setSelectedRows(selectedRows);
                         }}
                         onCellClicked={(event) => {
-                            if (permissions['Logistic'] && event.colDef && event.colDef.field === 'תאריך')
+                            if (permissions['logistic'] && event.colDef && event.colDef.field === 'תאריך')
                                 handleDateClicked(event.data)
                         }}
                         getRowStyle={(params) => {
+                            // For החתמה tab, apply light blue to odd rows
+                            if (activeTab === 'החתמה') {
+                                if (params.node && params.node.rowIndex !== undefined && params.node.rowIndex % 2 !== 0) {
+                                    return {backgroundColor: '#e3f2fd'}; // Light blue background for odd rows
+                                }
+                                return undefined;
+                            }
+                            // For other tabs, keep the red background for נקרא=כן
                             if (params.data && params.data.נקרא === 'כן') {
                                 return {backgroundColor: '#ffcccc'}; // Light red background
                             }
@@ -983,31 +1008,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             }
                                         })}
                                     />
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`size-${index}`} className="text-right block mb-2">מידה</Label>
-                                    <Select
-                                        value={item.מידה || 'ללא מידה'}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].מידה = value === 'ללא מידה' ? '' : value;
-                                            setItems(newItems);
-                                        }}
-                                    >
-                                        <SelectTrigger className="text-right">
-                                            <SelectValue placeholder="בחר מידה"/>
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="ללא מידה">ללא מידה</SelectItem>
-                                            <SelectItem value="XXL">XXL</SelectItem>
-                                            <SelectItem value="XL">XL</SelectItem>
-                                            <SelectItem value="L">L</SelectItem>
-                                            <SelectItem value="M">M</SelectItem>
-                                            <SelectItem value="S">S</SelectItem>
-                                            <SelectItem value="XS">XS</SelectItem>
-                                        </SelectContent>
-                                    </Select>
                                 </div>
 
                                 <div>
@@ -1106,15 +1106,15 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                     <DialogHeader>
                         <DialogTitle className="text-right">החתם על פריטים</DialogTitle>
                         <DialogDescription className="text-right">
-                            {currentItem && `החתמה על ${currentItem.פריט} (${currentItem.מידה})`}
+                            {currentItem && `החתמה על ${currentItem.פריט}`}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
                         {/*<div className="space-y-4 py-4 text-right">*/}
                         {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-3 gap-4 mb-4">
-                                <div>
+                            <div key={index} className="grid grid-cols-4 gap-4 mb-4">
+                                <div className="col-span-2">
                                     <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
                                         id={`item-${index}`}
@@ -1186,31 +1186,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                 </div>
 
                                 <div>
-                                    <Label htmlFor={`size-${index}`} className="text-right block mb-2">מידה</Label>
-                                    <Select
-                                        value={item.מידה || 'ללא מידה'}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].מידה = value === 'ללא מידה' ? '' : value;
-                                            setItems(newItems);
-                                        }}
-                                    >
-                                        <SelectTrigger className="text-right">
-                                            <SelectValue placeholder="בחר מידה"/>
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="ללא מידה">ללא מידה</SelectItem>
-                                            <SelectItem value="XXL">XXL</SelectItem>
-                                            <SelectItem value="XL">XL</SelectItem>
-                                            <SelectItem value="L">L</SelectItem>
-                                            <SelectItem value="M">M</SelectItem>
-                                            <SelectItem value="S">S</SelectItem>
-                                            <SelectItem value="XS">XS</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div>
                                     <Label htmlFor={`qty-${index}`} className="text-right block mb-2">כמות</Label>
                                     <Input
                                         id={`qty-${index}`}
@@ -1226,7 +1201,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     />
                                 </div>
 
-                                <div className="col-span-2">
+                                <div>
                                     <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
                                     <Select
                                         value={item.צורך || 'ניפוק'}

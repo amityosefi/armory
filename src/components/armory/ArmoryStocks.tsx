@@ -160,11 +160,22 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
     const createIdListRenderer = (location: string, searchKey: string) => {
         return (props: ICellRendererParams) => {
             const ids = props.value || [];
+            const rowData = props.data;
             
-            // Filter IDs based on search term
-            const filteredIds = searchTerms[searchKey] 
-                ? ids.filter((id: number) => id.toString().includes(searchTerms[searchKey]))
-                : ids;
+            // Show all IDs if the row matches by name or kind
+            // Only filter IDs if searching specifically for an ID number
+            let filteredIds = ids;
+            if (searchTerms[searchKey]) {
+                const searchLower = searchTerms[searchKey].toLowerCase();
+                const nameMatch = rowData.name.toLowerCase().includes(searchLower);
+                const kindMatch = rowData.kind.toLowerCase().includes(searchLower);
+                
+                // If name or kind matches, show all IDs
+                // Otherwise, filter to show only matching IDs
+                if (!nameMatch && !kindMatch) {
+                    filteredIds = ids.filter((id: number) => id.toString().includes(searchTerms[searchKey]));
+                }
+            }
 
             return (
                 <div className="text-right">
@@ -470,6 +481,11 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
             {/* Gedud Section - Grouped by Kind */}
             {visibleSections.gedud && (
                 <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-4">
+                            <h2 className="text-2xl font-bold text-right text-blue-800">גדוד</h2>
+                        </div>
+                    </div>
 
                     {Object.keys(gedudPivotData).length === 0 ? (
                         <p className="text-center text-gray-500 p-4">אין נתונים להצגה</p>
@@ -534,6 +550,12 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
             {/* Mahsan Section - Grouped by Kind */}
             {visibleSections.mahsan && (
                 <div className="border-2 border-green-300 rounded-lg p-4 bg-green-50">
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-4">
+                            <h2 className="text-2xl font-bold text-right text-green-800">מחסן</h2>
+                        </div>
+                    </div>
+
                     {Object.keys(mahsanPivotData).length === 0 ? (
                         <p className="text-center text-gray-500 p-4">אין נתונים להצגה</p>
                     ) : (

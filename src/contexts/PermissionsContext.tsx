@@ -6,15 +6,18 @@ type Permissions = Record<string, boolean>;
 interface PermissionsContextType {
     permissions: Permissions;
     setPermissions: React.Dispatch<React.SetStateAction<Permissions>>;
+    isPermissionsLoaded: boolean;
+    setIsPermissionsLoaded: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const PermissionsContext = createContext<PermissionsContextType | undefined>(undefined);
 
 export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
     const [permissions, setPermissions] = useState<Permissions>({});
+    const [isPermissionsLoaded, setIsPermissionsLoaded] = useState<boolean>(false);
 
     return (
-        <PermissionsContext.Provider value={{ permissions, setPermissions }}>
+        <PermissionsContext.Provider value={{ permissions, setPermissions, isPermissionsLoaded, setIsPermissionsLoaded }}>
             {children}
         </PermissionsContext.Provider>
     );

@@ -22,7 +22,6 @@ type LogisticItem = {
     תאריך: string;
     מקט?: string;
     פריט: string;
-    מידה: string;
     כמות: number;
     צורך: string;
     הערה?: string;
@@ -34,6 +33,7 @@ type LogisticItem = {
     פלוגה: string;
     חתימת_מחתים: string;
     created_at?: string;
+    is_explosion?: boolean;
 };
 
 // Type for the summarized data table
@@ -59,34 +59,24 @@ const AmmoSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
 
     // Fetch all logistic data from Supabase
     const fetchData = async () => {
-        if (permissions['Logistic']) {
+        if (permissions['logistic']) {
             try {
                 setLoading(true);
                 
-                // Fetch ammo_ball data
-                const ballResponse = await supabase
-                    .from("ammo_ball")
+                // Fetch all ammo data from unified table
+                const ammoResponse = await supabase
+                    .from("ammo")
                     .select("*")
                     .eq("סטטוס", "החתמה"); // We only want items with status "החתמה"
 
-                // Fetch ammo_explosion data
-                const explosionResponse = await supabase
-                    .from("ammo_explosion")
-                    .select("*")
-                    .eq("סטטוס", "החתמה"); // We only want items with status "החתמה"
-
-                if (ballResponse.error) {
-                    console.error("Error fetching ball data:", ballResponse.error);
+                if (ammoResponse.error) {
+                    console.error("Error fetching ammo data:", ammoResponse.error);
                 } else {
                     // @ts-ignore
-                    setBallData(ballResponse.data || []);
-                }
-
-                if (explosionResponse.error) {
-                    console.error("Error fetching explosion data:", explosionResponse.error);
-                } else {
-                    // @ts-ignore
-                    setExplosionData(explosionResponse.data || []);
+                    const allData = ammoResponse.data || [];
+                    // Split data by is_explosion flag
+                    setBallData(allData.filter((item: LogisticItem) => !item.is_explosion));
+                    setExplosionData(allData.filter((item: LogisticItem) => item.is_explosion));
                 }
                 
             } catch (err: any) {

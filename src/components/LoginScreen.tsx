@@ -1,12 +1,9 @@
 import React, {useEffect, useState} from 'react'
 import {TokenResponse, useGoogleLogin} from '@react-oauth/google'
-import {Label} from '@/components/ui/label'
-import {Button} from '@/components/ui/button'
 import {useAuthStore} from '@/stores/useAuthStore'
 import {usePermissions} from '@/contexts/PermissionsContext'
 import {supabase} from '@/lib/supabaseClient' // <-- your supabase client
 import logo from '@/assets/logo.jpeg' // Import the logo
-import '../css/LoginScreen.css'
 import {Navigate} from "react-router-dom"; // Import the login screen styles
 
 interface LoginScreenProps {
@@ -18,12 +15,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
 
     const setAuth = useAuthStore((state) => state.setAuth)
-    const {setPermissions, permissions} = usePermissions()
+    const {setPermissions, permissions, setIsPermissionsLoaded} = usePermissions()
 
     // Helper function to determine redirect path based on permissions
     const getRedirectPath = () => {
         // If user has Armory permission, go to armory
-        if (permissions['Armory']) {
+        if (permissions['armory']) {
             return '/armory/0';
         }
         
@@ -71,10 +68,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                         localStorage.clear()
                     } else {
                         onLoginSuccess(parsedToken)
-                        data['Plugot'] = data['א'] || data['ב'] || data['ג'] || data['מסייעת'] || data['אלון'] || data['מכלול'] || data['פלסם']
-                        // @ts-ignore
                         setPermissions(data);
-                        // @ts-ignore
+                        setIsPermissionsLoaded(true);
                         setAuth(savedEmail, data);
                         setIsAuthenticated(true);
                         return
@@ -87,7 +82,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
             setIsLoading(false)
         }
         checkSavedToken()
-    }, [onLoginSuccess, setAuth, setPermissions])
+    }, [onLoginSuccess, setAuth, setPermissions, setIsPermissionsLoaded])
 
     const login = useGoogleLogin({
         onSuccess: async (codeResponse: TokenResponse) => {
@@ -118,6 +113,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                 localStorage.setItem('googleAuthToken', JSON.stringify(codeResponse))
                 localStorage.setItem('userEmail', email)
 
+                setPermissions(data);
+                setIsPermissionsLoaded(true);
+                setAuth(email, data);
                 onLoginSuccess(codeResponse);
                 setIsAuthenticated(true);
 
@@ -136,7 +134,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
 
     if (isLoading) {
         return (
-            <div className="login-screen-container">
+            <div className="fixed inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-green-200 via-yellow-100 to-yellow-200">
                 <div className="flex flex-col items-center justify-center">
                     <div
                         className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
@@ -151,48 +149,53 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
     }
 
     return (
-        <div className="login-screen-container">
-            <div className="login-content">
-                <div className="bg-white shadow-lg rounded-lg p-6 w-full">
-                    <div className="flex justify-center mb-4">
-                        <img src={logo} alt="Logo" className="h-32 w-auto"/>
+        <div className="fixed inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-green-200 via-yellow-100 to-yellow-200">
+            <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-md mx-4">
+                <div className="flex flex-col items-center">
+                    {/* Logo */}
+                    <div className="mb-6">
+                        <img src={logo} alt="Logo" className="h-24 w-auto"/>
                     </div>
-                    <h1 className="text-4xl font-bold text-gray-800 mb-6 text-center">
+                    
+                    {/* Title */}
+                    <h1 className="text-3xl font-bold text-gray-900 mb-3 text-center">
                         גדוד 8101
                     </h1>
-                    <div className="flex flex-col items-center">
-                        <p className="text-gray-700 mb-4">
-                            אנא התחבר עם חשבון Google כדי להיכנס
-                        </p>
-                        <button
-                            onClick={() => login()}
-                            className="flex items-center bg-white border border-gray-300 rounded-lg shadow-md px-6 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+                    
+                    {/* Subtitle */}
+                    <p className="text-gray-600 text-sm mb-6 text-center">
+                        אנא התחבר עם חשבון Google כדי להיכנס
+                    </p>
+                    
+                    {/* Google Sign-in Button */}
+                    <button
+                        onClick={() => login()}
+                        className="flex items-center justify-center bg-white border border-gray-300 rounded-md shadow-sm px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    >
+                        <svg
+                            className="h-5 w-5 ml-2"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 48 48"
                         >
-                            <svg
-                                className="h-6 w-6 ml-2"
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 48 48"
-                            >
-                                <path
-                                    fill="#EA4335"
-                                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.53 2.56 30.15 0 24 0 14.6 0 6.5 5.7 2.55 13.99l7.98 6.2C12.43 13.41 17.73 9.5 24 9.5z"
-                                />
-                                <path
-                                    fill="#4285F4"
-                                    d="M46.1 24.5c0-1.57-.14-3.09-.4-4.55H24v9.01h12.4c-.53 2.84-2.11 5.24-4.49 6.86l7.01 5.46C43.62 37.05 46.1 31.27 46.1 24.5z"
-                                />
-                                <path
-                                    fill="#FBBC05"
-                                    d="M10.53 28.2c-1.2-2.24-1.9-4.77-1.9-7.7s.7-5.46 1.9-7.7l-7.98-6.2C.93 11.11 0 17.35 0 24s.93 12.89 2.55 17.4l7.98-6.2z"
-                                />
-                                <path
-                                    fill="#34A853"
-                                    d="M24 48c6.15 0 11.31-2.03 15.08-5.52l-7.01-5.46C29.3 38.77 26.76 39.5 24 39.5c-6.27 0-11.57-3.91-13.47-9.7l-7.98 6.2C6.5 42.3 14.6 48 24 48z"
-                                />
-                            </svg>
-                            לחץ להתחברות עם גוגל
-                        </button>
-                    </div>
+                            <path
+                                fill="#EA4335"
+                                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.53 2.56 30.15 0 24 0 14.6 0 6.5 5.7 2.55 13.99l7.98 6.2C12.43 13.41 17.73 9.5 24 9.5z"
+                            />
+                            <path
+                                fill="#4285F4"
+                                d="M46.1 24.5c0-1.57-.14-3.09-.4-4.55H24v9.01h12.4c-.53 2.84-2.11 5.24-4.49 6.86l7.01 5.46C43.62 37.05 46.1 31.27 46.1 24.5z"
+                            />
+                            <path
+                                fill="#FBBC05"
+                                d="M10.53 28.2c-1.2-2.24-1.9-4.77-1.9-7.7s.7-5.46 1.9-7.7l-7.98-6.2C.93 11.11 0 17.35 0 24s.93 12.89 2.55 17.4l7.98-6.2z"
+                            />
+                            <path
+                                fill="#34A853"
+                                d="M24 48c6.15 0 11.31-2.03 15.08-5.52l-7.01-5.46C29.3 38.77 26.76 39.5 24 39.5c-6.27 0-11.57-3.91-13.47-9.7l-7.98 6.2C6.5 42.3 14.6 48 24 48z"
+                            />
+                        </svg>
+                        לחץ להתחברות עם גוגל
+                    </button>
                 </div>
             </div>
         </div>

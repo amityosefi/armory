@@ -1,16 +1,13 @@
 import React from 'react';
 import GroupNavigation from './GroupNavigation';
-import SearchBar from '../SearchBar';
-import { SheetGroup } from '@/types';
+import SearchBar from '../armory/SearchBar';
 import useIsMobile from '../../hooks/useIsMobile';
 
 interface NavBarProps {
-  sheetGroups: SheetGroup[];
-  accessToken: string;
   onSignOut: () => void;
 }
 
-const NavBar: React.FC<NavBarProps> = ({ sheetGroups, accessToken, onSignOut }) => {
+const NavBar: React.FC<NavBarProps> = ({ onSignOut }) => {
   const isMobile = useIsMobile();
   return (
     <>
@@ -22,14 +19,14 @@ const NavBar: React.FC<NavBarProps> = ({ sheetGroups, accessToken, onSignOut }) 
 
           {/* Group Navigation */}
           <div>
-            <GroupNavigation sheetGroups={sheetGroups} />
+            <GroupNavigation />
           </div>
         </div>
 
         <div className='flex gap-10'>
           {/* Search Bar - Desktop */}
           <div className={isMobile ? 'hidden' : 'block'}>
-            <SearchBar sheetGroups={sheetGroups} accessToken={accessToken} />
+            <SearchBar />
           </div>
 
           {/* Sign out button on the right */}
@@ -44,7 +41,7 @@ const NavBar: React.FC<NavBarProps> = ({ sheetGroups, accessToken, onSignOut }) 
       
       {/* Search Bar - Mobile */}
       <div className={isMobile ? 'block mb-2' : 'hidden'}>
-        <SearchBar sheetGroups={sheetGroups} accessToken={accessToken} />
+        <SearchBar />
       </div>
     </>
   );

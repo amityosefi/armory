@@ -34,10 +34,11 @@ const AdminPage = () => {
     const [newUser, setNewUser] = useState({
         email: "",
         name: "",
+        id: null as number | null,
         admin: false,
-        Logistic: false,
-        munitions: false,
-        Armory: false,
+        logistic: false,
+        ammo: false,
+        armory: false,
         א: false,
         ב: false,
         ג: false,
@@ -116,10 +117,11 @@ const AdminPage = () => {
                 cursor: 'text'
             }
         },
-        {field: "admin", headerName: "Admin", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "Armory", headerName: "Armory", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "munitions", headerName: "Munitions", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "Logistic", headerName: "Logistic", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
+        {field: "id", headerName: "מספר אישי", width: 120, filter: 'agNumberColumnFilter'},
+        {field: "admin", headerName: "מנהל", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
+        {field: "armory", headerName: "נשקיה", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
+        {field: "ammo", headerName: "תחמושת", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
+        {field: "logistic", headerName: "לוגיסטיקה", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
         {field: "א", headerName: "א", width: 80, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
         {field: "ב", headerName: "ב", width: 80, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
         {field: "ג", headerName: "ג", width: 80, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
@@ -153,21 +155,6 @@ const AdminPage = () => {
         }
     };
 
-
-    // Helper function to log actions to תיעוד table
-    const logAction = async (message: string) => {
-        try {
-            await supabase.from("armory_document").insert([{
-                תאריך: new Date().toLocaleString('he-IL'),
-                משתמש: permissions['name'],
-                הודעה: message
-            }]);
-        } catch (err) {
-            console.error("Error logging action:", err);
-            // Don't show error to user for logging failures
-        }
-    };
-
     useEffect(() => {
         fetchUsers();
     }, []);
@@ -193,9 +180,20 @@ const AdminPage = () => {
 
     const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const {name, value, type, checked} = e.target;
+        
+        let finalValue: any;
+        if (type === 'checkbox') {
+            finalValue = checked;
+        } else if (name === 'id') {
+            // Handle numeric id field
+            finalValue = value === '' ? null : parseInt(value, 10);
+        } else {
+            finalValue = value;
+        }
+        
         setNewUser(prev => ({
             ...prev,
-            [name]: type === 'checkbox' ? checked : value
+            [name]: finalValue
         }));
 
         // Validate email and name on change
@@ -274,10 +272,11 @@ const AdminPage = () => {
                 setNewUser({
                     email: "",
                     name: "",
+                    id: null,
                     admin: false,
-                    Logistic: false,
-                    munitions: false,
-                    Armory: false,
+                    logistic: false,
+                    ammo: false,
+                    armory: false,
                     א: false,
                     ב: false,
                     ג: false,
@@ -399,7 +398,7 @@ const AdminPage = () => {
                 <div className="bg-white shadow-md rounded p-4 mb-6">
                     <h2 className="text-xl font-bold mb-4 text-right">הוסף משתמש חדש</h2>
                     <form onSubmit={addUser} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-right">שם מלא</label>
                                 <input
@@ -427,6 +426,16 @@ const AdminPage = () => {
                                 {formErrors.email && (
                                     <p className="text-red-500 text-sm mt-1 text-right">{formErrors.email}</p>
                                 )}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-right">מספר אישי</label>
+                                <input
+                                    type="number"
+                                    name="id"
+                                    value={newUser.id || ''}
+                                    onChange={handleNewUserChange}
+                                    className="mt-1 p-2 block w-full border border-gray-300 rounded text-right"
+                                />
                             </div>
                         </div>
 
@@ -485,8 +494,8 @@ const AdminPage = () => {
                                 <label className="flex items-center space-x-2 text-right">
                                     <input
                                         type="checkbox"
-                                        name="Armory"
-                                        checked={newUser.Armory}
+                                        name="armory"
+                                        checked={newUser.armory}
                                         onChange={handleNewUserChange}
                                         className="ml-2"
                                     />
@@ -498,7 +507,7 @@ const AdminPage = () => {
                                     <input
                                         type="checkbox"
                                         name="Logistic"
-                                        checked={newUser.Logistic}
+                                        checked={newUser.logistic}
                                         onChange={handleNewUserChange}
                                         className="ml-2"
                                     />
@@ -509,8 +518,8 @@ const AdminPage = () => {
                                 <label className="flex items-center space-x-2 text-right">
                                     <input
                                         type="checkbox"
-                                        name="munitions"
-                                        checked={newUser.munitions}
+                                        name="ammo"
+                                        checked={newUser.ammo}
                                         onChange={handleNewUserChange}
                                         className="ml-2"
                                     />

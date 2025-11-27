@@ -58,6 +58,7 @@ type LogisticItem = {
     פלוגה: string;
     חתימת_מחתים: string;
     created_at?: string;
+    is_explosion?: boolean;
 };
 
 type AggregatedItem = {
@@ -68,10 +69,10 @@ type AggregatedItem = {
 type ItemFormData = {
     פריט: string;
     כמות: number;
-    tableType?: TableType;
+    is_explosion?: boolean;
 };
 
-type TableType = "ammo_ball" | "ammo_explosion";
+type TableType = boolean; // true for explosion, false for ball
 
 const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const {permissions} = usePermissions();
@@ -83,7 +84,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
     const [uniqueBallItems, setUniqueBallItems] = useState<string[]>([]);
     const [uniqueExplosionItems, setUniqueExplosionItems] = useState<string[]>([]);
-    const [selectedTable, setSelectedTable] = useState<TableType>("ammo_ball");
+    const [selectedTable, setSelectedTable] = useState<TableType>(false); // false = ball, true = explosion
 
     // Dialog states
     const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -91,9 +92,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [transferDialogOpen, setTransferDialogOpen] = useState(false);
 
     // Form data states
-    const [addItems, setAddItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, tableType: "ammo_ball"}]);
-    const [creditItems, setCreditItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, tableType: "ammo_ball"}]);
-    const [transferItems, setTransferItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, tableType: "ammo_ball"}]);
+    const [addItems, setAddItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, is_explosion: false}]);
+    const [creditItems, setCreditItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, is_explosion: false}]);
+    const [transferItems, setTransferItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, is_explosion: false}]);
 
     // Grid configuration
     const ballGridRef = useRef<AgGridReact>(null);
@@ -123,49 +124,34 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
     // Fetch data from Supabase
     const fetchData = async () => {
-        if (permissions['munitions']) {
+        if (permissions['ammo']) {
             try {
                 setLoading(true);
                 
-                // Fetch data from ammo_ball table
-                const ballResponse = await supabase
-                    .from("ammo_ball")
-                    .select("*")
-                    .eq("פלוגה", selectedSheet.range);
-                
-                // Fetch data from ammo_explosion table
-                const explosionResponse = await supabase
-                    .from("ammo_explosion")
+                // Fetch all data from unified ammo table
+                const ammoResponse = await supabase
+                    .from("ammo")
                     .select("*")
                     .eq("פלוגה", selectedSheet.range);
 
-                if (ballResponse.error) {
-                    console.error("Error fetching ball data:", ballResponse.error);
+                if (ammoResponse.error) {
+                    console.error("Error fetching ammo data:", ammoResponse.error);
                     setStatusMessage({
-                        text: `שגיאה בטעינת נתוני תחמושת קליעית: ${ballResponse.error.message}`,
+                        text: `שגיאה בטעינת נתוני תחמושת: ${ammoResponse.error.message}`,
                         type: "error"
                     });
-                } 
-                
-                if (explosionResponse.error) {
-                    console.error("Error fetching explosion data:", explosionResponse.error);
-                    setStatusMessage({
-                        text: `שגיאה בטעינת נתוני תחמושת נפיצה: ${explosionResponse.error.message}`,
-                        type: "error"
-                    });
-                }
-                
-                if (!ballResponse.error && !explosionResponse.error) {
+                } else {
                     // @ts-ignore
-                    setRawBallData(ballResponse.data || []);
-                    // @ts-ignore
-                    setRawExplosionData(explosionResponse.data || []);
+                    const allData = ammoResponse.data || [];
+                    const ballData = allData.filter((item: LogisticItem) => !item.is_explosion);
+                    const explosionData = allData.filter((item: LogisticItem) => item.is_explosion);
                     
-                    // Process data for both tables
-                    // @ts-ignore
-                    processData(ballResponse.data || [], "ammo_ball");
-                    // @ts-ignore
-                    processData(explosionResponse.data || [], "ammo_explosion");
+                    setRawBallData(ballData);
+                    setRawExplosionData(explosionData);
+                    
+                    // Process data for both types
+                    processData(ballData, false);
+                    processData(explosionData, true);
                     
                     // Clear error message if any
                     setStatusMessage({text: "", type: ""});
@@ -217,11 +203,11 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
         // Sort unique items alphabetically for dropdowns
         const sortedUniqueItems = Array.from(uniqueItemsSet).sort((a, b) => a.localeCompare(b));
 
-        // Update the appropriate state based on table type
-        if (tableType === "ammo_ball") {
+        // Update the appropriate state based on is_explosion flag
+        if (!tableType) { // false = ball
             setAggregatedBallData(filteredAggregated);
             setUniqueBallItems(sortedUniqueItems);
-        } else {
+        } else { // true = explosion
             setAggregatedExplosionData(filteredAggregated);
             setUniqueExplosionItems(sortedUniqueItems);
         }
@@ -243,11 +229,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 return;
             }
 
-            // Prepare items for insertion (group by per-item tableType)
-            const byTable: Record<TableType, any[]> = { ammo_ball: [], ammo_explosion: [] };
-            validItems.forEach(item => {
-                const table = (item.tableType || selectedTable);
-                byTable[table].push({
+            // Prepare items for insertion into unified ammo table
+            const itemsToInsert = validItems.map(item => ({
                 תאריך: new Date().toLocaleString('he-IL'),
                 פריט: item.פריט,
                 כמות: item.כמות,
@@ -256,18 +239,13 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 הערה: 'החתמה חדשה',
                 משתמש: permissions['name'] || '',
                 פלוגה: selectedSheet.range,
-                חתימת_מחתים: ''
-                });
-            });
+                חתימת_מחתים: '',
+                is_explosion: item.is_explosion ?? selectedTable
+            }));
 
-            // Insert per table
-            let errorMsg = "";
-            for (const table of ["ammo_ball", "ammo_explosion"] as TableType[]) {
-                if (byTable[table].length) {
-                    const { error } = await supabase.from(table).insert(byTable[table]);
-                    if (error) errorMsg += `${table}: ${error.message} `;
-                }
-            }
+            // Insert into unified ammo table
+            const { error } = await supabase.from('ammo').insert(itemsToInsert);
+            let errorMsg = error ? error.message : "";
 
             if (errorMsg) {
                 console.error("Error inserting items:", errorMsg);
@@ -281,7 +259,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setAddDialogOpen(false);
-                setAddItems([{פריט: "", כמות: 1, tableType: selectedTable}]);
+                setAddItems([{פריט: "", כמות: 1, is_explosion: selectedTable}]);
                 fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -314,8 +292,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             // Validate that crediting won't result in negative quantities
             const invalidItems: string[] = [];
             for (const item of validItems) {
-                const table = (item.tableType || selectedTable);
-                const aggregatedData = table === "ammo_ball" ? aggregatedBallData : aggregatedExplosionData;
+                const isExplosion = item.is_explosion ?? selectedTable;
+                const aggregatedData = !isExplosion ? aggregatedBallData : aggregatedExplosionData;
                 
                 // Find current quantity for this item
                 const currentItem = aggregatedData.find(aggItem => aggItem.פריט === item.פריט);
@@ -338,11 +316,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 return;
             }
 
-            // Prepare items for insertion (group by per-item tableType)
-            const byTable: Record<TableType, any[]> = { ammo_ball: [], ammo_explosion: [] };
-            validItems.forEach(item => {
-                const table = (item.tableType || selectedTable);
-                byTable[table].push({
+            // Prepare items for insertion into unified ammo table
+            const itemsToInsert = validItems.map(item => ({
                 תאריך: new Date().toLocaleString('he-IL'),
                 פריט: item.פריט,
                 כמות: item.כמות,
@@ -351,18 +326,13 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 הערה: 'זיכוי חדש',
                 משתמש: permissions['name'] || '',
                 פלוגה: selectedSheet.range,
-                חתימת_מחתים: ''
-                });
-            });
+                חתימת_מחתים: '',
+                is_explosion: item.is_explosion ?? selectedTable
+            }));
 
-            // Insert per table
-            let errorMsg = "";
-            for (const table of ["ammo_ball", "ammo_explosion"] as TableType[]) {
-                if (byTable[table].length) {
-                    const { error } = await supabase.from(table).insert(byTable[table]);
-                    if (error) errorMsg += `${table}: ${error.message} `;
-                }
-            }
+            // Insert into unified ammo table
+            const { error } = await supabase.from('ammo').insert(itemsToInsert);
+            let errorMsg = error ? error.message : "";
 
             if (errorMsg) {
                 console.error("Error crediting items:", errorMsg);
@@ -376,7 +346,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setCreditDialogOpen(false);
-                setCreditItems([{פריט: "", כמות: 1, tableType: selectedTable}]);
+                setCreditItems([{פריט: "", כמות: 1, is_explosion: selectedTable}]);
                 fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -409,8 +379,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             // Validate that transferring won't result in negative quantities in the source unit
             const invalidTransfers: string[] = [];
             for (const item of validItems) {
-                const table = (item.tableType || selectedTable);
-                const aggregatedData = table === "ammo_ball" ? aggregatedBallData : aggregatedExplosionData;
+                const isExplosion = item.is_explosion ?? selectedTable;
+                const aggregatedData = !isExplosion ? aggregatedBallData : aggregatedExplosionData;
 
                 // Find current quantity for this item in the CURRENT unit (selectedSheet.range)
                 const currentItem = aggregatedData.find(aggItem => aggItem.פריט === item.פריט);
@@ -432,12 +402,12 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 return;
             }
 
-            // Prepare items for insertion - create pairs of entries, grouped by per-item tableType
-            const byTable: Record<TableType, any[]> = { ammo_ball: [], ammo_explosion: [] };
+            // Prepare items for insertion - create pairs of entries into unified ammo table
+            const itemsToInsert: any[] = [];
             for (const item of validItems) {
-                const table = (item.tableType || selectedTable);
+                const isExplosion = item.is_explosion ?? selectedTable;
                 // Credit from current unit (גדוד)
-                byTable[table].push({
+                itemsToInsert.push({
                     תאריך: new Date().toLocaleString('he-IL'),
                     פריט: item.פריט,
                     כמות: item.כמות,
@@ -446,11 +416,12 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     משתמש: permissions['name'] || '',
                     פלוגה: selectedSheet.range === 'גדוד' ? 'גדוד' : 'מחסן',
                     הערה: 'העברת פריטים בין הגדוד למחסן',
-                    חתימת_מחתים: ''
+                    חתימת_מחתים: '',
+                    is_explosion: isExplosion
                 });
 
                 // Issue to storage (מחסן)
-                byTable[table].push({
+                itemsToInsert.push({
                     תאריך: new Date().toLocaleString('he-IL'),
                     פריט: item.פריט,
                     כמות: item.כמות,
@@ -459,18 +430,14 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     משתמש: permissions['name'] || '',
                     פלוגה: selectedSheet.range !== 'גדוד' ? 'גדוד' : 'מחסן',
                     הערה: 'העברת פריטים בין הגדוד למחסן',
-                    חתימת_מחתים: ''
+                    חתימת_מחתים: '',
+                    is_explosion: isExplosion
                 });
             }
 
-            // Insert per table
-            let errorMsg = "";
-            for (const table of ["ammo_ball", "ammo_explosion"] as TableType[]) {
-                if (byTable[table].length) {
-                    const { error } = await supabase.from(table).insert(byTable[table]);
-                    if (error) errorMsg += `${table}: ${error.message} `;
-                }
-            }
+            // Insert into unified ammo table
+            const { error } = await supabase.from('ammo').insert(itemsToInsert);
+            let errorMsg = error ? error.message : "";
 
             if (errorMsg) {
                 console.error("Error transferring items:", errorMsg);
@@ -484,7 +451,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setTransferDialogOpen(false);
-                setTransferItems([{פריט: "", כמות: 1, tableType: selectedTable}]);
+                setTransferItems([{פריט: "", כמות: 1, is_explosion: selectedTable}]);
                 fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -500,7 +467,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
     // Helper function to add an empty item to a form
     const addEmptyItem = (items: ItemFormData[], setItems: React.Dispatch<React.SetStateAction<ItemFormData[]>>) => {
-        setItems([...items, {פריט: "", כמות: 1, tableType: selectedTable}]);
+        setItems([...items, {פריט: "", כמות: 1, is_explosion: selectedTable}]);
     };
 
     // Helper function to remove an item from a form
@@ -549,7 +516,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             )}
 
             {/* Buttons row */}
-            {permissions['munitions'] && (
+            {permissions['ammo'] && (
                 <div className="flex flex-col sm:flex-row gap-2 mb-4">
                     <Button
                         onClick={() => setAddDialogOpen(true)}
@@ -639,22 +606,22 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 <div className="w-40">
                                     <Label className="text-right block mb-2">סוג תחמושת</Label>
                                     <Select
-                                        value={(item.tableType || selectedTable)}
-                                        onValueChange={(val) => updateItem(index, 'tableType' as any, val, addItems, setAddItems)}
+                                        value={String(item.is_explosion ?? selectedTable)}
+                                        onValueChange={(val) => updateItem(index, 'is_explosion' as any, val === 'true', addItems, setAddItems)}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="בחר סוג תחמושת" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="ammo_ball">קליעית</SelectItem>
-                                            <SelectItem value="ammo_explosion">נפיצה</SelectItem>
+                                            <SelectItem value="false">קליעית</SelectItem>
+                                            <SelectItem value="true">נפיצה</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div className="flex-1">
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
-                                        options={(item.tableType || selectedTable) === "ammo_ball" ? 
+                                        options={!(item.is_explosion ?? selectedTable) ? 
                                             uniqueBallItems.map(name => ({value: name, label: name})) :
                                             uniqueExplosionItems.map(name => ({value: name, label: name}))}
                                         value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
@@ -765,15 +732,15 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 <div className="w-40">
                                     <Label className="text-right block mb-2">סוג תחמושת</Label>
                                     <Select
-                                        value={(item.tableType || selectedTable)}
-                                        onValueChange={(val) => updateItem(index, 'tableType' as any, val, creditItems, setCreditItems)}
+                                        value={String(item.is_explosion ?? selectedTable)}
+                                        onValueChange={(val) => updateItem(index, 'is_explosion' as any, val === 'true', creditItems, setCreditItems)}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="בחר סוג תחמושת" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="ammo_ball">קליעית</SelectItem>
-                                            <SelectItem value="ammo_explosion">נפיצה</SelectItem>
+                                            <SelectItem value="false">קליעית</SelectItem>
+                                            <SelectItem value="true">נפיצה</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -794,7 +761,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                                 <SelectValue placeholder="בחר פריט" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {((item.tableType || selectedTable) === "ammo_ball" ? uniqueBallItems : uniqueExplosionItems)
+                                                {(!(item.is_explosion ?? selectedTable) ? uniqueBallItems : uniqueExplosionItems)
                                                     .map(name => (
                                                         <SelectItem key={name} value={name}>{name}</SelectItem>
                                                     ))
@@ -879,15 +846,15 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 <div className="w-40">
                                     <Label className="text-right block mb-2">סוג תחמושת</Label>
                                     <Select
-                                        value={(item.tableType || selectedTable)}
-                                        onValueChange={(val) => updateItem(index, 'tableType' as any, val, transferItems, setTransferItems)}
+                                        value={String(item.is_explosion ?? selectedTable)}
+                                        onValueChange={(val) => updateItem(index, 'is_explosion' as any, val === 'true', transferItems, setTransferItems)}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="בחר סוג תחמושת" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="ammo_ball">קליעית</SelectItem>
-                                            <SelectItem value="ammo_explosion">נפיצה</SelectItem>
+                                            <SelectItem value="false">קליעית</SelectItem>
+                                            <SelectItem value="true">נפיצה</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -908,7 +875,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                                 <SelectValue placeholder="בחר פריט" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {((item.tableType || selectedTable) === "ammo_ball" ? uniqueBallItems : uniqueExplosionItems)
+                                                {(!(item.is_explosion ?? selectedTable) ? uniqueBallItems : uniqueExplosionItems)
                                                     .map(name => (
                                                         <SelectItem key={name} value={name}>{name}</SelectItem>
                                                     ))

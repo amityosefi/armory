@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import AddSoldierModal from "./AddSoldierModal";
 import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
+import { Download } from "lucide-react";
+import { exportMultipleSoldiersPDF } from "./SoldierPDFExport";
 
 interface ArmoryGroupsProps {
     selectedSheet: {
@@ -29,6 +31,7 @@ type ArmoryItem = {
     sign_time: string;
     logistic_sign: string;
     logistic_name: string;
+    logistic_id?: string | number;
 };
 
 type PersonData = {
@@ -44,7 +47,7 @@ type PersonWithItems = PersonData & {
 };
 
 const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
-    const { permissions } = usePermissions();
+    const { permissions, isPermissionsLoaded } = usePermissions();
     const navigate = useNavigate();
     const [peopleData, setPeopleData] = useState<PersonData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -52,12 +55,17 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
     const [viewMode, setViewMode] = useState<"cards" | "table" | "summary">("cards");
     const [searchQuery, setSearchQuery] = useState("");
     const [isAddSoldierModalOpen, setIsAddSoldierModalOpen] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     // Check permissions
-    const hasPermission = permissions[selectedSheet.range] || permissions['Armory'];
+    const hasPermission = permissions[selectedSheet.range] || permissions['armory'];
 
     // Fetch data from Supabase
     const fetchData = async () => {
+        if (!isPermissionsLoaded) {
+            return;
+        }
+        
         if (!hasPermission) {
             setLoading(false);
             setStatusMessage({
@@ -142,10 +150,60 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
         }
     };
 
+    // Handle download all PDFs
+    const handleDownloadAllPDFs = async () => {
+        if (peopleData.length === 0) {
+            setStatusMessage({
+                text: "אין חיילים להורדה",
+                isSuccess: false
+            });
+            return;
+        }
+
+        setIsDownloading(true);
+        setStatusMessage({
+            text: `מכין PDF עם ${peopleData.length} חיילים...`,
+            isSuccess: true
+        });
+
+        try {
+            // Prepare data for all soldiers
+            const soldiersData = peopleData.map(person => ({
+                soldier: {
+                    id: parseInt(person.id),
+                    name: person.name,
+                    phone: person.phone,
+                    location: person.location
+                },
+                items: person.items
+            }));
+
+            // Generate filename with location and date
+            const date = new Date().toLocaleDateString('he-IL').replace(/\//g, '-');
+            const filename = `${selectedSheet.name}_${date}.pdf`;
+
+            // Export all soldiers in one PDF
+            exportMultipleSoldiersPDF(soldiersData, filename);
+
+            setStatusMessage({
+                text: `הורד PDF עם ${peopleData.length} חיילים בהצלחה`,
+                isSuccess: true
+            });
+        } catch (error: any) {
+            console.error("Error downloading PDF:", error);
+            setStatusMessage({
+                text: `שגיאה בהורדת קובץ: ${error.message}`,
+                isSuccess: false
+            });
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
     // Initial data fetch
     useEffect(() => {
         fetchData();
-    }, [selectedSheet.range]);
+    }, [selectedSheet.range, hasPermission, isPermissionsLoaded]);
 
     // Create display data with items as string for UI
     const peopleWithItems = useMemo<PersonWithItems[]>(() => {
@@ -291,14 +349,33 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
 
     return (
         <div className="container mx-auto p-4 space-y-4">
-            {/* Add Soldier Button */}
-            {!permissions['Plugot'] && (
-                <div className="flex justify-center mb-4">
+            {/* Status Message */}
+            {statusMessage.text && (
+                <div className="mb-4">
+                    <StatusMessage
+                        isSuccess={statusMessage.isSuccess}
+                        message={statusMessage.text}
+                        onClose={() => setStatusMessage({ text: "", isSuccess: false })}
+                    />
+                </div>
+            )}
+
+            {/* Add Soldier Button and Download Button */}
+            {permissions['armory'] && (
+                <div className="flex justify-center gap-4 mb-4">
                     <Button
                         onClick={() => setIsAddSoldierModalOpen(true)}
                         className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg"
                     >
                         ➕ הוספת חייל
+                    </Button>
+                    <Button
+                        onClick={handleDownloadAllPDFs}
+                        disabled={isDownloading || peopleData.length === 0}
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg flex items-center gap-2"
+                    >
+                        <Download className="w-5 h-5" />
+                        {isDownloading ? 'מוריד...' : 'הורדה לקלסר'}
                     </Button>
                 </div>
             )}
@@ -342,15 +419,6 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                 </div>
             )}
 
-            {statusMessage.text && (
-                <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] w-full max-w-2xl px-4">
-                    <StatusMessage
-                        isSuccess={statusMessage.isSuccess}
-                        message={statusMessage.text}
-                        onClose={() => setStatusMessage({ text: "", isSuccess: false })}
-                    />
-                </div>
-            )}
 
             {peopleData.length === 0 ? (
                 <div className="text-center p-8 text-gray-500">
@@ -472,12 +540,12 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
             <AddSoldierModal
                 isOpen={isAddSoldierModalOpen}
                 onClose={() => setIsAddSoldierModalOpen(false)}
-                onSuccess={() => {
+                onSuccess={(message: string, isSuccess: boolean) => {
                     setIsAddSoldierModalOpen(false);
                     fetchData(); // Refresh data after adding soldier
                     setStatusMessage({
-                        text: "החייל נוסף בהצלחה",
-                        isSuccess: true
+                        text: message,
+                        isSuccess: isSuccess
                     });
                 }}
                 currentLocation={selectedSheet.range}

@@ -2,11 +2,8 @@ import { useState } from 'react'
 import type { TokenResponse } from '@react-oauth/google'
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import LoginScreen from './components/LoginScreen'
-import SheetGroupPage from './components/SheetGroupPage'
 import NavBar from './components/route/NavBar'
-import { sheetGroups } from "@/constants";
 import './css/App.css'
-import SoldierPage from './components/SoldierPage'
 import AdminPage from './components/AdminPage'
 import { PermissionsProvider } from './contexts/PermissionsContext'
 import DivideComponents from "@/components/route/DivideComponentSections"
@@ -38,14 +35,6 @@ function App() {
                         <>
                             <Route path="/" element={<Navigate to="/armory/0" replace />} />
                             <Route
-                                path="sheet/:sheetName/soldier/:soldierIndex"
-                                element={
-                                    <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4 w-full" dir="rtl">
-                                        <SoldierPage accessToken={user.access_token} />
-                                    </div>
-                                }
-                            />
-                            <Route
                                 path="/soldier/:soldierID"
                                 element={
                                     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4 w-full" dir="rtl">
@@ -67,15 +56,9 @@ function App() {
                                     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4 w-full" dir="rtl">
                                         <div className="w-full max-w-full md:px-4">
                                             <NavBar
-                                                sheetGroups={sheetGroups}
-                                                accessToken={user.access_token}
                                                 onSignOut={handleSignOut}
                                             />
-                                            {/*<SheetGroupPage*/}
-                                            {/*    accessToken={user.access_token}*/}
-                                            {/*    sheetGroups={sheetGroups}*/}
-                                            {/*/>*/}
-                                            <DivideComponents accessToken={user.access_token} sheetGroups={sheetGroups} />
+                                            <DivideComponents />
                                         </div>
                                     </div>
                                 }

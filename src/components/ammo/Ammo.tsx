@@ -6,7 +6,7 @@ import {supabase} from "@/lib/supabaseClient"
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
-import {Check, ChevronsUpDown, Trash} from "lucide-react";
+import {Trash} from "lucide-react";
 import {ColDef} from "ag-grid-community";
 
 import {
@@ -21,7 +21,7 @@ import {usePermissions} from "@/contexts/PermissionsContext";
 import SignatureCanvas from "react-signature-canvas";
 import {Label} from "@/components/ui/label";
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import "jspdf-autotable";
 import * as XLSX from "xlsx";
 import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
 // Import logo for PDF export
@@ -54,6 +54,7 @@ type LogisticItem = {
     חתימת_מחתים?: string;
     created_at?: string;
     סוג_תחמושת?: string;
+    is_explosion?: boolean;
 };
 
 const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
@@ -127,47 +128,30 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         };
     }
 
-    // Fetch data from Supabase for both tables
+    // Fetch data from Supabase from unified ammo table
     const fetchData = async () => {
-        if (permissions[selectedSheet.range] || permissions['munitions']) {
+        if (permissions[selectedSheet.range] || permissions['ammo']) {
             try {
                 setLoading(true);
 
-                // Fetch ball data
-                const {data: ballData, error: ballError} = await supabase
-                    .from('ammo_ball')
+                // Fetch all ammo data
+                const {data: ammoData, error: ammoError} = await supabase
+                    .from('ammo')
                     .select("*")
                     .in("פלוגה", [selectedSheet.range, 'גדוד']);
 
-
-                // Fetch explosion data
-                const {data: explosionData, error: explosionError} = await supabase
-                    .from('ammo_explosion')
-                    .select("*")
-                    .in("פלוגה", [selectedSheet.range, 'גדוד']);
-
-
-                if (ballError) {
-                    console.error("Error fetching ball data:", ballError);
+                if (ammoError) {
+                    console.error("Error fetching ammo data:", ammoError);
                     setStatusMessage({
-                        text: `שגיאה בטעינת נתוני קליעית: ${ballError.message}`,
+                        text: `שגיאה בטעינת נתוני תחמושת: ${ammoError.message}`,
                         type: "error"
                     });
-                }
-
-                if (explosionError) {
-                    console.error("Error fetching explosion data:", explosionError);
-                    setStatusMessage({
-                        text: `שגיאה בטעינת נתוני נפיצה: ${explosionError.message}`,
-                        type: "error"
-                    });
-                }
-
-                if (!ballError && !explosionError) {
+                } else {
                     // @ts-ignore
-                    setBallRowData(ballData || []);
-                    // @ts-ignore
-                    setExplosionRowData(explosionData || []);
+                    const allData = ammoData || [];
+                    // Split data by is_explosion flag
+                    setBallRowData(allData.filter((item: LogisticItem) => !item.is_explosion));
+                    setExplosionRowData(allData.filter((item: LogisticItem) => item.is_explosion));
                 }
             } catch (err: any) {
                 console.error("Unexpected error:", err);
@@ -410,7 +394,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 sortable: true,
                 filter: true,
                 width: 80,
-                editable: permissions['munitions'],
+                editable: permissions['ammo'],
                 cellEditor: 'agSelectCellEditor',
                 cellEditorParams: {values: ['כן', 'לא']},
                 onCellValueChanged: async (params: any) => {
@@ -456,10 +440,9 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         const newReadStatus = params.newValue;
 
         try {
-            // Update the read status in Supabase
-            const tableName = ballRowData.some(r => r.id === id) ? 'ammo_ball' : 'ammo_explosion';
+            // Update the read status in Supabase unified ammo table
             const {data: updatedData, error} = await supabase
-                .from(tableName)
+                .from('ammo')
                 .update({"נקרא": newReadStatus}) // key must be quoted
                 .eq("id", id)
                 .select();
@@ -503,6 +486,36 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 setSignatureDialogOpen(false);
                 return;
             }
+            
+            // Validate that דיווח שצל (זיכוי) won't result in negative quantities
+            for (const item of items) {
+                const ballSignatureData = ballDataByStatus['החתמה'] || [];
+                const explosionSignatureData = explosionDataByStatus['החתמה'] || [];
+
+                // Calculate current quantities for this item in החתמה status
+                const ballItemData = ballSignatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
+                const explosionItemData = explosionSignatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
+                const ballCurrentQty = ballItemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
+                const explosionCurrentQty = explosionItemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
+                
+                // Determine which type this item is based on סוג_תחמושת
+                const isExplosion = item.סוג_תחמושת === 'נפיצה';
+                const currentQty = isExplosion ? explosionCurrentQty : ballCurrentQty;
+                
+                const itemQty = item.כמות || 0;
+                
+                // דיווח שצל is always זיכוי, so check if it would lead to negative
+                if (currentQty - itemQty < 0) {
+                    setStatusMessage({
+                        text: `לא ניתן לדווח שצל:\n${item.פריט} (כמות נוכחית בהחתמה: ${currentQty}, מנסה לזכות: ${itemQty})`,
+                        type: "error"
+                    });
+                    setLoading(false);
+                    setOpen(false);
+                    setSignatureDialogOpen(false);
+                    return;
+                }
+            }
         }
 
 
@@ -527,17 +540,21 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 const explosionItemData = explosionSignatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
                 const ballCurrentQty = ballItemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
                 const explosionCurrentQty = explosionItemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
+                
+                // Determine which type this item is based on סוג_תחמושת
+                const isExplosion = item.סוג_תחמושת === 'נפיצה';
+                const currentQty = isExplosion ? explosionCurrentQty : ballCurrentQty;
+                
                 // Check if זיכוי would lead to negative
                 if (item.צורך === 'זיכוי') {
                     const itemQty = item.כמות || 0;
 
-                    if (ballCurrentQty - itemQty < 0 && explosionCurrentQty - itemQty < 0) {
+                    if (currentQty - itemQty < 0) {
                         setStatusMessage({
-                            text: `לא ניתן להחתים פריטים:\n${item.פריט} (כמות נוכחית: ${Math.max(ballCurrentQty, explosionCurrentQty)}, מנסה לזכות: ${itemQty})`,
+                            text: `לא ניתן להחתים פריטים:\n${item.פריט} (כמות נוכחית: ${currentQty}, מנסה לזכות: ${itemQty})`,
                             type: "error"
                         });
                         setLoading(false);
-                        setOpen(false);
                         setOpen(false);
                         setSignatureDialogOpen(false);
                         return;
@@ -546,19 +563,21 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
                 // Check if ניפוק would lead to negative in גדוד
                 if (item.צורך === 'ניפוק' && item.פריט) {
-                    // Fetch גדוד data for this item
+                    // Fetch גדוד data for this item - ball ammo
                     const {data: ballGadudData} = await supabase
-                        .from('ammo_ball')
+                        .from('ammo')
                         .select('*')
                         .eq('פלוגה', 'גדוד')
-                        .eq('פריט', item.פריט);
+                        .eq('פריט', item.פריט)
+                        .eq('is_explosion', false);
 
-                    // @ts-ignore
+                    // Fetch גדוד data for this item - explosion ammo
                     const {data: explosionGadudData} = await supabase
-                        .from('ammo_explosion')
+                        .from('ammo')
                         .select('*')
                         .eq('פלוגה', 'גדוד')
-                        .eq('פריט', item.פריט);
+                        .eq('פריט', item.פריט)
+                        .eq('is_explosion', true);
 
                     // Calculate גדוד quantity
                     const ballGadudQty = (ballGadudData || []).reduce((sum: number, i: any) => {
@@ -588,13 +607,14 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
         }
 
-        // Format items for insertion - group by table
+        // Format items for insertion - unified table with is_explosion flag
         const formattedDate = new Date().toLocaleString('he-IL');
-        const ballItems: any[] = [];
-        const explosionItems: any[] = [];
+        const itemsToInsert: any[] = [];
 
         items.forEach(item => {
-            // Determine table based on selected ammo type
+            // Determine is_explosion based on selected ammo type
+            const isExplosion = item.סוג_תחמושת === 'נפיצה';
+            
             const formattedItem = {
                 תאריך: formattedDate,
                 פריט: item.פריט,
@@ -602,19 +622,14 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 שם_החותם: signerName,
                 חתימת_מחתים: permissions['signature'] ? String(permissions['signature']) : '',
                 חתימה: dataURL,
-                צורך: !permissions['munitions'] ? 'זיכוי' : (item.צורך || 'ניפוק'),
+                צורך: !permissions['ammo'] ? 'זיכוי' : (item.צורך || 'ניפוק'),
                 סטטוס: dialogMode,
                 משתמש: permissions['name'] || '',
                 פלוגה: selectedSheet.range,
+                is_explosion: isExplosion,
             };
 
-            // Add to appropriate table based on selected ammo type
-            if (item.סוג_תחמושת === 'נפיצה') {
-                explosionItems.push(formattedItem);
-            } else {
-                // Default to ball (קליעית)
-                ballItems.push(formattedItem);
-            }
+            itemsToInsert.push(formattedItem);
 
             // If החתמה, create battalion entries
             if (dialogMode === 'החתמה') {
@@ -630,42 +645,25 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                     משתמש: permissions['name'] || '',
                     פלוגה: 'גדוד',
                     הערה: 'זיכוי מועבר מפלוגה ' + selectedSheet.range,
+                    is_explosion: isExplosion,
                 };
 
-                if (item.סוג_תחמושת === 'נפיצה') {
-                    explosionItems.push(battalionEntry);
-                } else {
-                    ballItems.push(battalionEntry);
-                }
+                itemsToInsert.push(battalionEntry);
             }
         });
 
         try {
             setLoading(true);
 
-            // Insert to ball table
-            if (ballItems.length > 0) {
-                const {error: ballError} = await supabase
-                    .from('ammo_ball')
-                    .insert(ballItems);
+            // Insert to unified ammo table
+            if (itemsToInsert.length > 0) {
+                const {error: ammoError} = await supabase
+                    .from('ammo')
+                    .insert(itemsToInsert);
 
-                if (ballError) {
-                    console.error("Error adding ball items:", ballError);
-                    setStatusMessage({text: `שגיאה בהוספת פריטי קליעית: ${ballError.message}`, type: "error"});
-                    setLoading(false);
-                    return;
-                }
-            }
-
-            // Insert to explosion table
-            if (explosionItems.length > 0) {
-                const {error: explosionError} = await supabase
-                    .from('ammo_explosion')
-                    .insert(explosionItems);
-
-                if (explosionError) {
-                    console.error("Error adding explosion items:", explosionError);
-                    setStatusMessage({text: `שגיאה בהוספת פריטי נפיצה: ${explosionError.message}`, type: "error"});
+                if (ammoError) {
+                    console.error("Error adding ammo items:", ammoError);
+                    setStatusMessage({text: `שגיאה בהוספת פריטי תחמושת: ${ammoError.message}`, type: "error"});
                     setLoading(false);
                     return;
                 }
@@ -699,31 +697,17 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 return;
             }
             // Extract IDs from selected rows
-            const ballIds = selectedRows.filter(r => ballRowData.some(b => b.id === r.id)).map(r => r.id);
-            const explosionIds = selectedRows.filter(r => explosionRowData.some(e => e.id === r.id)).map(r => r.id);
+            const idsToDelete = selectedRows.map(r => r.id);
 
-            // Delete from each table separately
-            if (ballIds.length > 0) {
-                const {error: ballDeleteError} = await supabase
-                    .from('ammo_ball')
+            // Delete from unified ammo table
+            if (idsToDelete.length > 0) {
+                const {error: deleteError} = await supabase
+                    .from('ammo')
                     .delete()
-                    .in('id', ballIds);
-                if (ballDeleteError) {
-                    console.error("Error deleting ball items:", ballDeleteError);
-                    setStatusMessage({text: `שגיאה במחיקת פריטי קליעית: ${ballDeleteError.message}`, type: "error"});
-                    setLoading(false);
-                    return;
-                }
-            }
-
-            if (explosionIds.length > 0) {
-                const {error: expDeleteError} = await supabase
-                    .from('ammo_explosion')
-                    .delete()
-                    .in('id', explosionIds);
-                if (expDeleteError) {
-                    console.error("Error deleting explosion items:", expDeleteError);
-                    setStatusMessage({text: `שגיאה במחיקת פריטי נפיצה: ${expDeleteError.message}`, type: "error"});
+                    .in('id', idsToDelete);
+                if (deleteError) {
+                    console.error("Error deleting ammo items:", deleteError);
+                    setStatusMessage({text: `שגיאה במחיקת פריטי תחמושת: ${deleteError.message}`, type: "error"});
                     setLoading(false);
                     return;
                 }
@@ -996,14 +980,14 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 />
             )}
 
-            {(permissions[selectedSheet.range] || permissions['munitions']) && (
+            {(permissions[selectedSheet.range] || permissions['ammo']) && (
                 <div className="flex justify-between mb-4">
                     <h2 className="text-2xl font-bold">{selectedSheet.name}</h2>
 
                     <div className="space-x-2">
                         <Button
                             onClick={() => {
-                                if (permissions['munitions']) {
+                                if (permissions['ammo']) {
                                     setDialogMode('החתמה');
                                     setSignatureDialogOpen(true);
                                 } else {
@@ -1013,7 +997,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             }}
                             className="bg-blue-500 hover:bg-blue-600"
                         >
-                            {permissions['munitions'] ? 'החתמת תחמושת' : 'דיווח שצל'}
+                            {permissions['ammo'] ? 'החתמת תחמושת' : 'דיווח שצל'}
                         </Button>
 
                         {(permissions[selectedSheet.range]) && (
@@ -1060,7 +1044,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             <div className="mb-8">
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-xl font-bold">קליעית</h3>
-                    {(permissions['munitions']) && activeTab !== 'החתמה' && (
+                    {(permissions['ammo']) && activeTab !== 'החתמה' && (
                         <Button
                             onClick={() => handleDeleteSelectedItems()}
                             className="bg-red-500 hover:bg-red-600"
@@ -1089,7 +1073,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             setSelectedRows(selectedRows);
                         }}
                         onCellClicked={(event) => {
-                            if (permissions['munitions'] && event.colDef && event.colDef.field === 'תאריך')
+                            if (permissions['ammo'] && event.colDef && event.colDef.field === 'תאריך')
                                 handleDateClicked(event.data)
                         }}
                         onCellValueChanged={(params) => {
@@ -1110,7 +1094,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             <div className="mb-8">
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-xl font-bold">נפיצה</h3>
-                    {(permissions['munitions']) && activeTab !== 'החתמה' && (
+                    {(permissions['ammo']) && activeTab !== 'החתמה' && (
                         <Button
                             onClick={() => handleDeleteSelectedItems()}
                             className="bg-red-500 hover:bg-red-600"
@@ -1139,7 +1123,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             setSelectedRows(selectedRows);
                         }}
                         onCellClicked={(event) => {
-                            if (permissions['munitions'] && event.colDef && event.colDef.field === 'תאריך')
+                            if (permissions['ammo'] && event.colDef && event.colDef.field === 'תאריך')
                                 handleDateClicked(event.data)
                         }}
                         onCellValueChanged={(params) => {
@@ -1235,13 +1219,13 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                 <div>
                                     <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
                                     <Select
-                                        value={!permissions['munitions'] ? 'זיכוי' : (item.צורך || 'ניפוק')}
+                                        value={!permissions['ammo'] ? 'זיכוי' : (item.צורך || 'ניפוק')}
                                         onValueChange={(value) => {
                                             const newItems = [...items];
                                             newItems[index].צורך = value;
                                             setItems(newItems);
                                         }}
-                                        disabled={!permissions['munitions']} // Disable for non-munitions users
+                                        disabled={!permissions['ammo']} // Disable for non-munitions users
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="בחר צורך"/>

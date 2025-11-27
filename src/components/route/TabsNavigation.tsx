@@ -6,38 +6,19 @@ interface TabsNavigationProps {
     sheets: Array<{ name: string, range: string }>;
     activeTabIndex: number;
     onTabChange: (index: number) => void;
-    section: string,
-    creditButton?: React.ReactNode;
-    storedButton?: React.ReactNode;
-    downloadedData?: React.ReactNode;
-    assignWeaponButton?: React.ReactNode;
-    addWeaponOrOptic?: React.ReactNode;
-    addNewSerialWeaponOrOptic?: React.ReactNode;
-    addOpticToGroup?: React.ReactNode;
-    downloadSadbaData?: React.ReactNode;
-    downloadGroupData?: React.ReactNode;
-
+    section: string
 }
 
 function TabsNavigation({
                             sheets,
                             activeTabIndex,
                             onTabChange,
-                            section,
-                            creditButton,
-                            storedButton,
-                            downloadedData,
-                            assignWeaponButton,
-                            addWeaponOrOptic,
-                            addNewSerialWeaponOrOptic,
-                            addOpticToGroup,
-                            downloadSadbaData,
-                            downloadGroupData
+                            section
 
                         }: TabsNavigationProps) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const isMobile = useIsMobile();
-    const {permissions} = usePermissions();
+    const {permissions, isPermissionsLoaded} = usePermissions();
 
     const toggleDropdown = () => {
         setIsDropdownOpen(!isDropdownOpen);
@@ -45,10 +26,13 @@ function TabsNavigation({
 
     // Build visible tabs with original indices BEFORE filtering
     const visibleTabs = useMemo(
-        () => sheets
-            .map((sheet, idx) => ({sheet, idx}))
-            .filter(({sheet}) => permissions[sheet.range] || permissions[section]),
-        [sheets, permissions, section]
+        () => {
+            if (!isPermissionsLoaded) return [];
+            return sheets
+                .map((sheet, idx) => ({sheet, idx}))
+                .filter(({sheet}) => permissions[sheet.range] || permissions[section]);
+        },
+        [sheets, permissions, section, isPermissionsLoaded]
     );
 
     // Ensure activeTabIndex always points to a permitted tab
@@ -58,17 +42,21 @@ function TabsNavigation({
     );
 
     useEffect(() => {
-        if (!isActivePermitted && visibleTabs.length > 0) {
+        if (isPermissionsLoaded && !isActivePermitted && visibleTabs.length > 0) {
             // Snap to first permitted tab using original index
             onTabChange(visibleTabs[0].idx);
         }
-    }, [isActivePermitted, visibleTabs, onTabChange]);
+    }, [isActivePermitted, visibleTabs, onTabChange, isPermissionsLoaded]);
 
     // Compute label for mobile header from permitted tabs
     const activeLabel = useMemo(() => {
         const active = visibleTabs.find(t => t.idx === activeTabIndex);
         return active?.sheet.name ?? visibleTabs[0]?.sheet.name ?? 'Select Tab';
     }, [visibleTabs, activeTabIndex]);
+
+    if (!isPermissionsLoaded) {
+        return null;
+    }
 
     return (
         <div className="mb-4 border-b border-gray-200 flex justify-between items-center">
@@ -99,7 +87,7 @@ function TabsNavigation({
                                                 setIsDropdownOpen(false);
                                             }}
                                         >
-                                            {sheet.name}
+                                            {sheet.range}
                                         </button>
                                     </li>
                                 ))}
@@ -117,24 +105,12 @@ function TabsNavigation({
                                         : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'}`}
                                     onClick={() => onTabChange(idx)}
                                 >
-                                    {sheet.name}
+                                    {sheet.range}
                                 </button>
                             </li>
                         ))}
                 </ul>
             )}
-
-            <div className="flex items-center space-x-2">
-                {downloadedData}
-                {storedButton}
-                {creditButton}
-                {assignWeaponButton}
-                {addWeaponOrOptic}
-                {addNewSerialWeaponOrOptic}
-                {addOpticToGroup}
-                {downloadSadbaData}
-                {downloadGroupData}
-            </div>
         </div>
     );
 }

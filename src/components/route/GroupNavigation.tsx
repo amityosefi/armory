@@ -1,20 +1,28 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useIsMobile from '../../hooks/useIsMobile';  // adjust the path if needed
-import type { SheetGroup } from '../../types';
+import { sheetGroups } from "@/constants";
 import {usePermissions} from "@/contexts/PermissionsContext";
 
 
-interface GroupNavigationProps {
-  sheetGroups: SheetGroup[];
-}
-
-const GroupNavigation: React.FC<GroupNavigationProps> = ({ sheetGroups }) => {
+const GroupNavigation: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const currentPath = location.pathname;
-  const { permissions } = usePermissions();
+  const { permissions, isPermissionsLoaded } = usePermissions();
+
+  if (!isPermissionsLoaded) {
+    return null;
+  }
+
+  // Helper function to check if user has access to any sheet in the group
+  const hasGroupAccess = (group: typeof sheetGroups[0]) => {
+    // Check if user has the group-level permission (e.g., 'armory')
+    if (permissions[group.pathName]) return true;
+    // Check if user has permission for any sheet within the group (e.g., 'ג')
+    return group.sheets.some(sheet => permissions[sheet.range]);
+  };
 
   return (
       <div>
@@ -31,7 +39,7 @@ const GroupNavigation: React.FC<GroupNavigationProps> = ({ sheetGroups }) => {
                     )?.pathName || sheetGroups[0]?.pathName}
                 >
                   {sheetGroups.map((group, index) => {
-                    if (permissions[group.name] === false) return null;
+                    if (!hasGroupAccess(group)) return null;
                     return (
                         <option key={index} value={group.pathName}>
                           {group.name}
@@ -51,6 +59,7 @@ const GroupNavigation: React.FC<GroupNavigationProps> = ({ sheetGroups }) => {
         ) : (
             <div className="flex gap-3 flex-wrap">
               {sheetGroups.map((group, index) => {
+                if (!hasGroupAccess(group)) return null;
                 const isActive = currentPath.includes(`/${group.pathName}`);
                 return (
                     <Link

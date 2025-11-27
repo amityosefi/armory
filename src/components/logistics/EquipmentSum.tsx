@@ -22,7 +22,6 @@ type LogisticItem = {
     תאריך: string;
     מקט?: string;
     פריט: string;
-    מידה: string;
     כמות: number;
     צורך: string;
     הערה?: string;
@@ -54,7 +53,7 @@ const EquipmentSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
 
     // Fetch all logistic data from Supabase
     const fetchData = async () => {
-        if (permissions['Logistic']) {
+        if (permissions['logistic']) {
             try {
                 setLoading(true);
                 const {data, error} = await supabase

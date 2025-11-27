@@ -60,7 +60,7 @@ const ArmoryDocumentation: React.FC = () => {
     // Fetch data from Supabase
     const fetchData = async () => {
         try {
-            if (!permissions['Armory']) return;
+            if (!permissions['armory']) return;
             setLoading(true);
             const {data, error} = await supabase
                 .from("armory_document")
@@ -75,7 +75,7 @@ const ArmoryDocumentation: React.FC = () => {
                     const dateB = parseHebrewDate((b['תאריך'] as string) || '');
                     return dateA.getTime() - dateB.getTime(); // Ascending order
                 });
-                setRowData(sortedData);
+                setRowData([...sortedData].reverse());
             }
         } catch (err: any) {
             console.error("Unexpected error:", err);
@@ -101,7 +101,7 @@ const ArmoryDocumentation: React.FC = () => {
                 .insert([{
                     תאריך: new Date().toLocaleString('he-IL'),
                     משתמש: permissions['name'],
-                    הודעה: newMessage
+                    הודעה: 'הודעה מהאפליקציה: ' + newMessage
                 }]);
 
             if (error) {
@@ -110,8 +110,7 @@ const ArmoryDocumentation: React.FC = () => {
                 setNewMessage('');
                 setIsModalOpen(false);
                 fetchData(); // Refresh the grid
-                // Show success message after modal closes
-                setStatusMessage({ text: 'הרשומה נוספה בהצלחה', isSuccess: true });
+                setStatusMessage({ text: 'ההודעה נוספה בהצלחה', isSuccess: true });
             }
         } catch (err: any) {
             setStatusMessage({ text: `שגיאה: ${err.message}`, isSuccess: false });
@@ -134,7 +133,12 @@ const ArmoryDocumentation: React.FC = () => {
                 field: key,
                 headerName: key,
                 sortable: true,
-                filter: key === 'הודעה' ? 'agTextColumnFilter' : true,
+                filter: 'agTextColumnFilter',
+                filterParams: {
+                    filterOptions: ['contains'],
+                    defaultOption: 'contains',
+                    suppressAndOrCondition: true,
+                },
             };
 
             // Add custom comparator for date column
@@ -262,7 +266,6 @@ const ArmoryDocumentation: React.FC = () => {
                             </div>
 
                             <div className="text-right text-sm text-gray-600 mb-4">
-                                <p><strong>תאריך:</strong> {new Date().toLocaleString('he-IL')}</p>
                                 <p><strong>משתמש:</strong> {permissions['name'] || 'לא ידוע'}</p>
                             </div>
                         </div>

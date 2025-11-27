@@ -1,15 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import type { SheetGroup } from '../types';
 import { usePermissions } from "@/contexts/PermissionsContext";
 import { supabase } from "@/lib/supabaseClient";
-import SearchResultsModal, { SearchResult } from './armory/SearchResultsModal';
+import SearchResultsModal, { SearchResult } from './SearchResultsModal';
 
-interface SearchBarProps {
-  sheetGroups: SheetGroup[];
-  accessToken: string;
-}
-
-const SearchBar: React.FC<SearchBarProps> = ({ sheetGroups, accessToken }) => {
+const SearchBar: React.FC = () => {
   const { permissions } = usePermissions();
   const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -50,11 +44,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ sheetGroups, accessToken }) => {
         person.id?.toString(),
         person.name,
         person.phone,
-        person.location
+        person.location?.toString()
       ].filter(Boolean);
 
       const matches = matchFields.some(field =>
-        field.toLowerCase().includes(searchLower)
+        String(field).toLowerCase().includes(searchLower)
       );
 
       if (matches) {
@@ -74,11 +68,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ sheetGroups, accessToken }) => {
         item.id?.toString(),
         item.name,
         item.kind,
-        item.location
+        item.location?.toString()
       ].filter(Boolean);
 
       const matches = matchFields.some(field =>
-        field.toLowerCase().includes(searchLower)
+        String(field).toLowerCase().includes(searchLower)
       );
 
       if (matches) {
@@ -110,7 +104,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ sheetGroups, accessToken }) => {
   return (
     <>
       {/* Search Bar */}
-      {!permissions['Plugot'] && (
+      {permissions['armory'] && (
         <div className="flex w-full gap-2">
           <input
             type="text"
