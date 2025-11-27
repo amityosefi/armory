@@ -148,7 +148,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                     });
                 } else {
                     // @ts-ignore
-                    const allData = ammoData || [];
+                    const allData = (ammoData as LogisticItem[]) || [];
                     // Split data by is_explosion flag
                     setBallRowData(allData.filter((item: LogisticItem) => !item.is_explosion));
                     setExplosionRowData(allData.filter((item: LogisticItem) => item.is_explosion));

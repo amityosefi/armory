@@ -124,8 +124,8 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
 
             if (error) throw error;
             
-            setAvailableItems(data || []);
-            const uniqueKinds = [...new Set(data?.map(item => item.kind) || [])];
+            setAvailableItems((data as ArmoryItem[]) || []);
+            const uniqueKinds = [...new Set((data as ArmoryItem[])?.map(item => item.kind) || [])];
             setKinds(uniqueKinds);
         } catch (error) {
             console.error('Error fetching available items:', error);
@@ -142,7 +142,7 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                 .select('id, first, last, location');
 
             if (error) throw error;
-            setHrData(data || []);
+            setHrData((data as HRRecord[]) || []);
         } catch (error) {
             console.error('Error fetching HR data:', error);
         } finally {

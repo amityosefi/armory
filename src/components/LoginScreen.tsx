@@ -68,9 +68,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                         localStorage.clear()
                     } else {
                         onLoginSuccess(parsedToken)
-                        setPermissions(data);
+                        setPermissions(data as Record<string, boolean>);
                         setIsPermissionsLoaded(true);
-                        setAuth(savedEmail, data);
+                        setAuth(savedEmail, data as Record<string, boolean>);
                         setIsAuthenticated(true);
                         return
                     }
@@ -113,9 +113,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                 localStorage.setItem('googleAuthToken', JSON.stringify(codeResponse))
                 localStorage.setItem('userEmail', email)
 
-                setPermissions(data);
+                setPermissions(data as Record<string, boolean>);
                 setIsPermissionsLoaded(true);
-                setAuth(email, data);
+                setAuth(email, data as Record<string, boolean>);
                 onLoginSuccess(codeResponse);
                 setIsAuthenticated(true);
 

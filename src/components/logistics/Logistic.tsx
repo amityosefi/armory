@@ -914,7 +914,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                         getRowStyle={(params) => {
                             // For החתמה tab, apply light blue to odd rows
                             if (activeTab === 'החתמה') {
-                                if (params.node && params.node.rowIndex !== undefined && params.node.rowIndex % 2 !== 0) {
+                                if (params.node && params.node.rowIndex !== undefined && params.node.rowIndex !== null && params.node.rowIndex % 2 !== 0) {
                                     return {backgroundColor: '#e3f2fd'}; // Light blue background for odd rows
                                 }
                                 return undefined;

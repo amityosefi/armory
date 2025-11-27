@@ -71,23 +71,23 @@ const SoldierArmoryPage: React.FC = () => {
     try {
       setLoading(true);
       
-      const { data: personData, error: personError } = await supabase
+      const { data, error } = await supabase
         .from('people')
         .select('*')
-        .eq('id', soldierID)
+        .eq('id', soldierID!)
         .single();
 
-      if (personError) throw personError;
-      setSoldier(personData);
-      setEditValues(personData);
+      if (error) throw error;
+      setSoldier(data as unknown as Person);
+      setEditValues(data as unknown as Person);
 
       const { data: itemsData, error: itemsError } = await supabase
         .from('armory_items')
         .select('*')
-        .eq('location', soldierID);
+        .eq('location', soldierID!);
 
       if (itemsError) throw itemsError;
-      setArmoryItems(itemsData || []);
+      setArmoryItems((itemsData as unknown as ArmoryItem[]) || []);
     } catch (error) {
       console.error('Error fetching soldier data:', error);
       alert('שגיאה בטעינת נתוני החייל');
@@ -105,7 +105,7 @@ const SoldierArmoryPage: React.FC = () => {
       const { error } = await supabase
         .from('people')
         .update({ [field]: editValues[field] })
-        .eq('id', soldierID);
+        .eq('id', soldierID!);
 
       if (error) throw error;
       
@@ -180,14 +180,14 @@ const SoldierArmoryPage: React.FC = () => {
       const { error: itemsError } = await supabase
         .from('armory_items')
         .update({ location: 'גדוד' })
-        .eq('location', soldierID);
+        .eq('location', soldierID!);
 
       if (itemsError) throw itemsError;
 
       const { error: deleteError } = await supabase
         .from('people')
         .delete()
-        .eq('id', soldierID);
+        .eq('id', soldierID!);
 
       if (deleteError) throw deleteError;
 
@@ -261,7 +261,9 @@ const SoldierArmoryPage: React.FC = () => {
             ) : (
               <div className="flex items-center gap-2">
                 <span>{soldier.name}</span>
-                <Pencil className="w-4 h-4 cursor-pointer text-gray-500 hover:text-gray-700" onClick={() => handleEditField('name')} />
+                {permissions['admin'] && (
+                  <Pencil className="w-4 h-4 cursor-pointer text-gray-500 hover:text-gray-700" onClick={() => handleEditField('name')} />
+                )}
               </div>
             )}
           </div>
@@ -281,7 +283,9 @@ const SoldierArmoryPage: React.FC = () => {
             ) : (
               <div className="flex items-center gap-2">
                 <span>{soldier.phone}</span>
-                <Pencil className="w-4 h-4 cursor-pointer text-gray-500 hover:text-gray-700" onClick={() => handleEditField('phone')} />
+                {permissions['admin'] && (
+                  <Pencil className="w-4 h-4 cursor-pointer text-gray-500 hover:text-gray-700" onClick={() => handleEditField('phone')} />
+                )}
               </div>
             )}
           </div>
@@ -304,7 +308,9 @@ const SoldierArmoryPage: React.FC = () => {
             ) : (
               <div className="flex items-center gap-2">
                 <span>{soldier.location}</span>
-                <Pencil className="w-4 h-4 cursor-pointer text-gray-500 hover:text-gray-700" onClick={() => handleEditField('location')} />
+                {permissions['admin'] && (
+                  <Pencil className="w-4 h-4 cursor-pointer text-gray-500 hover:text-gray-700" onClick={() => handleEditField('location')} />
+                )}
               </div>
             )}
           </div>
@@ -316,14 +322,18 @@ const SoldierArmoryPage: React.FC = () => {
           <Download className="w-4 h-4" />
           ייצוא PDF
         </Button>
-        <Button onClick={() => setAssignModalOpen(true)} className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-2">
-          <PenLine className="w-4 h-4" />
-          החתמת אמצעי
-        </Button>
-        <Button onClick={handleDischargeSoldier} className="bg-red-500 hover:bg-red-600 text-white flex items-center gap-2">
-          <Ban className="w-4 h-4" />
-          זיכוי חייל
-        </Button>
+        {permissions['armory'] && (
+          <>
+            <Button onClick={() => setAssignModalOpen(true)} className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-2">
+              <PenLine className="w-4 h-4" />
+              החתמת אמצעי
+            </Button>
+            <Button onClick={handleDischargeSoldier} className="bg-red-500 hover:bg-red-600 text-white flex items-center gap-2">
+              <Ban className="w-4 h-4" />
+              זיכוי חייל
+            </Button>
+          </>
+        )}
       </div>
 
       {Object.entries(groupedItems).map(([kind, items]) => (
@@ -337,7 +347,9 @@ const SoldierArmoryPage: React.FC = () => {
                   <th className="p-2 text-right w-24">שם</th>
                   <th className="p-2 text-right w-12">צ</th>
                   <th className="p-2 text-right w-16">מאופסן</th>
-                  <th className="p-2 text-right w-32">פעולות</th>
+                  {permissions['armory'] && (
+                    <th className="p-2 text-right w-32">פעולות</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -347,26 +359,31 @@ const SoldierArmoryPage: React.FC = () => {
                     <td className="p-2 w-24 truncate">{item.name}</td>
                     <td className="p-2 w-12">{item.id}</td>
                     <td className="p-2 w-16">
-                      <span className={`px-2 py-1 text-xs rounded-full cursor-pointer ${item.is_save ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`} onClick={() => handleToggleSave(item)}>
+                      <span 
+                        className={`px-2 py-1 text-xs rounded-full ${permissions['armory'] ? 'cursor-pointer' : ''} ${item.is_save ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`} 
+                        onClick={permissions['armory'] ? () => handleToggleSave(item) : undefined}
+                      >
                         {item.is_save ? 'כן' : 'לא'}
                       </span>
                     </td>
-                    <td className="p-2 w-32">
-                      <div className="flex gap-1 flex-wrap">
-                        <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 h-auto flex items-center gap-1" onClick={() => handleTransferItem(item)}>
-                          <ArrowRightLeft className="w-3 h-3" />
-                          העבר
-                        </Button>
-                        <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 h-auto flex items-center gap-1" onClick={() => handleReturnToBase(item, 'גדוד')}>
-                          <Home className="w-3 h-3" />
-                          גדוד
-                        </Button>
-                        <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-2 py-1 h-auto flex items-center gap-1" onClick={() => handleReturnToBase(item, 'סדנא')}>
-                          <Wrench className="w-3 h-3" />
-                          סדנא
-                        </Button>
-                      </div>
-                    </td>
+                    {permissions['armory'] && (
+                      <td className="p-2 w-32">
+                        <div className="flex gap-1 flex-wrap">
+                          <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 h-auto flex items-center gap-1" onClick={() => handleTransferItem(item)}>
+                            <ArrowRightLeft className="w-3 h-3" />
+                            העבר
+                          </Button>
+                          <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 h-auto flex items-center gap-1" onClick={() => handleReturnToBase(item, 'גדוד')}>
+                            <Home className="w-3 h-3" />
+                            גדוד
+                          </Button>
+                          <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-2 py-1 h-auto flex items-center gap-1" onClick={() => handleReturnToBase(item, 'סדנא')}>
+                            <Wrench className="w-3 h-3" />
+                            סדנא
+                          </Button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

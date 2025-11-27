@@ -50,7 +50,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({
 
             if (error) throw error;
 
-            const uniqueKinds = [...new Set(data.map((item) => item.kind))].sort();
+            const uniqueKinds = [...new Set((data as any[]).map((item) => item.kind as string))].sort();
             setKinds(uniqueKinds);
         } catch (err: any) {
             console.error("Error fetching kinds:", err);

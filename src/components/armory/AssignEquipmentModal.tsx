@@ -63,8 +63,8 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, 
 
       if (error) throw error;
       
-      setAvailableItems(data || []);
-      const uniqueKinds = [...new Set(data?.map(item => item.kind) || [])];
+      setAvailableItems((data as any[]) || []);
+      const uniqueKinds = [...new Set((data as any[])?.map(item => item.kind as string) || [])];
       setKinds(uniqueKinds);
     } catch (error) {
       console.error('Error fetching available items:', error);

@@ -142,16 +142,16 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     });
                 } else {
                     // @ts-ignore
-                    const allData = ammoResponse.data || [];
+                    const allData = (ammoResponse.data as LogisticItem[]) || [];
                     const ballData = allData.filter((item: LogisticItem) => !item.is_explosion);
                     const explosionData = allData.filter((item: LogisticItem) => item.is_explosion);
                     
-                    setRawBallData(ballData);
-                    setRawExplosionData(explosionData);
+                    setRawBallData(ballData as LogisticItem[]);
+                    setRawExplosionData(explosionData as LogisticItem[]);
                     
                     // Process data for both types
-                    processData(ballData, false);
-                    processData(explosionData, true);
+                    processData(ballData as LogisticItem[], false);
+                    processData(explosionData as LogisticItem[], true);
                     
                     // Clear error message if any
                     setStatusMessage({text: "", type: ""});
@@ -485,17 +485,16 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const updateItem = (
         index: number,
         field: keyof ItemFormData,
-        value: string | number,
+        value: string | number | boolean,
         items: ItemFormData[],
         setItems: React.Dispatch<React.SetStateAction<ItemFormData[]>>
     ) => {
         const newItems = [...items];
         if (field === 'כמות') {
-            newItems[index][field] = typeof value === 'string' ? parseInt(value) || 0 : value;
-        } else if (field === 'tableType') {
-            // Ensure correct union type assignment for TableType
-            newItems[index].tableType = value as TableType;
-        } else {
+            newItems[index][field] = typeof value === 'string' ? parseInt(value) || 0 : value as number;
+        } else if (field === 'is_explosion') {
+            newItems[index][field] = value as boolean;
+        } else if (field === 'פריט') {
             newItems[index][field] = value as string;
         }
         setItems(newItems);

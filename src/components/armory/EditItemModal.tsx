@@ -62,12 +62,13 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
             if (error) throw error;
 
             if (data) {
-                setItemData(data);
+                const typedData = data as { id: number; name: string; kind: string; location: string; };
+                setItemData(typedData);
                 setFormData({
-                    id: data.id,
-                    name: data.name || "",
-                    kind: data.kind || "",
-                    location: data.location || "",
+                    id: typedData.id,
+                    name: typedData.name || "",
+                    kind: typedData.kind || "",
+                    location: typedData.location || "",
                 });
             }
         } catch (err: any) {

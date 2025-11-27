@@ -74,7 +74,7 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
 
             if (error) throw error;
 
-            const uniqueKinds = [...new Set(data.map((item) => item.kind))].sort();
+            const uniqueKinds = [...new Set((data as any[]).map((item) => item.kind as string))].sort();
             setKinds(uniqueKinds);
         } catch (err: any) {
             console.error("Error fetching kinds:", err);
@@ -91,7 +91,7 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
 
             if (error) throw error;
 
-            const uniqueNames = [...new Set(data.map((item) => item.name))].sort();
+            const uniqueNames = [...new Set((data as any[]).map((item) => item.name as string))].sort();
             setNames(uniqueNames);
         } catch (err: any) {
             console.error("Error fetching names:", err);
@@ -111,7 +111,7 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
 
             if (error) throw error;
 
-            setSelectedItemDetails(data);
+            setSelectedItemDetails(data as { location: string; });
         } catch (err: any) {
             console.error("Error fetching item details:", err);
         }

@@ -73,7 +73,7 @@ const AmmoSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
                     console.error("Error fetching ammo data:", ammoResponse.error);
                 } else {
                     // @ts-ignore
-                    const allData = ammoResponse.data || [];
+                    const allData = (ammoResponse.data as LogisticItem[]) || [];
                     // Split data by is_explosion flag
                     setBallData(allData.filter((item: LogisticItem) => !item.is_explosion));
                     setExplosionData(allData.filter((item: LogisticItem) => item.is_explosion));
