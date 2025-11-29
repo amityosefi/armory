@@ -58,12 +58,15 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
       alert('אנא בחר חייל');
       return;
     }
-
+    console.log("return:")
+    console.log(item)
     try {
       const { error } = await supabase
         .from('armory_items')
         .update({ location: selectedPersonId })
-        .eq('id', item.id);
+        .eq('id', item.id)
+        .eq('kind', item.kind)
+        .eq('name', item.name);
 
       if (error) throw error;
 

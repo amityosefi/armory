@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import '@/fonts/NotoSansHebrew-normal';
+import logoImg from '@/assets/logo.jpeg';
 
 interface Person {
     id: number;
@@ -64,26 +65,25 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
     doc.setFont('NotoSansHebrew');
     doc.setFontSize(12);
 
+    // Add logo on the left side
+    try {
+        doc.addImage(logoImg, 'JPEG', margin, y, 20, 20);
+    } catch (error) {
+        console.error('Error adding logo to PDF:', error);
+    }
+
     // Title
     doc.setFontSize(18);
-    doc.text(mirrorHebrew('טופס חתימת חייל גדוד 8101.'), pageWidth / 2, y, {align: 'center'});
-    y += 10;
+    doc.text(mirrorHebrew('טופס חתימת חייל גדוד 8101.'), pageWidth / 2, y + 10, {align: 'center'});
+    y += 30;
 
     // Soldier Information
     const dateStr = new Date().toLocaleString('he-IL').split(' ');
     doc.setFontSize(10);
-    doc.text(mirrorHebrew(`${soldier.name}`), pageWidth - margin, y, {align: 'right'});
-    doc.text(mirrorHebrew('תאריך נוכחי: '), margin, y, {align: 'left'});
+    doc.text(mirrorHebrew('תאריך נוכחי: '), pageWidth - margin, y, {align: 'right'});
 
     y += 10;
-    doc.text(soldier.id.toString(), pageWidth - margin, y, {align: 'right'});
-    doc.text(dateStr[1] + ' ' + dateStr[0], margin, y, {align: 'left'});
-
-    y += 10;
-    doc.text(soldier.phone, pageWidth - margin, y, {align: 'right'});
-
-    y += 10;
-    doc.text(mirrorHebrewSmart(soldier.location), pageWidth - margin, y, {align: 'right'});
+    doc.text(dateStr[0] + ' ' + dateStr[1], pageWidth - margin, y, {align: 'right'});
 
     // Get sign time from weapon item
     const weaponItem = armoryItems.find(item => item.kind === 'נשק');
@@ -128,13 +128,11 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
         // Kind header - centered above table
         doc.setFontSize(14);
         const tableWidth = 90;
-        const tableX = (pageWidth - tableWidth) / 2; // Center the table
         doc.text(mirrorHebrewSmart(kind), pageWidth / 2, y, {align: 'right'});
         doc.setFont('NotoSansHebrew', 'normal');
         y += 10;
 
         // Items for this kind
-        // For נשק table, add תאריך חתימה column
         const isWeaponTable = kind === 'נשק';
         const kvPairs = items.map(item => {
             const row = isWeaponTable ? [
@@ -164,12 +162,12 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
                 cellWidth: 'wrap'
             },
             columnStyles: isWeaponTable ? {
-                0: {cellWidth: 50},  // תאריך חתימה column
+                0: {cellWidth: 50},  // תאריך חתימה column (left)
                 1: {cellWidth: 30},  // מסד column
                 2: {cellWidth: 60}   // אמצעי column
             } : {
-                0: {cellWidth: 30},  // מסד column - narrower
-                1: {cellWidth: 60}   // אמצעי column - narrower
+                0: {cellWidth: 30},  // מסד column
+                1: {cellWidth: 60}   // אמצעי column
             },
             margin: {
                 left: adjustedTableX,
@@ -219,18 +217,26 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
         }
 
         // Left side - Soldier
-        doc.text(mirrorHebrew(soldier.location), margin, footerY, {align: 'left'});
+        doc.text(mirrorHebrew(soldier.location) + ' ' + mirrorHebrewSmart('פלוגה'), margin, footerY, {align: 'left'});
         doc.text(mirrorHebrew(soldier.name), margin, footerY + 7, {align: 'left'});
 
         // Add soldier ID
         doc.text(soldier.id.toString(), margin, footerY + 14, {align: 'left'});
+        
+        // Add soldier phone
+        doc.text(soldier.phone, margin, footerY + 21, {align: 'left'});
+        
+        // Add signature date if available
+        if (weaponItem?.sign_time) {
+            doc.text(mirrorHebrew('תאריך חתימה: ') + weaponItem.sign_time, margin, footerY + 28, {align: 'left'});
+        }
 
         if (weaponItem?.people_sign) {
             // Add soldier signature image if available (bigger size)
             try {
-                doc.addImage(weaponItem.people_sign, 'PNG', margin, footerY + 18, 45, 25);
+                doc.addImage(weaponItem.people_sign, 'PNG', margin, footerY + 32, 45, 25);
             } catch (e) {
-                doc.text('_______________', margin, footerY + 21, {align: 'left'});
+                doc.text('_______________', margin, footerY + 35, {align: 'left'});
             }
         }
     }

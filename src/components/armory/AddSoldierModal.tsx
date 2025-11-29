@@ -113,6 +113,25 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
             setSelectedId(null);
         }
     }, [selectedName, selectedKind, availableItems]);
+    
+    // Auto-add item when ID is selected
+    useEffect(() => {
+        if (selectedId) {
+            // Check if item already selected
+            if (selectedItems.some(item => item.id === selectedId)) {
+                alert('פריט זה כבר נבחר');
+                setSelectedId(null);
+                return;
+            }
+            
+            const item = availableItems.find(i => i.id === selectedId);
+            if (item) {
+                setSelectedItems(prev => [...prev, item]);
+                // Reset the ID selection to allow adding more items of same kind/name
+                setSelectedId(null);
+            }
+        }
+    }, [selectedId, availableItems, selectedItems]);
 
     const fetchAvailableItems = async () => {
         setLoadingItems(true);
@@ -619,27 +638,15 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                                 {selectedName && (
                                     <div>
                                         <label className="block mb-1 text-sm">מספר סידורי:</label>
-                                        <div className="flex gap-2">
-                                            <div className="flex-1">
-                                                <Combobox
-                                                    value={selectedId}
-                                                    onValueChange={(value) => setSelectedId(Number(value))}
-                                                    options={ids.map((id) => ({ value: id, label: String(id) }))}
-                                                    placeholder="-- בחר מספר --"
-                                                    searchPlaceholder="חפש מספר..."
-                                                    emptyText="לא נמצאו תוצאות"
-                                                    disabled={loading}
-                                                />
-                                            </div>
-                                            <Button
-                                                type="button"
-                                                onClick={handleAddItem}
-                                                disabled={!selectedId || loading}
-                                                className="bg-green-500 hover:bg-green-600"
-                                            >
-                                                הוסף
-                                            </Button>
-                                        </div>
+                                        <Combobox
+                                            value={selectedId}
+                                            onValueChange={(value) => setSelectedId(Number(value))}
+                                            options={ids.map((id) => ({ value: id, label: String(id) }))}
+                                            placeholder="-- בחר מספר --"
+                                            searchPlaceholder="חפש מספר..."
+                                            emptyText="לא נמצאו תוצאות"
+                                            disabled={loading}
+                                        />
                                     </div>
                                 )}
                                 

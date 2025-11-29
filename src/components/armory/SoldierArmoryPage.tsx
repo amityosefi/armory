@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Pencil, ArrowRightLeft, Download, Ban, PenLine, Home, Wrench } from 'lucide-react';
 import TransferItemModal from './TransferItemModal';
 import AssignEquipmentModal from './AssignEquipmentModal';
+import WeaponReturnSignatureModal from './WeaponReturnSignatureModal';
 import { exportSoldierPDF } from './SoldierPDFExport';
 import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
 import useIsMobile from '@/hooks/useIsMobile';
@@ -27,6 +28,7 @@ interface ArmoryItem {
   sign_time?: string;
   logistic_sign?: string;
   logistic_name?: string;
+  logistic_id?: string;
 }
 
 const SoldierArmoryPage: React.FC = () => {
@@ -42,6 +44,8 @@ const SoldierArmoryPage: React.FC = () => {
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [selectedItemForTransfer, setSelectedItemForTransfer] = useState<ArmoryItem | null>(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [weaponReturnModalOpen, setWeaponReturnModalOpen] = useState(false);
+  const [selectedWeaponForReturn, setSelectedWeaponForReturn] = useState<ArmoryItem | null>(null);
   const [statusMessage, setStatusMessage] = useState({ text: '', isSuccess: false });
   const isMobile = useIsMobile();
   const { permissions } = usePermissions();
@@ -124,6 +128,14 @@ const SoldierArmoryPage: React.FC = () => {
   };
 
   const handleToggleSave = async (item: ArmoryItem) => {
+    // If changing from כן (true) to לא (false) and item is weapon, show signature modal
+    if (item.is_save && item.kind === 'נשק') {
+      setSelectedWeaponForReturn(item);
+      setWeaponReturnModalOpen(true);
+      return;
+    }
+
+    // For non-weapons or when changing from לא to כן, proceed normally
     try {
       const { error } = await supabase
         .from('armory_items')
@@ -146,6 +158,50 @@ const SoldierArmoryPage: React.FC = () => {
     }
   };
 
+  const handleWeaponReturnSignature = async (signature: string) => {
+    if (!selectedWeaponForReturn) return;
+
+    try {
+      const currentTime = new Date().toLocaleString('he-IL');
+      
+      const { error } = await supabase
+        .from('armory_items')
+        .update({ 
+          is_save: false,
+          sign_time: currentTime,
+          people_sign: signature,
+          logistic_sign: permissions['signature'] ? String(permissions['signature']) : '',
+          logistic_name: permissions['name'] ? String(permissions['name']) : '',
+          logistic_id: permissions['id'] ? String(permissions['id']) : ''
+        })
+        .eq('id', selectedWeaponForReturn.id);
+
+      if (error) throw error;
+      
+      const message = `נשק ${selectedWeaponForReturn.name} (מספר: ${selectedWeaponForReturn.id}) הוחזר לאחסון עבור חייל ${soldier?.name}`;
+      
+      setArmoryItems(armoryItems.map(i => 
+        i.id === selectedWeaponForReturn.id ? { 
+          ...i, 
+          is_save: false,
+          sign_time: currentTime,
+          people_sign: signature,
+          logistic_sign: permissions['signature'] ? String(permissions['signature']) : '',
+          logistic_name: permissions['name'] ? String(permissions['name']) : '',
+          logistic_id: permissions['id'] ? String(permissions['id']) : ''
+        } : i
+      ));
+      
+      setStatusMessage({ text: message, isSuccess: true });
+      await logToArmoryDocument(message);
+      setWeaponReturnModalOpen(false);
+      setSelectedWeaponForReturn(null);
+    } catch (error) {
+      console.error('Error returning weapon:', error);
+      setStatusMessage({ text: `שגיאה בהחזרת נשק ${selectedWeaponForReturn.name}`, isSuccess: false });
+    }
+  };
+
   const handleTransferItem = (item: ArmoryItem) => {
     setSelectedItemForTransfer(item);
     setTransferModalOpen(true);
@@ -156,7 +212,9 @@ const SoldierArmoryPage: React.FC = () => {
       const { error } = await supabase
         .from('armory_items')
         .update({ location: newLocation })
-        .eq('id', item.id);
+        .eq('id', item.id)
+        .eq('kind', item.kind)
+          .eq('name', item.name);
 
       if (error) throw error;
       
@@ -398,6 +456,14 @@ const SoldierArmoryPage: React.FC = () => {
 
       {assignModalOpen && (
         <AssignEquipmentModal soldierID={parseInt(soldierID!)} onClose={() => setAssignModalOpen(false)} onAssignComplete={() => { fetchSoldierData(); setAssignModalOpen(false); }} />
+      )}
+
+      {weaponReturnModalOpen && selectedWeaponForReturn && (
+        <WeaponReturnSignatureModal 
+          item={selectedWeaponForReturn} 
+          onClose={() => { setWeaponReturnModalOpen(false); setSelectedWeaponForReturn(null); }} 
+          onSubmit={handleWeaponReturnSignature} 
+        />
       )}
     </div>
   );

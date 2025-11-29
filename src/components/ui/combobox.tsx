@@ -1,20 +1,6 @@
 import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from "@/components/ui/command"
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover"
 
 interface ComboboxProps {
     value: string | number | null
@@ -38,47 +24,80 @@ export function Combobox({
     className,
 }: ComboboxProps) {
     const [open, setOpen] = React.useState(false)
+    const [searchQuery, setSearchQuery] = React.useState("")
+    const dropdownRef = React.useRef<HTMLDivElement>(null)
 
     const selectedOption = options.find((option) => option.value === value)
 
+    // Filter options based on search query
+    const filteredOptions = options.filter((option) =>
+        option.label.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
+    // Close dropdown when clicking outside
+    React.useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setOpen(false)
+            }
+        }
+
+        if (open) {
+            document.addEventListener("mousedown", handleClickOutside)
+        }
+
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside)
+        }
+    }, [open])
+
+    const handleSelect = (optionValue: string | number) => {
+        onValueChange(optionValue)
+        setOpen(false)
+        setSearchQuery("")
+    }
+
     return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={open}
-                    className={cn("w-full justify-between", className)}
-                    disabled={disabled}
-                >
+        <div className={cn("relative w-full", className)} ref={dropdownRef}>
+            <button
+                type="button"
+                onClick={() => !disabled && setOpen(!open)}
+                disabled={disabled}
+                className={cn(
+                    "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                    className
+                )}
+            >
+                <span className={selectedOption ? "" : "text-muted-foreground"}>
                     {selectedOption ? selectedOption.label : placeholder}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-full p-0 z-50" align="start">
-                <Command>
-                    <CommandInput placeholder={searchPlaceholder} />
-                    <CommandList>
-                        <CommandEmpty>{emptyText}</CommandEmpty>
-                        <CommandGroup>
-                            {options.map((option) => (
-                                <CommandItem
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </button>
+
+            {open && (
+                <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
+                    <div className="flex items-center border-b px-3">
+                        <input
+                            type="text"
+                            placeholder={searchPlaceholder}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                            autoFocus
+                        />
+                    </div>
+                    <div className="max-h-[300px] overflow-y-auto overflow-x-hidden p-1">
+                        {filteredOptions.length === 0 ? (
+                            <div className="py-6 text-center text-sm">{emptyText}</div>
+                        ) : (
+                            filteredOptions.map((option) => (
+                                <div
                                     key={option.value}
-                                    value={String(option.value)}
-                                    onSelect={(currentValue) => {
-                                        onValueChange(option.value)
-                                        setOpen(false)
-                                    }}
-                                    onMouseDown={(e) => {
-                                        e.stopPropagation()
-                                    }}
-                                    onClick={(e) => {
-                                        e.preventDefault()
-                                        e.stopPropagation()
-                                        onValueChange(option.value)
-                                        setOpen(false)
-                                    }}
-                                    className="cursor-pointer"
+                                    onClick={() => handleSelect(option.value)}
+                                    className={cn(
+                                        "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                                        value === option.value && "bg-accent"
+                                    )}
                                 >
                                     <Check
                                         className={cn(
@@ -87,12 +106,12 @@ export function Combobox({
                                         )}
                                     />
                                     {option.label}
-                                </CommandItem>
-                            ))}
-                        </CommandGroup>
-                    </CommandList>
-                </Command>
-            </PopoverContent>
-        </Popover>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
     )
 }

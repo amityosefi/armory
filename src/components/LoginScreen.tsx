@@ -4,7 +4,8 @@ import {useAuthStore} from '@/stores/useAuthStore'
 import {usePermissions} from '@/contexts/PermissionsContext'
 import {supabase} from '@/lib/supabaseClient' // <-- your supabase client
 import logo from '@/assets/logo.jpeg' // Import the logo
-import {Navigate} from "react-router-dom"; // Import the login screen styles
+import {Navigate} from "react-router-dom";
+import logistic from "@/components/logistics/Logistic"; // Import the login screen styles
 
 interface LoginScreenProps {
     onLoginSuccess: (response: TokenResponse) => void
@@ -19,10 +20,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
 
     // Helper function to determine redirect path based on permissions
     const getRedirectPath = () => {
-        // If user has Armory permission, go to armory
-        if (permissions['armory']) {
-            return '/armory/0';
-        }
         
         // Check for Plugot permissions (company-level access)
         // Map company names to their tab indices in the armory section
@@ -42,9 +39,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                 return `/armory/${tabIndex}`;
             }
         }
-        
-        // Fallback to armory first tab if no specific permissions found
-        return '/armory/0';
+
+        if (permissions['armory'])
+            return '/armory/0';
+        else if (permissions['logistic'])
+            return '/logistic/0';
+        else if (permissions['ammo'])
+            return '/ammo/0';
+        else
+            return `/soldier/${permissions['id']}`
     };
 
     // Check for existing token on mount

@@ -117,7 +117,9 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, 
       const { error } = await supabase
         .from('armory_items')
         .update(updateData)
-        .eq('id', selectedId);
+        .eq('id', selectedId)
+        .eq('kind', selectedKind)
+        .eq('name', selectedName);
 
       if (error) throw error;
 
