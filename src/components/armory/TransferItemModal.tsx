@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface ArmoryItem {
   id: number;
@@ -21,10 +22,11 @@ interface TransferItemModalProps {
   item: ArmoryItem;
   currentLocation: string;
   onClose: () => void;
-  onTransferComplete: () => void;
+  onTransferComplete: (message: string, isSuccess: boolean) => void;
 }
 
 const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLocation, onClose, onTransferComplete }) => {
+  const { permissions } = usePermissions();
   const [people, setPeople] = useState<Person[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,7 +49,8 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
       setPeople(sortedPeople.sort((a, b) => a.name.localeCompare(b.name, 'he')));
     } catch (error) {
       console.error('Error fetching people:', error);
-      alert('שגיאה בטעינת רשימת החיילים');
+      onTransferComplete('שגיאה בטעינת רשימת החיילים', false);
+      onClose();
     } finally {
       setLoading(false);
     }
@@ -55,12 +58,13 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
 
   const handleTransfer = async () => {
     if (!selectedPersonId) {
-      alert('אנא בחר חייל');
+      onTransferComplete('אנא בחר חייל', false);
       return;
     }
-    console.log("return:")
-    console.log(item)
+    
     try {
+      const selectedPerson = people.find(p => p.id === selectedPersonId);
+      
       const { error } = await supabase
         .from('armory_items')
         .update({ location: selectedPersonId })
@@ -70,11 +74,19 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
 
       if (error) throw error;
 
-      alert('הפריט הועבר בהצלחה');
-      onTransferComplete();
+      const message = `הועבר ${item.kind} ${item.name} (מספר: ${item.id}) לחייל ${selectedPerson?.name} (מספר אישי: ${selectedPersonId})`;
+      
+      // Log to armory_document
+      await supabase.from('armory_document').insert({
+        'משתמש': permissions['name'] || 'Unknown',
+        'תאריך': new Date().toLocaleString('he-IL'),
+        'הודעה': message
+      });
+      
+      onTransferComplete(message, true);
     } catch (error) {
       console.error('Error transferring item:', error);
-      alert('שגיאה בהעברת הפריט');
+      onTransferComplete(`שגיאה בהעברת ${item.kind} ${item.name} (מספר: ${item.id})`, false);
     }
   };
 

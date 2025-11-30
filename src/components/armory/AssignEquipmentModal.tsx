@@ -15,7 +15,7 @@ interface ArmoryItem {
 interface AssignEquipmentModalProps {
   soldierID: number;
   onClose: () => void;
-  onAssignComplete: () => void;
+  onAssignComplete: (message: string, isSuccess: boolean) => void;
 }
 
 const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, onClose, onAssignComplete }) => {
@@ -68,7 +68,8 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, 
       setKinds(uniqueKinds);
     } catch (error) {
       console.error('Error fetching available items:', error);
-      alert('שגיאה בטעינת הציוד הזמין');
+      onAssignComplete('שגיאה בטעינת הציוד הזמין', false);
+      onClose();
     } finally {
       setLoading(false);
     }
@@ -90,13 +91,13 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, 
 
   const handleAssign = async () => {
     if (!selectedId) {
-      alert('אנא בחר פריט');
+      onAssignComplete('אנא בחר פריט', false);
       return;
     }
 
     // Check if weapon requires signature
     if (selectedKind === 'נשק' && !signature) {
-      alert('נדרשת חתימה עבור נשק');
+      onAssignComplete('נדרשת חתימה עבור נשק', false);
       return;
     }
 
@@ -107,11 +108,11 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, 
       
       // Add signature fields for weapons
       if (selectedKind === 'נשק') {
-        updateData.logistic_name = permissions['name'] || '';
-        updateData.logistic_sign = permissions['signature'] || '';
+        updateData.logistic_name = permissions['name'] ? String(permissions['name']) : '';
+        updateData.logistic_sign = permissions['signature'] ? String(permissions['signature']) : '';
         updateData.people_sign = signature;
         updateData.sign_time = currentTime;
-        updateData.logistic_id = permissions['id'] || '';
+        updateData.logistic_id = permissions['id'] ? String(permissions['id']) : '';
       }
 
       const { error } = await supabase
@@ -123,11 +124,19 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, 
 
       if (error) throw error;
 
-      alert('הפריט הוקצה בהצלחה');
-      onAssignComplete();
+      const message = `הוקצה ${selectedKind} ${selectedName} (מספר: ${selectedId}) לחייל מספר אישי: ${soldierID}`;
+      
+      // Log to armory_document
+      await supabase.from('armory_document').insert({
+        'משתמש': permissions['name'] ? String(permissions['name']) : 'Unknown',
+        'תאריך': new Date().toLocaleString('he-IL'),
+        'הודעה': message
+      });
+      
+      onAssignComplete(message, true);
     } catch (error) {
       console.error('Error assigning item:', error);
-      alert('שגיאה בהקצאת הפריט');
+      onAssignComplete(`שגיאה בהקצאת ${selectedKind} ${selectedName} (מספר: ${selectedId})`, false);
     }
   };
 

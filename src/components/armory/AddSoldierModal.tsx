@@ -389,9 +389,9 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                     .from('armory_items')
                     .update({ 
                         location: soldierID,
-                        logistic_name: permissions['name'] || '',
-                        logistic_sign: permissions['signature'] || '',
-                        logistic_id: permissions['id'] || '',
+                        logistic_name: permissions['name'] ? String(permissions['name']) : '',
+                        logistic_sign: permissions['signature'] ? String(permissions['signature']) : '',
+                        logistic_id: permissions['id'] ? String(permissions['id']) : '',
                         people_sign: formData.signature || '',
                         sign_time: currentTime
                     })
@@ -410,7 +410,16 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
             }
 
             // Success - reset form and notify parent
-            const successMsg = `חייל ${nameStr} נוסף בהצלחה${selectedItems.length > 0 ? ` עם ${selectedItems.length} פריטי ציוד` : ''}`;
+            const itemsList = selectedItems.map(item => `${item.kind} ${item.name} (#${item.id})`).join(', ');
+            const successMsg = `חייל ${nameStr} (מספר אישי: ${idStr}) נוסף בהצלחה${selectedItems.length > 0 ? ` עם ${selectedItems.length} פריטי ציוד: ${itemsList}` : ''}`;
+            
+            // Log to armory_document
+            await supabase.from('armory_document').insert({
+                'משתמש': permissions['name'] ? String(permissions['name']) : 'Unknown',
+                'תאריך': new Date().toLocaleString('he-IL'),
+                'הודעה': successMsg
+            });
+            
             setFormData({ id: "", name: "", phone: "", location: currentLocation, signature: "" });
             setSelectedItems([]);
             if (sigPadRef.current) {

@@ -469,6 +469,31 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                     setSignatureDialogOpen(false);
                     return;
                 }
+                
+                // Validate that גדוד inventory won't go negative
+                // For ניפוק (issue), גדוד loses inventory
+                // For זיכוי (credit), גדוד gains inventory
+                // Get ALL החתמה data (not filtered by current location) to check גדוד inventory
+                const allSignatureData = dataByStatus['החתמה'] || [];
+                const battalionData = allSignatureData.filter(i => i.פריט === item.פריט && i.פלוגה === 'גדוד');
+                const battalionQty = battalionData.reduce((sum, i) => sum + i.כמות, 0);
+                
+                // Calculate the change to גדוד inventory
+                // When issuing (ניפוק), גדוד loses items (negative change)
+                // When crediting (זיכוי), גדוד gains items (positive change)
+                const battalionChange = (item.צורך === 'זיכוי') ? itemQty : -itemQty;
+                const newBattalionQty = battalionQty + battalionChange;
+                
+                if (newBattalionQty < 0) {
+                    setStatusMessage({
+                        text: `לא ניתן להחתים - מלאי גדוד יהיה שלילי:\n${item.פריט} (מלאי נוכחי בגדוד: ${battalionQty}, שינוי: ${battalionChange}, מלאי חדש: ${newBattalionQty})`,
+                        type: "error"
+                    });
+                    setLoading(false);
+                    setOpen(false);
+                    setSignatureDialogOpen(false);
+                    return;
+                }
             }
         }
         // Format items for insertion
@@ -938,8 +963,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
                     <div className="space-y-4 py-4 text-right">
                         {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-3 gap-4 mb-4">
-                                <div>
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div className="md:col-span-2">
                                     <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
                                         id={`item-${index}`}
@@ -1113,8 +1138,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                     <div className="space-y-4 py-4">
                         {/*<div className="space-y-4 py-4 text-right">*/}
                         {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-4 gap-4 mb-4">
-                                <div className="col-span-2">
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                <div className="md:col-span-2">
                                     <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
                                         id={`item-${index}`}

@@ -601,8 +601,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         {/* Table selection */}
                         
                         {addItems.map((item, index) => (
-                            <div key={index} className="flex items-center gap-4">
-                                <div className="w-40">
+                            <div key={index} className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                                <div className="w-full md:w-40">
                                     <Label className="text-right block mb-2">סוג תחמושת</Label>
                                     <Select
                                         value={String(item.is_explosion ?? selectedTable)}
@@ -617,7 +617,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="flex-1">
+                                <div className="flex-1 w-full">
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
                                         options={!(item.is_explosion ?? selectedTable) ? 
@@ -727,8 +727,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         {/* Table selection */}
                         
                         {creditItems.map((item, index) => (
-                            <div key={index} className="flex items-start gap-4 mb-4">
-                                <div className="w-40">
+                            <div key={index} className="flex flex-col md:flex-row items-start gap-4 mb-4">
+                                <div className="w-full md:w-40">
                                     <Label className="text-right block mb-2">סוג תחמושת</Label>
                                     <Select
                                         value={String(item.is_explosion ?? selectedTable)}
@@ -743,7 +743,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="flex-1 flex gap-2">
+                                <div className="flex-1 w-full flex gap-2">
                                     <div className="flex-1">
                                         <Label className="text-right block mb-2">פריט</Label>
                                         <Select
@@ -841,8 +841,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         {/* Table selection */}
                         
                         {transferItems.map((item, index) => (
-                            <div key={index} className="flex items-start gap-4 mb-4">
-                                <div className="w-40">
+                            <div key={index} className="flex flex-col md:flex-row items-start gap-4 mb-4">
+                                <div className="w-full md:w-40">
                                     <Label className="text-right block mb-2">סוג תחמושת</Label>
                                     <Select
                                         value={String(item.is_explosion ?? selectedTable)}
@@ -857,7 +857,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="flex-1 flex gap-2">
+                                <div className="flex-1 w-full flex gap-2">
                                     <div className="flex-1">
                                         <Label className="text-right block mb-2">פריט</Label>
                                         <Select

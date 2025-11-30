@@ -138,7 +138,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
 
             setPeopleData(peopleWithItemsList);
 
-            setStatusMessage({ text: "", isSuccess: false });
+            // Don't clear statusMessage here - let it be cleared by user action or timeout
         } catch (err: any) {
             console.error("Unexpected error:", err);
             setStatusMessage({
@@ -510,9 +510,6 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                     {/* Table View */}
                     {viewMode === "table" && (
                         <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
-                            <p className="text-right text-sm text-gray-600 mb-4">
-                                סה"כ אנשים: {filteredPeople.length} {searchQuery && `(מתוך ${peopleData.length})`}
-                            </p>
                             <div
                                 className="ag-theme-alpine rtl"
                                 style={{ height: "60vh", width: "100%", direction: "rtl" }}
@@ -541,12 +538,12 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                 isOpen={isAddSoldierModalOpen}
                 onClose={() => setIsAddSoldierModalOpen(false)}
                 onSuccess={(message: string, isSuccess: boolean) => {
-                    setIsAddSoldierModalOpen(false);
-                    fetchData(); // Refresh data after adding soldier
                     setStatusMessage({
                         text: message,
                         isSuccess: isSuccess
                     });
+                    setIsAddSoldierModalOpen(false);
+                    fetchData(); // Refresh data after adding soldier
                 }}
                 currentLocation={selectedSheet.range}
             />

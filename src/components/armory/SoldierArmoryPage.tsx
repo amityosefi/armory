@@ -451,11 +451,29 @@ const SoldierArmoryPage: React.FC = () => {
       ))}
 
       {transferModalOpen && selectedItemForTransfer && (
-        <TransferItemModal item={selectedItemForTransfer} currentLocation={soldier.location} onClose={() => { setTransferModalOpen(false); setSelectedItemForTransfer(null); }} onTransferComplete={() => { fetchSoldierData(); setTransferModalOpen(false); setSelectedItemForTransfer(null); }} />
+        <TransferItemModal 
+          item={selectedItemForTransfer} 
+          currentLocation={soldier.location} 
+          onClose={() => { setTransferModalOpen(false); setSelectedItemForTransfer(null); }} 
+          onTransferComplete={(message, isSuccess) => { 
+            setStatusMessage({ text: message, isSuccess });
+            fetchSoldierData(); 
+            setTransferModalOpen(false); 
+            setSelectedItemForTransfer(null); 
+          }} 
+        />
       )}
 
       {assignModalOpen && (
-        <AssignEquipmentModal soldierID={parseInt(soldierID!)} onClose={() => setAssignModalOpen(false)} onAssignComplete={() => { fetchSoldierData(); setAssignModalOpen(false); }} />
+        <AssignEquipmentModal 
+          soldierID={parseInt(soldierID!)} 
+          onClose={() => setAssignModalOpen(false)} 
+          onAssignComplete={(message, isSuccess) => { 
+            setStatusMessage({ text: message, isSuccess });
+            fetchSoldierData(); 
+            setAssignModalOpen(false); 
+          }} 
+        />
       )}
 
       {weaponReturnModalOpen && selectedWeaponForReturn && (

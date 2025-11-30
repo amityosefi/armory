@@ -1150,7 +1150,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
                     <div className="space-y-4 py-4 text-right">
                         {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-4 gap-4 mb-4">
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                                 <div>
                                     <Label htmlFor={`ammo-type-${index}`} className="text-right block mb-2">סוג
                                         תחמושת</Label>
@@ -1174,7 +1174,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     </Select>
                                 </div>
 
-                                <div>
+                                <div className="md:col-span-2">
                                     <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
                                     <Select
                                         value={item.פריט || ''}
@@ -1289,7 +1289,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                     <div className="space-y-4 py-4">
                         {/*<div className="space-y-4 py-4 text-right">*/}
                         {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-4 gap-4 mb-4">
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                                 <div>
                                     <Label htmlFor={`sig-ammo-type-${index}`} className="text-right block mb-2">סוג
                                         תחמושת</Label>
@@ -1313,7 +1313,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     </Select>
                                 </div>
 
-                                <div>
+                                <div className="md:col-span-2">
                                     <Label htmlFor={`sig-item-${index}`} className="text-right block mb-2">פריט</Label>
                                     <Select
                                         value={item.פריט || ''}

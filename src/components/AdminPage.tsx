@@ -268,7 +268,16 @@ const AdminPage = () => {
                 setStatusMessage({text: `בעיה בהוספת משתמש`, type: "error"});
             } else {
                 console.log("User added successfully:", data);
-                setStatusMessage({text: "המשתמש " + newUser.name + " נוסף בהצלחה", type: "success"});
+                const successMsg = `המשתמש ${newUser.name} (אימייל: ${newUser.email}) נוסף בהצלחה`;
+                setStatusMessage({text: successMsg, type: "success"});
+                
+                // Log to armory_document
+                await supabase.from('armory_document').insert({
+                    'משתמש': permissions['name'] ? String(permissions['name']) : 'Admin',
+                    'תאריך': new Date().toLocaleString('he-IL'),
+                    'הודעה': successMsg
+                });
+                
                 setNewUser({
                     email: "",
                     name: "",
@@ -326,7 +335,17 @@ const AdminPage = () => {
                 if (!data || data.length === 0) {
                     setStatusMessage({text: `המייל ${emailToDelete} לא קיים באפליקציה`, type: "error"});
                 } else {
-                    setStatusMessage({text: `המייל ${emailToDelete} נמחק בהצלחה`, type: "success"});
+                    const deletedUser = data[0];
+                    const successMsg = `המשתמש ${deletedUser.name || emailToDelete} (אימייל: ${emailToDelete}) נמחק בהצלחה`;
+                    setStatusMessage({text: successMsg, type: "success"});
+                    
+                    // Log to armory_document
+                    await supabase.from('armory_document').insert({
+                        'משתמש': permissions['name'] ? String(permissions['name']) : 'Admin',
+                        'תאריך': new Date().toLocaleString('he-IL'),
+                        'הודעה': successMsg
+                    });
+                    
                     setEmailToDelete("");
                     setShowDeleteForm(false);
                     await fetchUsers();
@@ -506,7 +525,7 @@ const AdminPage = () => {
                                 <label className="flex items-center space-x-2 text-right">
                                     <input
                                         type="checkbox"
-                                        name="Logistic"
+                                        name="logistic"
                                         checked={newUser.logistic}
                                         onChange={handleNewUserChange}
                                         className="ml-2"
