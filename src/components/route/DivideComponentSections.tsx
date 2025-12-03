@@ -3,8 +3,8 @@ import {useParams} from "react-router-dom";
 import TabsNavigation from "@/components/route/TabsNavigation";
 import {useNavigate} from "react-router-dom";
 import Logistic from "@/components/logistics/Logistic";
-import EquipmentStock from "@/components/logistics/EquipmentStock";
-import EquipmentSum from "@/components/logistics/EquipmentSum";
+import LogisticStock from "@/components/logistics/LogisticStock";
+import LogisticSum from "@/components/logistics/LogisticSum";
 import Ammo from "@/components/ammo/Ammo";
 import AmmoStock from "@/components/ammo/AmmoStock";
 import AmmoSum from "@/components/ammo/AmmoSum";
@@ -71,10 +71,10 @@ const DivideComponents: React.FC = () => {
 
             {/* logistic*/}
             {(groupIndex === 1 && (selectedSheet.range === 'גדוד') ? (
-                <EquipmentStock selectedSheet={selectedSheet}
+                <LogisticStock selectedSheet={selectedSheet}
                 />
             ) : (groupIndex === 1 && selectedSheet.range === 'סיכום') ? (
-                <EquipmentSum selectedSheet={selectedSheet}
+                <LogisticSum selectedSheet={selectedSheet}
                 />
             ) : (groupIndex === 1) && (
                 <Logistic selectedSheet={selectedSheet}

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import {Input} from '@/components/ui/input';
 import {Label} from '@/components/ui/label';
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {Trash, Plus} from "lucide-react";
 import {ColDef} from "ag-grid-community";
 import CreatableSelect from 'react-select/creatable';
@@ -61,10 +62,12 @@ type ItemFormData = {
     כמות: number;
 };
 
-const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
+const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const {permissions} = usePermissions();
     const [rawData, setRawData] = useState<LogisticItem[]>([]);
     const [aggregatedData, setAggregatedData] = useState<AggregatedItem[]>([]);
+    const [rawDataWarehouse, setRawDataWarehouse] = useState<LogisticItem[]>([]);
+    const [aggregatedDataWarehouse, setAggregatedDataWarehouse] = useState<AggregatedItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
     const [uniqueItems, setUniqueItems] = useState<string[]>([]);
@@ -78,6 +81,12 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [addItems, setAddItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1}]);
     const [creditItems, setCreditItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1}]);
     const [transferItems, setTransferItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1}]);
+    
+    // Location selection states
+    const [addLocation, setAddLocation] = useState<string>('גדוד');
+    const [creditLocation, setCreditLocation] = useState<string>('גדוד');
+    const [transferFrom, setTransferFrom] = useState<string>('מחסן');
+    const [transferTo, setTransferTo] = useState<string>('גדוד');
 
     // Grid configuration
     const gridRef = useRef<AgGridReact>(null);
@@ -108,22 +117,35 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
         if (permissions['logistic']) {
             try {
                 setLoading(true);
-                const {data, error} = await supabase
+                
+                // Fetch גדוד data
+                const {data: gadudData, error: gadudError} = await supabase
                     .from("logistic")
                     .select("*")
                     .eq("פלוגה", selectedSheet.range);
 
-                if (error) {
-                    console.error("Error fetching data:", error);
+                // Fetch מחסן data
+                const {data: warehouseData, error: warehouseError} = await supabase
+                    .from("logistic")
+                    .select("*")
+                    .eq("פלוגה", "מחסן");
+
+                if (gadudError || warehouseError) {
+                    console.error("Error fetching data:", gadudError || warehouseError);
                     setStatusMessage({
-                        text: `שגיאה בטעינת נתונים: ${error.message}`,
+                        text: `שגיאה בטעינת נתונים: ${(gadudError || warehouseError)?.message}`,
                         type: "error"
                     });
                 } else {
                     // @ts-ignore
-                    setRawData(data || []);
+                    setRawData(gadudData || []);
                     // @ts-ignore
-                    processData(data || []);
+                    processData(gadudData || []);
+                    
+                    // @ts-ignore
+                    setRawDataWarehouse(warehouseData || []);
+                    // @ts-ignore
+                    processWarehouseData(warehouseData || []);
                 }
             } catch (err: any) {
                 console.error("Unexpected error:", err);
@@ -158,17 +180,46 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             itemSums.set(item.פריט, currentSum + quantityChange);
         });
 
-        // Convert map to array of objects
-        const aggregated = Array.from(itemSums.entries()).map(([פריט, כמות]) => ({
-            פריט,
-            כמות
-        }));
+        // Convert map to array of objects and filter out items with כמות 0
+        const aggregated = Array.from(itemSums.entries())
+            .map(([פריט, כמות]) => ({
+                פריט,
+                כמות
+            }))
+            .filter(item => item.כמות !== 0);
 
         // Sort by פריט alphabetically
         aggregated.sort((a, b) => a.פריט.localeCompare(b.פריט));
 
         setAggregatedData(aggregated);
         setUniqueItems(Array.from(uniqueItemsSet));
+    };
+
+    // Process warehouse data to get aggregated values
+    const processWarehouseData = (data: LogisticItem[]) => {
+        // Create a map to hold sums by item
+        const itemSums = new Map<string, number>();
+
+        // Loop through each record
+        data.forEach(item => {
+            // Calculate sum based on צורך (issue/credit)
+            const currentSum = itemSums.get(item.פריט) || 0;
+            const quantityChange = item.צורך === 'זיכוי' ? -item.כמות : item.כמות;
+            itemSums.set(item.פריט, currentSum + quantityChange);
+        });
+
+        // Convert map to array of objects and filter out items with כמות 0
+        const aggregated = Array.from(itemSums.entries())
+            .map(([פריט, כמות]) => ({
+                פריט,
+                כמות
+            }))
+            .filter(item => item.כמות !== 0);
+
+        // Sort by פריט alphabetically
+        aggregated.sort((a, b) => a.פריט.localeCompare(b.פריט));
+
+        setAggregatedDataWarehouse(aggregated);
     };
 
     // Add items to Supabase
@@ -196,7 +247,7 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 סטטוס: 'החתמה',
                 הערה: 'החתמה חדשה',
                 משתמש: permissions['name'] || '',
-                פלוגה: selectedSheet.range,
+                פלוגה: addLocation,
                 חתימת_מחתים: ''
             }));
 
@@ -210,8 +261,9 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "error"
                 });
             } else {
+                const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
-                    text: "הפריטים נוספו בהצלחה",
+                    text: `הוספו ${validItems.length} פריטים בהצלחה למלאי ${addLocation}: ${itemsList}`,
                     type: "success"
                 });
                 setAddDialogOpen(false);
@@ -245,6 +297,28 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 return;
             }
 
+            // Validate that crediting won't result in negative quantities
+            const invalidItems: string[] = [];
+            for (const item of validItems) {
+                const sourceData = creditLocation === 'גדוד' ? aggregatedData : aggregatedDataWarehouse;
+                const currentItem = sourceData.find(aggItem => aggItem.פריט === item.פריט);
+                const currentQuantity = currentItem ? currentItem.כמות : 0;
+                
+                if (currentQuantity - item.כמות < 0) {
+                    invalidItems.push(`${item.פריט} - כמות לא מספיקה ב${creditLocation} (נוכחי: ${currentQuantity}, מנסה לזכות: ${item.כמות})`);
+                }
+            }
+
+            if (invalidItems.length > 0) {
+                setStatusMessage({
+                    text: `לא ניתן לזכות פריטים:\n${invalidItems.join('\n')}`,
+                    type: "error"
+                });
+                setLoading(false);
+                setCreditDialogOpen(false);
+                return;
+            }
+
             // Prepare items for insertion
             const itemsToInsert = validItems.map(item => ({
                 תאריך: new Date().toLocaleString('he-IL'),
@@ -254,7 +328,7 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 סטטוס: 'החתמה',
                 הערה: 'זיכוי חדש',
                 משתמש: permissions['name'] || '',
-                פלוגה: selectedSheet.range,
+                פלוגה: creditLocation,
                 חתימת_מחתים: ''
             }));
 
@@ -268,8 +342,9 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "error"
                 });
             } else {
+                const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
-                    text: "הפריטים זוכו בהצלחה",
+                    text: `זוכו ${validItems.length} פריטים בהצלחה מ${creditLocation}: ${itemsList}`,
                     type: "success"
                 });
                 setCreditDialogOpen(false);
@@ -287,7 +362,7 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
         }
     };
 
-    // Transfer items to storage
+    // Transfer items between locations
     const handleTransferItems = async () => {
         try {
             setLoading(true);
@@ -303,11 +378,33 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 return;
             }
 
+            // Validate that transferring won't result in negative quantities in source
+            const invalidTransfers: string[] = [];
+            for (const item of validItems) {
+                const sourceData = transferFrom === 'גדוד' ? aggregatedData : aggregatedDataWarehouse;
+                const sourceItem = sourceData.find(aggItem => aggItem.פריט === item.פריט);
+                const sourceQuantity = sourceItem ? sourceItem.כמות : 0;
+
+                if (sourceQuantity - item.כמות < 0) {
+                    invalidTransfers.push(`${item.פריט} - כמות לא מספיקה ב${transferFrom} (נוכחי: ${sourceQuantity}, מנסה להעביר: ${item.כמות})`);
+                }
+            }
+
+            if (invalidTransfers.length > 0) {
+                setStatusMessage({
+                    text: `לא ניתן להעביר פריטים:\n${invalidTransfers.join('\n')}`,
+                    type: "error"
+                });
+                setLoading(false);
+                setTransferDialogOpen(false);
+                return;
+            }
+
             // Prepare items for insertion - create pairs of entries
             const itemsToInsert = [];
 
             for (const item of validItems) {
-                // Credit from current unit (גדוד)
+                // Credit from source location
                 itemsToInsert.push({
                     תאריך: new Date().toLocaleString('he-IL'),
                     פריט: item.פריט,
@@ -315,12 +412,12 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     צורך: 'זיכוי',
                     סטטוס: 'החתמה',
                     משתמש: permissions['name'] || '',
-                    פלוגה: selectedSheet.range === 'גדוד' ? 'גדוד' : 'מחסן',
-                    הערה: 'העברת פריטים בין הגדוד למחסן',
+                    פלוגה: transferFrom,
+                    הערה: `העברה מ${transferFrom} ל${transferTo}`,
                     חתימת_מחתים: ''
                 });
 
-                // Issue to storage (מחסן)
+                // Issue to destination location
                 itemsToInsert.push({
                     תאריך: new Date().toLocaleString('he-IL'),
                     פריט: item.פריט,
@@ -328,8 +425,8 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     צורך: 'ניפוק',
                     סטטוס: 'החתמה',
                     משתמש: permissions['name'] || '',
-                    פלוגה: selectedSheet.range !== 'גדוד' ? 'גדוד' : 'מחסן',
-                    הערה: 'העברת פריטים בין הגדוד למחסן',
+                    פלוגה: transferTo,
+                    הערה: `העברה מ${transferFrom} ל${transferTo}`,
                     חתימת_מחתים: ''
                 });
             }
@@ -344,8 +441,9 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "error"
                 });
             } else {
+                const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
-                    text: "הפריטים הועברו בהצלחה",
+                    text: `הועברו ${validItems.length} פריטים בהצלחה מ${transferFrom} ל${transferTo}: ${itemsList}`,
                     type: "success"
                 });
                 setTransferDialogOpen(false);
@@ -432,32 +530,59 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         onClick={() => setTransferDialogOpen(true)}
                         className="bg-blue-500 hover:bg-blue-600 text-white"
                     >
-                        {selectedSheet.range === "מחסן" ? "העברה לגדוד" : "העברה למחסן"}
+                        העברה בין מחסן וגדוד
                     </Button>
                         </div>ֿ
                 </div>
             )}
 
-            {/* Data grid */}
-            <div className="ag-theme-alpine rtl" style={{height: "60vh", width: "40vh", direction: "rtl"}}>
-                <AgGridReact
-                    ref={gridRef}
-                    rowData={aggregatedData}
-                    columnDefs={columnDefs}
-                    defaultColDef={{
-                        flex: 1,
-                        minWidth: 100,
-                        sortable: true,
-                        filter: true,
-                    }}
-                    enableRtl={true}
-                    getRowStyle={(params) => {
-                        if (params.rowIndex % 2 === 0) {
-                            return {backgroundColor: '#e6f2ff'};
-                        }
-                        return undefined;
-                    }}
-                />
+            {/* גדוד Data grid */}
+            <div className="mb-6">
+                <h3 className="text-xl font-semibold mb-2">מלאי {selectedSheet.range}</h3>
+                <div className="ag-theme-alpine rtl" style={{height: "60vh", width: "40vh", direction: "rtl"}}>
+                    <AgGridReact
+                        ref={gridRef}
+                        rowData={aggregatedData}
+                        columnDefs={columnDefs}
+                        defaultColDef={{
+                            flex: 1,
+                            minWidth: 100,
+                            sortable: true,
+                            filter: true,
+                        }}
+                        enableRtl={true}
+                        getRowStyle={(params) => {
+                            if (params.rowIndex % 2 === 0) {
+                                return {backgroundColor: '#e6f2ff'};
+                            }
+                            return undefined;
+                        }}
+                    />
+                </div>
+            </div>
+
+            {/* מחסן Data grid */}
+            <div>
+                <h3 className="text-xl font-semibold mb-2">מלאי מחסן</h3>
+                <div className="ag-theme-alpine rtl" style={{height: "60vh", width: "40vh", direction: "rtl"}}>
+                    <AgGridReact
+                        rowData={aggregatedDataWarehouse}
+                        columnDefs={columnDefs}
+                        defaultColDef={{
+                            flex: 1,
+                            minWidth: 100,
+                            sortable: true,
+                            filter: true,
+                        }}
+                        enableRtl={true}
+                        getRowStyle={(params) => {
+                            if (params.rowIndex % 2 === 0) {
+                                return {backgroundColor: '#e6f2ff'};
+                            }
+                            return undefined;
+                        }}
+                    />
+                </div>
             </div>
 
             {/* Add Items Dialog */}
@@ -468,6 +593,20 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
+                        {/* Location selection */}
+                        <div className="mb-4">
+                            <Label className="text-right block mb-2">מיקום</Label>
+                            <Select value={addLocation} onValueChange={setAddLocation}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="בחר מיקום" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="גדוד">גדוד</SelectItem>
+                                    <SelectItem value="מחסן">מחסן</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        
                         {addItems.map((item, index) => (
                             <div key={index} className="flex items-center gap-4">
                                 <div className="flex-1">
@@ -575,6 +714,20 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
+                        {/* Location selection */}
+                        <div className="mb-4">
+                            <Label className="text-right block mb-2">מיקום</Label>
+                            <Select value={creditLocation} onValueChange={setCreditLocation}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="בחר מיקום" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="גדוד">גדוד</SelectItem>
+                                    <SelectItem value="מחסן">מחסן</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        
                         {creditItems.map((item, index) => (
                             <div key={index} className="flex items-center gap-4">
                                 <div className="flex-1">
@@ -675,12 +828,38 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
                 <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle className="text-right">
-                            {selectedSheet.range === "מחסן" ? "העברה לגדוד" : "העברה למחסן"}
-                        </DialogTitle>
+                        <DialogTitle className="text-right">העברה</DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
+                        {/* Transfer direction selection */}
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <Label className="text-right block mb-2">מ</Label>
+                                <Select value={transferFrom} onValueChange={setTransferFrom}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="בחר מקור" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="גדוד">גדוד</SelectItem>
+                                        <SelectItem value="מחסן">מחסן</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label className="text-right block mb-2">אל</Label>
+                                <Select value={transferTo} onValueChange={setTransferTo}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="בחר יעד" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="גדוד">גדוד</SelectItem>
+                                        <SelectItem value="מחסן">מחסן</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        
                         {transferItems.map((item, index) => (
                             <div key={index} className="flex items-center gap-4">
                                 <div className="flex-1">
@@ -771,7 +950,7 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             onClick={handleTransferItems}
                             disabled={loading || transferItems.every(item => !item.פריט)}
                         >
-                            {loading ? "מעביר..." : "העבר למחסן"}
+                            {loading ? "מעביר..." : "העבר"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -780,4 +959,4 @@ const EquipmentStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     );
 };
 
-export default EquipmentStock;
+export default LogisticStock;

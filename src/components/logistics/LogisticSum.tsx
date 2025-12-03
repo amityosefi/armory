@@ -42,7 +42,7 @@ interface SummaryRow {
     פריט: string;
 }
 
-const EquipmentSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
+const LogisticSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
     const [logisticData, setLogisticData] = useState<LogisticItem[]>([]);
     const [loading, setLoading] = useState(true);
     const {permissions} = usePermissions();
@@ -299,4 +299,4 @@ const EquipmentSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
     );
 };
 
-export default EquipmentSum;
+export default LogisticSum;

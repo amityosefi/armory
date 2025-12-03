@@ -267,7 +267,6 @@ const AdminPage = () => {
                 console.error("Error adding user:", error);
                 setStatusMessage({text: `בעיה בהוספת משתמש`, type: "error"});
             } else {
-                console.log("User added successfully:", data);
                 const successMsg = `המשתמש ${newUser.name} (אימייל: ${newUser.email}) נוסף בהצלחה`;
                 setStatusMessage({text: successMsg, type: "success"});
                 

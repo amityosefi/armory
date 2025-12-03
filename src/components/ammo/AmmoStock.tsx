@@ -80,6 +80,11 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [rawExplosionData, setRawExplosionData] = useState<LogisticItem[]>([]);
     const [aggregatedBallData, setAggregatedBallData] = useState<AggregatedItem[]>([]);
     const [aggregatedExplosionData, setAggregatedExplosionData] = useState<AggregatedItem[]>([]);
+    // מחסן data states
+    const [rawBallDataWarehouse, setRawBallDataWarehouse] = useState<LogisticItem[]>([]);
+    const [rawExplosionDataWarehouse, setRawExplosionDataWarehouse] = useState<LogisticItem[]>([]);
+    const [aggregatedBallDataWarehouse, setAggregatedBallDataWarehouse] = useState<AggregatedItem[]>([]);
+    const [aggregatedExplosionDataWarehouse, setAggregatedExplosionDataWarehouse] = useState<AggregatedItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
     const [uniqueBallItems, setUniqueBallItems] = useState<string[]>([]);
@@ -95,6 +100,12 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [addItems, setAddItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, is_explosion: false}]);
     const [creditItems, setCreditItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, is_explosion: false}]);
     const [transferItems, setTransferItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, is_explosion: false}]);
+    
+    // Location selection states
+    const [addLocation, setAddLocation] = useState<string>('גדוד');
+    const [creditLocation, setCreditLocation] = useState<string>('גדוד');
+    const [transferFrom, setTransferFrom] = useState<string>('מחסן');
+    const [transferTo, setTransferTo] = useState<string>('גדוד');
 
     // Grid configuration
     const ballGridRef = useRef<AgGridReact>(null);
@@ -128,11 +139,17 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             try {
                 setLoading(true);
                 
-                // Fetch all data from unified ammo table
+                // Fetch גדוד data
                 const ammoResponse = await supabase
                     .from("ammo")
                     .select("*")
                     .eq("פלוגה", selectedSheet.range);
+
+                // Fetch מחסן data
+                const warehouseResponse = await supabase
+                    .from("ammo")
+                    .select("*")
+                    .eq("פלוגה", "מחסן");
 
                 if (ammoResponse.error) {
                     console.error("Error fetching ammo data:", ammoResponse.error);
@@ -141,6 +158,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         type: "error"
                     });
                 } else {
+                    // Process גדוד data
                     // @ts-ignore
                     const allData = (ammoResponse.data as LogisticItem[]) || [];
                     const ballData = allData.filter((item: LogisticItem) => !item.is_explosion);
@@ -149,12 +167,25 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     setRawBallData(ballData as LogisticItem[]);
                     setRawExplosionData(explosionData as LogisticItem[]);
                     
-                    // Process data for both types
-                    processData(ballData as LogisticItem[], false);
-                    processData(explosionData as LogisticItem[], true);
+                    // Process גדוד data for both types
+                    processData(ballData as LogisticItem[], false, setAggregatedBallData, setUniqueBallItems);
+                    processData(explosionData as LogisticItem[], true, setAggregatedExplosionData, setUniqueExplosionItems);
                     
-                    // Clear error message if any
-                    setStatusMessage({text: "", type: ""});
+                    // Process מחסן data
+                    if (!warehouseResponse.error && warehouseResponse.data) {
+                        const warehouseData = (warehouseResponse.data as LogisticItem[]) || [];
+                        const ballDataWarehouse = warehouseData.filter((item: LogisticItem) => !item.is_explosion);
+                        const explosionDataWarehouse = warehouseData.filter((item: LogisticItem) => item.is_explosion);
+                        
+                        setRawBallDataWarehouse(ballDataWarehouse as LogisticItem[]);
+                        setRawExplosionDataWarehouse(explosionDataWarehouse as LogisticItem[]);
+                        
+                        // Process מחסן data for both types
+                        processData(ballDataWarehouse as LogisticItem[], false, setAggregatedBallDataWarehouse, () => {});
+                        processData(explosionDataWarehouse as LogisticItem[], true, setAggregatedExplosionDataWarehouse, () => {});
+                    }
+                    
+                    // Don't clear status message here to allow success messages to show
                 }
             } catch (err: any) {
                 console.error("Unexpected error:", err);
@@ -171,7 +202,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     };
 
     // Process raw data to get aggregated values
-    const processData = (data: LogisticItem[], tableType: TableType) => {
+    const processData = (data: LogisticItem[], tableType: TableType, setAggregated: React.Dispatch<React.SetStateAction<AggregatedItem[]>>, setUniqueItems: React.Dispatch<React.SetStateAction<string[]>>) => {
         // Create a map to hold sums by item
         const itemSums = new Map<string, number>();
         const uniqueItemsSet = new Set<string>();
@@ -203,14 +234,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
         // Sort unique items alphabetically for dropdowns
         const sortedUniqueItems = Array.from(uniqueItemsSet).sort((a, b) => a.localeCompare(b));
 
-        // Update the appropriate state based on is_explosion flag
-        if (!tableType) { // false = ball
-            setAggregatedBallData(filteredAggregated);
-            setUniqueBallItems(sortedUniqueItems);
-        } else { // true = explosion
-            setAggregatedExplosionData(filteredAggregated);
-            setUniqueExplosionItems(sortedUniqueItems);
-        }
+        // Update the appropriate state using the provided setters
+        setAggregated(filteredAggregated);
+        setUniqueItems(sortedUniqueItems);
     };
 
     // Add items to Supabase
@@ -238,7 +264,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 סטטוס: 'החתמה',
                 הערה: 'החתמה חדשה',
                 משתמש: permissions['name'] || '',
-                פלוגה: selectedSheet.range,
+                פלוגה: addLocation,
                 חתימת_מחתים: '',
                 is_explosion: item.is_explosion ?? selectedTable
             }));
@@ -254,13 +280,14 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "error"
                 });
             } else {
+                const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
-                    text: "הפריטים נוספו בהצלחה",
+                    text: `הוספו ${validItems.length} פריטים בהצלחה למלאי ${addLocation}: ${itemsList}`,
                     type: "success"
                 });
                 setAddDialogOpen(false);
                 setAddItems([{פריט: "", כמות: 1, is_explosion: selectedTable}]);
-                fetchData(); // Refresh data
+                await fetchData(); // Refresh data
             }
         } catch (err: any) {
             console.error("Unexpected error:", err);
@@ -293,22 +320,26 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             const invalidItems: string[] = [];
             for (const item of validItems) {
                 const isExplosion = item.is_explosion ?? selectedTable;
-                const aggregatedData = !isExplosion ? aggregatedBallData : aggregatedExplosionData;
                 
-                // Find current quantity for this item
+                // Get data based on creditLocation
+                const aggregatedData = creditLocation === 'גדוד' ? 
+                    (!isExplosion ? aggregatedBallData : aggregatedExplosionData) :
+                    (!isExplosion ? aggregatedBallDataWarehouse : aggregatedExplosionDataWarehouse);
+                
+                // Find current quantity for this item in the selected location
                 const currentItem = aggregatedData.find(aggItem => aggItem.פריט === item.פריט);
                 const currentQuantity = currentItem ? currentItem.כמות : 0;
                 
                 // Check if crediting would result in negative quantity
                 // Note: זיכוי (credit) reduces the quantity, so we subtract
                 if (currentQuantity - item.כמות < 0) {
-                    invalidItems.push(`${item.פריט} (כמות נוכחית: ${currentQuantity}, מנסה לזכות: ${item.כמות})`);
+                    invalidItems.push(`${item.פריט} - כמות לא מספיקה ב${creditLocation} (נוכחי: ${currentQuantity}, מנסה לזכות: ${item.כמות})`);
                 }
             }
 
             if (invalidItems.length > 0) {
                 setStatusMessage({
-                    text: `לא ניתן לזכות פריטים - הכמות תהפוך לשלילית:\n${invalidItems.join('\n')}`,
+                    text: `לא ניתן לזכות פריטים:\n${invalidItems.join('\n')}`,
                     type: "error"
                 });
                 setLoading(false);
@@ -325,7 +356,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 סטטוס: 'החתמה',
                 הערה: 'זיכוי חדש',
                 משתמש: permissions['name'] || '',
-                פלוגה: selectedSheet.range,
+                פלוגה: creditLocation,
                 חתימת_מחתים: '',
                 is_explosion: item.is_explosion ?? selectedTable
             }));
@@ -341,8 +372,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "error"
                 });
             } else {
+                const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
-                    text: "הפריטים זוכו בהצלחה",
+                    text: `זוכו ${validItems.length} פריטים בהצלחה מ${creditLocation}: ${itemsList}`,
                     type: "success"
                 });
                 setCreditDialogOpen(false);
@@ -376,25 +408,29 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 return;
             }
 
-            // Validate that transferring won't result in negative quantities in the source unit
+            // Validate that transferring won't result in negative quantities in source or destination
             const invalidTransfers: string[] = [];
             for (const item of validItems) {
                 const isExplosion = item.is_explosion ?? selectedTable;
-                const aggregatedData = !isExplosion ? aggregatedBallData : aggregatedExplosionData;
+                
+                // Get source data based on transferFrom
+                const sourceData = transferFrom === 'גדוד' ? 
+                    (!isExplosion ? aggregatedBallData : aggregatedExplosionData) :
+                    (!isExplosion ? aggregatedBallDataWarehouse : aggregatedExplosionDataWarehouse);
 
-                // Find current quantity for this item in the CURRENT unit (selectedSheet.range)
-                const currentItem = aggregatedData.find(aggItem => aggItem.פריט === item.פריט);
-                const currentQuantity = currentItem ? currentItem.כמות : 0;
+                // Find current quantity for this item in the source location
+                const sourceItem = sourceData.find(aggItem => aggItem.פריט === item.פריט);
+                const sourceQuantity = sourceItem ? sourceItem.כמות : 0;
 
-                // Transfer credits from the current unit first (like זיכוי)
-                if (currentQuantity - item.כמות < 0) {
-                    invalidTransfers.push(`${item.פריט} (כמות נוכחית: ${currentQuantity}, מנסה להעביר: ${item.כמות})`);
+                // Check if source will go negative
+                if (sourceQuantity - item.כמות < 0) {
+                    invalidTransfers.push(`${item.פריט} - כמות לא מספיקה ב${transferFrom} (נוכחי: ${sourceQuantity}, מנסה להעביר: ${item.כמות})`);
                 }
             }
 
             if (invalidTransfers.length > 0) {
                 setStatusMessage({
-                    text: `לא ניתן להעביר פריטים - הכמות ביחידה תהפוך לשלילית:\n${invalidTransfers.join('\n')}`,
+                    text: `לא ניתן להעביר פריטים:\n${invalidTransfers.join('\n')}`,
                     type: "error"
                 });
                 setLoading(false);
@@ -414,8 +450,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     צורך: 'זיכוי',
                     סטטוס: 'החתמה',
                     משתמש: permissions['name'] || '',
-                    פלוגה: selectedSheet.range === 'גדוד' ? 'גדוד' : 'מחסן',
-                    הערה: 'העברת פריטים בין הגדוד למחסן',
+                    פלוגה: transferFrom,
+                    הערה: `העברה מ${transferFrom} ל${transferTo}`,
                     חתימת_מחתים: '',
                     is_explosion: isExplosion
                 });
@@ -428,8 +464,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     צורך: 'ניפוק',
                     סטטוס: 'החתמה',
                     משתמש: permissions['name'] || '',
-                    פלוגה: selectedSheet.range !== 'גדוד' ? 'גדוד' : 'מחסן',
-                    הערה: 'העברת פריטים בין הגדוד למחסן',
+                    פלוגה: transferTo,
+                    הערה: `העברה מ${transferFrom} ל${transferTo}`,
                     חתימת_מחתים: '',
                     is_explosion: isExplosion
                 });
@@ -446,8 +482,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "error"
                 });
             } else {
+                const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
-                    text: "הפריטים הועברו בהצלחה",
+                    text: `הועברו ${validItems.length} פריטים בהצלחה מ${transferFrom} ל${transferTo}: ${itemsList}`,
                     type: "success"
                 });
                 setTransferDialogOpen(false);
@@ -506,7 +543,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     }, [selectedSheet.range]);
 
     return (
-        <div className="p-4">
+        <div className="p-9">
             {statusMessage.text && (
                 <div
                     className={`p-4 mb-4 rounded-md ${statusMessage.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
@@ -535,7 +572,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         onClick={() => setTransferDialogOpen(true)}
                         className="bg-blue-500 hover:bg-blue-600 text-white"
                     >
-                        {selectedSheet.range === "מחסן" ? "העברה לגדוד" : "העברה למחסן"}
+                        העברה בין מחסן וגדוד
                     </Button>
                 </div>
             )}
@@ -590,6 +627,59 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 </div>
             </div>
 
+            {/* מחסן Tables */}
+            <div className="mt-12 border-t-4 border-gray-300 pt-8">
+                <h1 className="text-2xl font-bold mb-6 text-right">מלאי מחסן</h1>
+                
+                {/* מחסן Ball Data Grid */}
+                <div className="mb-8">
+                    <h2 className="text-xl font-bold mb-4 text-right">קליעית - מחסן</h2>
+                    <div className="ag-theme-alpine rtl" style={{height: "40vh", width: "40vh", direction: "rtl"}}>
+                        <AgGridReact
+                            rowData={aggregatedBallDataWarehouse}
+                            columnDefs={columnDefs}
+                            defaultColDef={{
+                                flex: 1,
+                                minWidth: 100,
+                                sortable: true,
+                                filter: true,
+                            }}
+                            enableRtl={true}
+                            getRowStyle={(params) => {
+                                if (params.rowIndex % 2 === 0) {
+                                    return {backgroundColor: '#e6f2ff'};
+                                }
+                                return undefined;
+                            }}
+                        />
+                    </div>
+                </div>
+
+                {/* מחסן Explosion Data Grid */}
+                <div className="mt-8">
+                    <h2 className="text-xl font-bold mb-4 text-right">נפיצה - מחסן</h2>
+                    <div className="ag-theme-alpine rtl" style={{height: "40vh", width: "40vh", direction: "rtl"}}>
+                        <AgGridReact
+                            rowData={aggregatedExplosionDataWarehouse}
+                            columnDefs={columnDefs}
+                            defaultColDef={{
+                                flex: 1,
+                                minWidth: 100,
+                                sortable: true,
+                                filter: true,
+                            }}
+                            enableRtl={true}
+                            getRowStyle={(params) => {
+                                if (params.rowIndex % 2 === 0) {
+                                    return {backgroundColor: '#e6f2ff'};
+                                }
+                                return undefined;
+                            }}
+                        />
+                    </div>
+                </div>
+            </div>
+
             {/* Add Items Dialog */}
             <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
                 <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
@@ -598,7 +688,19 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
-                        {/* Table selection */}
+                        {/* Location selection */}
+                        <div className="mb-4">
+                            <Label className="text-right block mb-2">מיקום</Label>
+                            <Select value={addLocation} onValueChange={setAddLocation}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="בחר מיקום" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="גדוד">גדוד</SelectItem>
+                                    <SelectItem value="מחסן">מחסן</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                         
                         {addItems.map((item, index) => (
                             <div key={index} className="flex flex-col md:flex-row items-start md:items-center gap-4">
@@ -724,7 +826,19 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
-                        {/* Table selection */}
+                        {/* Location selection */}
+                        <div className="mb-4">
+                            <Label className="text-right block mb-2">מיקום</Label>
+                            <Select value={creditLocation} onValueChange={setCreditLocation}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="בחר מיקום" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="גדוד">גדוד</SelectItem>
+                                    <SelectItem value="מחסן">מחסן</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                         
                         {creditItems.map((item, index) => (
                             <div key={index} className="flex flex-col md:flex-row items-start gap-4 mb-4">
@@ -832,13 +946,37 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
                 <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle className="text-right">
-                            {selectedSheet.range === "מחסן" ? "העברה לגדוד" : "העברה למחסן"}
-                        </DialogTitle>
+                        <DialogTitle className="text-right">העברת פריטים</DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
-                        {/* Table selection */}
+                        {/* Transfer direction selection */}
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <Label className="text-right block mb-2">מ</Label>
+                                <Select value={transferFrom} onValueChange={setTransferFrom}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="מיקום מקור" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="גדוד">גדוד</SelectItem>
+                                        <SelectItem value="מחסן">מחסן</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label className="text-right block mb-2">אל</Label>
+                                <Select value={transferTo} onValueChange={setTransferTo}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="מיקום יעד" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="גדוד">גדוד</SelectItem>
+                                        <SelectItem value="מחסן">מחסן</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
                         
                         {transferItems.map((item, index) => (
                             <div key={index} className="flex flex-col md:flex-row items-start gap-4 mb-4">
@@ -936,7 +1074,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             onClick={handleTransferItems}
                             disabled={loading || transferItems.every(item => !item.פריט)}
                         >
-                            {loading ? "מעביר..." : "העבר למחסן"}
+                            {loading ? "מעביר..." : "העבר"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

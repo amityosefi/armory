@@ -53,6 +53,8 @@ type LogisticItem = {
     נקרא?: string;
     חתימה?: string;
     שם_החותם?: string;
+    מספר_אישי_החותם?: number;
+    מספר_אישי_מחתים?: number;
     פלוגה: string;
     חתימת_מחתים?: string;
     created_at?: string;
@@ -77,6 +79,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     const [customItemInput, setCustomItemInput] = useState(''); // For tracking custom item input
 
     const [signerName, setSignerName] = useState('');
+    const [signerPersonalId, setSignerPersonalId] = useState(0);
     const [signatureItemPopoverOpen, setSignatureItemPopoverOpen] = useState(false);
     const sigPadRef = useRef<SignatureCanvas>(null);
     const [activeTab, setActiveTab] = useState<string>('הזמנה'); // Track active tab
@@ -139,10 +142,12 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         if (permissions[selectedSheet.range] || permissions['logistic']) {
             try {
                 setLoading(true);
+                
+                // Fetch data for both current פלוגה and גדוד
                 const {data, error} = await supabase
                     .from("logistic")
                     .select("*")
-                    .eq("פלוגה", selectedSheet.range);
+                    .in("פלוגה", [selectedSheet.range, "גדוד"]);
 
                 if (error) {
                     console.error("Error fetching data:", error);
@@ -173,11 +178,11 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         fetchData();
     }, [selectedSheet.range]);
 
-    // Group data by סטטוס
+    // Group data by סטטוס (includes both current פלוגה and גדוד for calculations)
     const dataByStatus = useMemo(() => {
         const grouped = {הזמנה: [], החתמה: [], התעצמות: []} as Record<string, LogisticItem[]>;
 
-        // First group the items by status
+        // First group the items by status (all data including גדוד)
         rowData.forEach(item => {
             if (STATUSES.includes(item.סטטוס as any)) {
                 if (!grouped[item.סטטוס]) {
@@ -201,14 +206,56 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         return grouped;
     }, [rowData]);
 
-    // Get unique item names from החתמה items for dropdown
-    const uniqueItemNames = useMemo(() => {
-        const items = dataByStatus['החתמה'] || [];
-        const uniqueItems = new Set<string>();
+    // Filtered data for display (only current פלוגה, excludes גדוד)
+    const displayDataByStatus = useMemo(() => {
+        const filtered = {הזמנה: [], החתמה: [], התעצמות: []} as Record<string, LogisticItem[]>;
+        
+        Object.keys(dataByStatus).forEach(status => {
+            filtered[status] = dataByStatus[status].filter(item => item.פלוגה === selectedSheet.range);
+        });
+        
+        return filtered;
+    }, [dataByStatus, selectedSheet.range]);
 
-        items.forEach(item => {
+    // Get all unique item names from both גדוד and current פלוגה - for הזמנה (דרישות)
+    const allItemNames = useMemo(() => {
+        const items = dataByStatus['החתמה'] || [];
+        
+        // Filter items from both גדוד and current פלוגה
+        const relevantItems = items.filter(item => 
+            item.פלוגה === 'גדוד' || item.פלוגה === selectedSheet.range
+        );
+        
+        // Get all unique item names (no quantity filtering for הזמנה)
+        const uniqueItems = new Set<string>();
+        relevantItems.forEach(item => {
             if (item.פריט) {
                 uniqueItems.add(item.פריט);
+            }
+        });
+
+        return Array.from(uniqueItems).sort();
+    }, [dataByStatus, selectedSheet.range]);
+
+    // Get unique item names from החתמה items for dropdown (only גדוד items with כמות > 0)
+    const uniqueItemNames = useMemo(() => {
+        const items = dataByStatus['החתמה'] || [];
+        
+        // Filter only גדוד items
+        const gadudItems = items.filter(item => item.פלוגה === 'גדוד');
+        // Calculate quantities for each item
+        const itemQuantities = new Map<string, number>();
+        gadudItems.forEach(item => {
+            const currentQty = itemQuantities.get(item.פריט) || 0;
+            const quantityChange = item.צורך === 'זיכוי' ? -item.כמות : item.כמות;
+            itemQuantities.set(item.פריט, currentQty + quantityChange);
+        });
+        
+        // Only include items with כמות > 0
+        const uniqueItems = new Set<string>();
+        itemQuantities.forEach((quantity, itemName) => {
+            if (quantity > 0) {
+                uniqueItems.add(itemName);
             }
         });
 
@@ -231,10 +278,10 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         ];
     }, []);
 
-    // Create summary data for החתמה table
+    // Create summary data for החתמה table (only display current פלוגה)
     const summarizedSignatureData = useMemo(() => {
-        // Get only החתמה data
-        const signatureData = dataByStatus['החתמה'] || [];
+        // Get only החתמה data from current פלוגה (not גדוד)
+        const signatureData = displayDataByStatus['החתמה'] || [];
 
         if (signatureData.length === 0) {
             return [];
@@ -277,9 +324,9 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
         });
 
-        // Convert map to array
-        return Array.from(itemSummary.values());
-    }, [dataByStatus]);
+        // Convert map to array and filter out items with כמות 0
+        return Array.from(itemSummary.values()).filter(item => item.כמות !== 0);
+    }, [displayDataByStatus]);
 
     // AG Grid column definitions
     const baseColumns = useMemo<ColDef<LogisticItem>[]>(() => {
@@ -294,15 +341,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             {field: 'פריט' as keyof LogisticItem, headerName: 'פריט', sortable: true, filter: true, width: 110},
             {field: 'כמות' as keyof LogisticItem, headerName: 'כמות', sortable: true, filter: true, width: 70,},
             {field: 'צורך' as keyof LogisticItem, headerName: 'צורך', sortable: true, filter: true, width: 80},
-            {
-                field: 'סטטוס' as keyof LogisticItem, headerName: 'סטטוס', sortable: true, filter: true, width: 100,
-                editable: permissions['Logistic'],
-                cellEditor: 'agSelectCellEditor',
-                cellEditorParams: {values: ['הזמנה', 'התעצמות', 'החתמה']},
-                onCellValueChanged: async (params: any) => {
-                    await handleStatusChange(params);
-                }
-            },
+            {field: 'הערה' as keyof LogisticItem, headerName: 'הערה', sortable: true, filter: true, width: 110},
+            {field: 'משתמש' as keyof LogisticItem, headerName: 'דורש', sortable: true, filter: true, width: 110},
             {
                 headerName: 'נקרא',
                 field: 'נקרא' as keyof LogisticItem,
@@ -316,8 +356,15 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                     await handleReadStatusChange(params);
                 }
             },
-            {field: 'הערה' as keyof LogisticItem, headerName: 'הערה', sortable: true, filter: true, width: 110},
-            {field: 'משתמש' as keyof LogisticItem, headerName: 'דורש', sortable: true, filter: true, width: 110},
+            {
+                field: 'סטטוס' as keyof LogisticItem, headerName: 'סטטוס', sortable: true, filter: true, width: 100,
+                editable: permissions['logistic'],
+                cellEditor: 'agSelectCellEditor',
+                cellEditorParams: {values: ['הזמנה', 'התעצמות', 'החתמה']},
+                onCellValueChanged: async (params: any) => {
+                    await handleStatusChange(params);
+                }
+            },
         ];
 
         return columnDefs;
@@ -329,10 +376,12 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         // Find all rows with the same date in rowData
         const matchingRows = rowData.filter(item => item.תאריך === date && item.סטטוס === 'הזמנה');
 
+        console.log(matchingRows)
+
         // Create items array from matching rows
         const itemsToShow = matchingRows.map(row => ({
             פריט: row.פריט || '',
-            כמות: (row.צורך === 'זיכוי') ? -row.כמות : row.כמות || 1,
+            כמות: row.כמות || 1,
             צורך: row.צורך || 'ניפוק',
             הערה: row.הערה || '',
         }));
@@ -404,9 +453,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 // .eq("כמות", damount)
                 .select();
 
-            console.log("Updated:", data, "Error:", error);
-
-
             if (error) {
                 console.error("Error updating read status:", error);
                 // Revert to old value if there was an error
@@ -439,11 +485,17 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
         // Input validation
         const invalidItems = items.filter(item => !item.פריט);
-        console.log("invalidItems", invalidItems);
         if (invalidItems.length > 0) {
             setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
             setOpen(false);
             setSignatureDialogOpen(false);
+            return;
+        }
+        
+        // Validate personal ID for החתמה mode
+        if (dialogMode === 'החתמה' && !signerPersonalId) {
+            setStatusMessage({text: "יש למלא מספר אישי של החותם", type: "error"});
+            setLoading(false);
             return;
         }
         
@@ -453,15 +505,16 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             
             for (const item of items) {
                 // Calculate current quantity for this item in החתמה status
+                // Note: כמות in database already has correct sign (negative for זיכוי)
                 const itemData = signatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
-                const currentQty = itemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
+                const currentQty = itemData.reduce((sum, i) => sum + (i.כמות || 0), 0);
                 
                 const itemQty = item.כמות || 0;
                 
-                // Check if זיכוי would lead to negative
+                // Check if זיכוי would lead to negative total quantity
                 if (item.צורך === 'זיכוי' && currentQty - itemQty < 0) {
                     setStatusMessage({
-                        text: `לא ניתן להחתים פריטים:\n${item.פריט} (כמות נוכחית בהחתמה: ${currentQty}, מנסה לזכות: ${itemQty})`,
+                        text: `לא ניתן לזכות - הכמות תהיה שלילית:\n${item.פריט} (כמות נוכחית: ${currentQty}, מנסה לזכות: ${itemQty}, יתרה חדשה: ${currentQty - itemQty})`,
                         type: "error"
                     });
                     setLoading(false);
@@ -470,39 +523,42 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                     return;
                 }
                 
-                // Validate that גדוד inventory won't go negative
-                // For ניפוק (issue), גדוד loses inventory
-                // For זיכוי (credit), גדוד gains inventory
-                // Get ALL החתמה data (not filtered by current location) to check גדוד inventory
-                const allSignatureData = dataByStatus['החתמה'] || [];
-                const battalionData = allSignatureData.filter(i => i.פריט === item.פריט && i.פלוגה === 'גדוד');
-                const battalionQty = battalionData.reduce((sum, i) => sum + i.כמות, 0);
-                
-                // Calculate the change to גדוד inventory
-                // When issuing (ניפוק), גדוד loses items (negative change)
-                // When crediting (זיכוי), גדוד gains items (positive change)
-                const battalionChange = (item.צורך === 'זיכוי') ? itemQty : -itemQty;
-                const newBattalionQty = battalionQty + battalionChange;
-                
-                if (newBattalionQty < 0) {
-                    setStatusMessage({
-                        text: `לא ניתן להחתים - מלאי גדוד יהיה שלילי:\n${item.פריט} (מלאי נוכחי בגדוד: ${battalionQty}, שינוי: ${battalionChange}, מלאי חדש: ${newBattalionQty})`,
-                        type: "error"
-                    });
-                    setLoading(false);
-                    setOpen(false);
-                    setSignatureDialogOpen(false);
-                    return;
+                // Validate inventory based on צורך type
+                // For ניפוק (issue): check גדוד inventory
+                // For זיכוי (credit): check current location inventory (already checked above)
+                if (item.צורך === 'ניפוק') {
+                    // Get ALL החתמה data to check גדוד inventory
+                    const allSignatureData = dataByStatus['החתמה'] || [];
+                    const battalionData = allSignatureData.filter(i => i.פריט === item.פריט && i.פלוגה === 'גדוד');
+                    const battalionQty = battalionData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
+                    
+                    // When issuing (ניפוק), גדוד loses items
+                    const newBattalionQty = battalionQty - itemQty;
+                    
+                    if (newBattalionQty < 0) {
+                        setStatusMessage({
+                            text: `לא ניתן להחתים - מלאי גדוד יהיה שלילי:\n${item.פריט} (מלאי נוכחי בגדוד: ${battalionQty}, מנסה לנפק: ${itemQty}, מלאי חדש: ${newBattalionQty})`,
+                            type: "error"
+                        });
+                        setLoading(false);
+                        setOpen(false);
+                        setSignatureDialogOpen(false);
+                        return;
+                    }
                 }
             }
         }
         // Format items for insertion
         const formattedDate = new Date().toLocaleString('he-IL');
+        console.log(items)
         let formattedItems = items.map(item => ({
             תאריך: formattedDate,
             פריט: item.פריט,
-            כמות: (item.צורך === 'זיכוי' && item.כמות) ? -item.כמות : item.כמות,
+            // For החתמה: store negative for זיכוי. For הזמנה: always store positive
+            כמות: item.כמות,
             שם_החותם: signerName,
+            מספר_אישי_החותם: signerPersonalId,
+            מספר_אישי_מחתים: permissions['id'] || 0,
             חתימת_מחתים: permissions['signature'] ? String(permissions['signature']) : '',
             חתימה: dataURL,
             צורך: item.צורך || 'ניפוק',
@@ -521,6 +577,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 // Opposite quantity logic: negative for issues, positive for credits
                 כמות: (item.צורך === 'זיכוי' && item.כמות !== undefined) ? (item.כמות || 0) : -(item.כמות || 0),
                 שם_החותם: '',
+                מספר_אישי_החותם: 0,
+                מספר_אישי_מחתים: 0,
                 חתימת_מחתים: '',
                 חתימה: '',
                 צורך: item.צורך || 'ניפוק',
@@ -537,7 +595,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         try {
             setLoading(true);
 
-            console.log('before insert: ', formattedItems)
             // Insert new items to Supabase
             const {data, error} = await supabase
                 .from('logistic')
@@ -549,12 +606,15 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 setStatusMessage({text: `שגיאה בהוספת פריטים: ${error.message}`, type: "error"});
             } else {
                 // Reset form and close dialog
+                const itemsList = formattedItems.filter(item => item.פלוגה===selectedSheet.range).map(item => `${item.פריט} (${item.כמות})`).join(', ');
+                const action = dialogMode === 'הזמנה' ? 'דווחו' : 'הוחתמו';
                 setItems([{...defaultItem}]);
                 await fetchData();
                 setOpen(false);
                 setSignatureDialogOpen(false);
                 setSignerName('');
-                setStatusMessage({text: "פריטים נוספו בהצלחה", type: "success"});
+                setSignerPersonalId(0);
+                setStatusMessage({text: `${action} פריטים בהצלחה: ${itemsList}`, type: "success"});
             }
         } catch (err: any) {
             console.error("Unexpected error:", err);
@@ -613,8 +673,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Function to create PDF export
     const handlePdfExport = async () => {
         try {
-            // Get active tab data to export
-            const dataToExport = dataByStatus['החתמה'] || [];
+            // Get active tab data to export (only current פלוגה, not גדוד)
+            const dataToExport = displayDataByStatus['החתמה'] || [];
 
             if (dataToExport.length === 0) {
                 return;
@@ -686,20 +746,26 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 y += 7;
                 doc.text(date, pageWidth - margin, y, {align: 'right'});
 
-                // Add table header for items
+                // Add table header for items (3 columns: פריט, כמות, צורך)
                 y += 15;
                 doc.setFillColor(240, 240, 240);
                 doc.rect(margin, y, pageWidth - (2 * margin), 10, 'F');
 
                 doc.setFontSize(12);
-                doc.text(mirrorHebrewSmart('פריט'), pageWidth - margin - 10, y + 7, {align: 'right'});
-                doc.text(mirrorHebrewSmart('כמות'), pageWidth / 2, y + 7, {align: 'right'});
+                const col1X = pageWidth - margin - 10; // פריט
+                const col2X = pageWidth - margin - 80; // כמות
+                const col3X = pageWidth - margin - 130; // צורך
+                
+                doc.text(mirrorHebrewSmart('פריט'), col1X, y + 7, {align: 'right'});
+                doc.text(mirrorHebrewSmart('כמות'), col2X, y + 7, {align: 'right'});
+                doc.text(mirrorHebrewSmart('צורך'), col3X, y + 7, {align: 'right'});
 
                 // Add item details
                 y += 15;
                 items.forEach((item: LogisticItem, i: number) => {
-                    doc.text(mirrorHebrewSmart(item.פריט || ''), pageWidth - margin - 10, y, {align: 'right'});
-                    doc.text(mirrorHebrewSmart(`${item.כמות || '0'}`), pageWidth / 2, y, {align: 'right'});
+                    doc.text(mirrorHebrewSmart(item.פריט || ''), col1X, y, {align: 'right'});
+                    doc.text(mirrorHebrewSmart(`${Math.abs(item.כמות || 0)}`), col2X, y, {align: 'right'});
+                    doc.text(mirrorHebrewSmart(item.צורך || ''), col3X, y, {align: 'right'});
                     y += 8;
 
                     // Add a light separator line
@@ -716,51 +782,42 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 doc.setDrawColor(0, 0, 0);
                 doc.line(margin, y - 10, pageWidth - margin, y - 10);
 
-                // Create two-column layout for signatures
+                // Create two-column layout for signatures (side by side)
                 const columnWidth = (pageWidth - (2 * margin)) / 2;
+                const startY = y;
 
-                // First column: משתמש and חתימת_מחתים
-                doc.setFontSize(12);
-                doc.text(mirrorHebrewSmart('שם המחתים:'), pageWidth - margin, y, {align: 'right'});
-                y += 6;
-                doc.text(mirrorHebrewSmart(items[0].משתמש || ''), pageWidth - margin - 10, y, {align: 'right'});
+                // Right column: מחתים (approver)
+                doc.setFontSize(10);
+                let rightY = startY;
+                doc.text(mirrorHebrewSmart(items[0].משתמש || ''), pageWidth - margin - 10, rightY, {align: 'right'});
+                rightY += 5;
+                doc.text(mirrorHebrewSmart(String(items[0].מספר_אישי_מחתים || '')), pageWidth - margin - 10, rightY, {align: 'right'});
+                rightY += 5;
+                doc.text(mirrorHebrewSmart('מחלקת הלוגיסטיקה'), pageWidth - margin - 10, rightY, {align: 'right'});
+                rightY += 5;
 
-                // Add unit/department line between name and signature
-                y += 8;
-                doc.text(mirrorHebrewSmart('מחלקת הלוגיסטיקה'), pageWidth - margin - 10, y, {align: 'right'});
-
-                y += 12; // spacing before signature label
-                doc.text(mirrorHebrewSmart('חתימת מחתים:'), pageWidth - margin, y, {align: 'right'});
-                y += 10; // spacing before signature image
-
-                // Remove border box: draw only the signature image if available
+                // Add מחתים signature image
                 if (items[0].חתימת_מחתים && items[0].חתימת_מחתים.startsWith('data:image/')) {
                     try {
-                        doc.addImage(items[0].חתימת_מחתים, 'PNG', pageWidth / 2 + 5, y + 2, columnWidth - 15, 30); // Increased height
+                        doc.addImage(items[0].חתימת_מחתים, 'PNG', pageWidth / 2 + 5, rightY, columnWidth - 15, 30);
                     } catch (err) {
                         console.error("Error adding מחתים signature:", err);
                     }
                 }
 
-                // Second column: שם_החותם and חתימה (reset y position)
-                y = pageHeight - 120; // Match the updated starting position
+                // Left column: חותם (signer)
+                let leftY = startY;
+                doc.text(mirrorHebrewSmart(items[0].שם_החותם || ''), pageWidth / 2 - 10, leftY, {align: 'right'});
+                leftY += 5;
+                doc.text(mirrorHebrewSmart(String(items[0].מספר_אישי_החותם || '')), pageWidth / 2 - 10, leftY, {align: 'right'});
+                leftY += 5;
+                doc.text(mirrorHebrewSmart(selectedSheet.name || ''), pageWidth / 2 - 10, leftY, {align: 'right'});
+                leftY += 5;
 
-                doc.text(mirrorHebrewSmart('שם החותם:'), pageWidth / 2 - 5, y, {align: 'right'});
-                y += 6;
-                doc.text(mirrorHebrewSmart(items[0].שם_החותם || ''), pageWidth / 2 - 15, y, {align: 'right'});
-
-                // Add selected sheet name between signer name and signature
-                y += 8;
-                doc.text(mirrorHebrewSmart(selectedSheet.name || ''), pageWidth / 2 - 15, y, {align: 'right'});
-
-                y += 12; // spacing before signature label
-                doc.text(mirrorHebrewSmart('חתימה:'), pageWidth / 2 - 5, y, {align: 'right'});
-                y += 10; // spacing before signature image
-
-                // Remove border box: draw only the signature image if available
+                // Add חותם signature image
                 if (items[0].חתימה && items[0].חתימה.startsWith('data:image/')) {
                     try {
-                        doc.addImage(items[0].חתימה, 'PNG', margin + 5, y + 2, columnWidth - 15, 30); // Increased height
+                        doc.addImage(items[0].חתימה, 'PNG', margin + 5, leftY, columnWidth - 15, 30);
                     } catch (err) {
                         console.error("Error adding חותם signature:", err);
                     }
@@ -773,7 +830,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
 
             // Save the PDF
-            doc.save(`${selectedSheet.name} - טופס החתמה.pdf`);
+            doc.save(`${selectedSheet.name} - טופס החתמה לוגיסטיקה.pdf`);
             setStatusMessage({text: "הפקת דפי החתמה הושלמה בהצלחה", type: "success"});
         } catch (err) {
             console.error("Error in PDF creation:", err);
@@ -905,7 +962,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                         className={`py-2 px-4 ${activeTab === status ? 'border-b-2 border-blue-500 font-bold' : ''}`}
                         onClick={() => setActiveTab(status)}
                     >
-                        {status} ({dataByStatus[status]?.length || 0})
+                        {status}
                     </button>
                 ))}
             </div>
@@ -915,7 +972,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 <div className="ag-theme-alpine w-[110vh] h-[45vh] mb-8 overflow-auto" style={{maxWidth: '100%'}}>
                     <AgGridReact
                         ref={gridRef}
-                        rowData={activeTab === 'החתמה' ? summarizedSignatureData : dataByStatus[activeTab] || []}
+                        rowData={activeTab === 'החתמה' ? summarizedSignatureData : displayDataByStatus[activeTab] || []}
                         columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
                         enableRtl={true}
                         defaultColDef={{
@@ -968,7 +1025,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
                                         id={`item-${index}`}
-                                        options={uniqueItemNames.map(name => ({ value: name, label: name }))}
+                                        options={(dialogMode === 'הזמנה' ? allItemNames : uniqueItemNames).map(name => ({ value: name, label: name }))}
                                         value={item.פריט ? { value: item.פריט, label: item.פריט } : null}
                                         getOptionLabel={(option: any) => option.label}
                                         getOptionValue={(option: any) => option.value}
@@ -1295,6 +1352,19 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                 value={signerName}
                                 onChange={(e) => setSignerName(e.target.value)}
                                 className="text-right mb-4"
+                            />
+                        </div>
+
+                        <div>
+                            <Label htmlFor="signer-personal-id" className="text-right block mb-2">מספר אישי של החותם</Label>
+                            <Input
+                                id="signer-personal-id"
+                                type="number"
+                                value={signerPersonalId || ''}
+                                onChange={(e) => setSignerPersonalId(parseInt(e.target.value) || 0)}
+                                className="text-right mb-4"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                             />
                         </div>
 

@@ -197,7 +197,6 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
         }
         
         // If no match found, log it for debugging and return original
-        console.log('Unmapped HR location:', hrLocation);
         return hrLocation;
     };
 
@@ -382,9 +381,6 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                 const currentTime = new Date().toLocaleString('he-IL');
                 const soldierID = idStr;
                 
-                console.log('Assigning items to soldier:', soldierID);
-                console.log('Selected items:', selectedItems.map(item => item.id));
-                
                 const { error: assignError } = await supabase
                     .from('armory_items')
                     .update({ 
@@ -405,8 +401,6 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                     onSuccess(errorMsg, false);
                     return;
                 }
-                
-                console.log('Items assigned successfully to soldier:', soldierID);
             }
 
             // Success - reset form and notify parent

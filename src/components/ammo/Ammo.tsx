@@ -50,6 +50,8 @@ type LogisticItem = {
     נקרא?: string;
     חתימה?: string;
     שם_החותם?: string;
+    מספר_אישי_החותם?: number;
+    מספר_אישי_מחתים?: number;
     פלוגה: string;
     חתימת_מחתים?: string;
     created_at?: string;
@@ -73,6 +75,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const [selectedRows, setSelectedRows] = useState<LogisticItem[]>([]);
 
     const [signerName, setSignerName] = useState('');
+    const [signerPersonalId, setSignerPersonalId] = useState(0);
     const sigPadRef = useRef<SignatureCanvas>(null);
     const [activeTab, setActiveTab] = useState<string>('דיווח'); // Track active tab
 
@@ -256,6 +259,33 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
         return Array.from(uniqueItems).sort();
     }, [explosionRowData]);
+
+    // Get unique item names from החתמה status only for דיווח mode
+    const uniqueBallItemNamesFromHahatama = useMemo(() => {
+        const ballHahatmaItems = (ballDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range);
+        const uniqueItems = new Set<string>();
+
+        ballHahatmaItems.forEach(item => {
+            if (item.פריט) {
+                uniqueItems.add(item.פריט);
+            }
+        });
+
+        return Array.from(uniqueItems).sort();
+    }, [ballDataByStatus, selectedSheet.range]);
+
+    const uniqueExplosionItemNamesFromHahatama = useMemo(() => {
+        const explosionHahatmaItems = (explosionDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range);
+        const uniqueItems = new Set<string>();
+
+        explosionHahatmaItems.forEach(item => {
+            if (item.פריט) {
+                uniqueItems.add(item.פריט);
+            }
+        });
+
+        return Array.from(uniqueItems).sort();
+    }, [explosionDataByStatus, selectedSheet.range]);
 
     const summaryColumns = useMemo<ColDef<LogisticItem>[]>(() => {
         return [
@@ -447,8 +477,6 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 .eq("id", id)
                 .select();
 
-            console.log("Updated:", data, "Error:", error);
-
             if (error) {
                 console.error("Error updating read status:", error);
                 // Revert to old value if there was an error
@@ -507,7 +535,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 // דיווח שצל is always זיכוי, so check if it would lead to negative
                 if (currentQty - itemQty < 0) {
                     setStatusMessage({
-                        text: `לא ניתן לדווח שצל:\n${item.פריט} (כמות נוכחית בהחתמה: ${currentQty}, מנסה לזכות: ${itemQty})`,
+                        text: `לא ניתן לדווח שצל:\n${item.פריט} (כמות נוכחית בהחתמה: ${currentQty}, מנסה לדווח שצל: ${itemQty})`,
                         type: "error"
                     });
                     setLoading(false);
@@ -522,7 +550,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         // Validation for החתמה mode
         if (dialogMode === 'החתמה') {
             let invalidItems = items.filter(item => !item.פריט);
-            if (invalidItems.length > 0 || !signerName || !dataURL) {
+            if (invalidItems.length > 0 || !signerName || !signerPersonalId || !dataURL) {
                 setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
                 setOpen(false);
                 setSignatureDialogOpen(false);
@@ -563,41 +591,30 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
                 // Check if ניפוק would lead to negative in גדוד
                 if (item.צורך === 'ניפוק' && item.פריט) {
-                    // Fetch גדוד data for this item - ball ammo
-                    const {data: ballGadudData} = await supabase
+                    // Determine which type this item is
+                    const isExplosion = item.סוג_תחמושת === 'נפיצה';
+                    
+                    // Fetch גדוד data for this specific item type
+                    const {data: gadudData} = await supabase
                         .from('ammo')
                         .select('*')
                         .eq('פלוגה', 'גדוד')
                         .eq('פריט', item.פריט)
-                        .eq('is_explosion', false);
-
-                    // Fetch גדוד data for this item - explosion ammo
-                    const {data: explosionGadudData} = await supabase
-                        .from('ammo')
-                        .select('*')
-                        .eq('פלוגה', 'גדוד')
-                        .eq('פריט', item.פריט)
-                        .eq('is_explosion', true);
+                        .eq('is_explosion', isExplosion);
 
                     // Calculate גדוד quantity
-                    const ballGadudQty = (ballGadudData || []).reduce((sum: number, i: any) => {
-                        const qty = (i.צורך === 'זיכוי') ? -i.כמות : i.כמות;
-                        return sum + qty;
-                    }, 0);
-
-                    const explosionGadudQty = (explosionGadudData || []).reduce((sum: number, i: any) => {
+                    const gadudQty = (gadudData || []).reduce((sum: number, i: any) => {
                         const qty = (i.צורך === 'זיכוי') ? -i.כמות : i.כמות;
                         return sum + qty;
                     }, 0);
 
                     const itemQty = item.כמות || 0;
-                    if (ballGadudQty - itemQty < 0 && explosionGadudQty - itemQty < 0) {
+                    if (gadudQty - itemQty < 0) {
                         setStatusMessage({
-                            text: `לא ניתן להחתים פריטים:\n${item.פריט} (כמות בגדוד: ${Math.max(ballGadudQty, explosionGadudQty)}, מנסה לנפק: ${itemQty})`,
+                            text: `לא ניתן להחתים - מלאי גדוד אינו מספיק:\n${item.פריט} (סוג: ${item.סוג_תחמושת}) - מלאי בגדוד: ${gadudQty}, מנסה לנפק: ${itemQty}`,
                             type: "error"
                         });
                         setLoading(false);
-                        setOpen(false);
                         setOpen(false);
                         setSignatureDialogOpen(false);
                         return;
@@ -620,7 +637,9 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 פריט: item.פריט,
                 כמות: item.כמות,
                 שם_החותם: signerName,
+                מספר_אישי_החותם: signerPersonalId,
                 חתימת_מחתים: permissions['signature'] ? String(permissions['signature']) : '',
+                מספר_אישי_מחתים: permissions['id'] ? String(permissions['id']) : '',
                 חתימה: dataURL,
                 צורך: !permissions['ammo'] ? 'זיכוי' : (item.צורך || 'ניפוק'),
                 סטטוס: dialogMode,
@@ -670,13 +689,16 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
 
             // Reset form and close dialog
+            const itemsList = items.map(item => `${item.פריט} (${item.סוג_תחמושת}, כמות: ${item.כמות})`).join(', ');
+            const actionType = dialogMode === 'החתמה' ? 'הוחתמו' : 'דווחו';
             setItems([{...defaultItem}]);
             await fetchData();
             setOpen(false);
             setSignatureDialogOpen(false);
             setSignerName('');
+            setSignerPersonalId(0);
             setDataURL('');
-            setStatusMessage({text: "פריטים נוספו בהצלחה", type: "success"});
+            setStatusMessage({text: `${actionType} ${items.length} פריטים בהצלחה ל${selectedSheet.range}: ${itemsList}`, type: "success"});
         } catch (err: any) {
             console.error("Unexpected error:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
@@ -690,8 +712,6 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const handleDeleteSelectedItems = async () => {
         try {
             setLoading(true);
-
-            console.log(selectedRows)
             if (selectedRows.filter(row => row.נקרא === 'כן').length > 0) {
                 setStatusMessage({text: `לא ניתן למחוק פריטים שנקראו`, type: "error"});
                 return;
@@ -724,9 +744,11 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         }
     };
 
-    const mirrorHebrewSmart = (str: string) => {
+    const mirrorHebrewSmart = (str: string | number) => {
         if (str === null || str === undefined || str === '') return '';
-        return str
+        // Convert to string if it's a number
+        const strValue = String(str);
+        return strValue
             .split(/\s+/)
             .map(word =>
                 /[\u0590-\u05FF]/.test(word) ? word.split('').reverse().join('') : word
@@ -738,9 +760,9 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Function to create PDF export
     const handlePdfExport = async () => {
         try {
-            // Get active tab data to export from both tables
-            const ballDataToExport = ballDataByStatus['החתמה'] || [];
-            const explosionDataToExport = explosionDataByStatus['החתמה'] || [];
+            // Get active tab data to export from both tables, filtered by location
+            const ballDataToExport = (ballDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range);
+            const explosionDataToExport = (explosionDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range);
             const dataToExport = [...ballDataToExport, ...explosionDataToExport];
 
             if (dataToExport.length === 0) {
@@ -838,58 +860,49 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                     }
                 });
 
-                // Footer with signature sections - make it bigger
-                y = pageHeight - 120; // Changed from -50 to -120 for a bigger footer
+                // Footer with signatures side by side
+                y = pageHeight - 50;
 
-                // Draw a line to separate content from signatures
+                // Draw a line to separate content from footer
                 doc.setDrawColor(0, 0, 0);
                 doc.line(margin, y - 10, pageWidth - margin, y - 10);
 
                 // Create two-column layout for signatures
                 const columnWidth = (pageWidth - (2 * margin)) / 2;
+                const startY = y;
 
-                // First column: משתמש and חתימת_מחתים
-                doc.setFontSize(12);
-                doc.text(mirrorHebrewSmart('שם המחתים:'), pageWidth - margin, y, {align: 'right'});
-                y += 6;
-                doc.text(mirrorHebrewSmart(items[0].משתמש || ''), pageWidth - margin - 10, y, {align: 'right'});
-
-                // Add unit/department line between name and signature
+                // Right column: משתמש and חתימת_מחתים
+                doc.setFontSize(10);
+                y = startY;
+                doc.text(mirrorHebrewSmart(items[0].משתמש || ''), pageWidth - margin - 5, y, {align: 'right'});
+                y += 5;
+                doc.text(mirrorHebrewSmart(items[0].מספר_אישי_מחתים || ''), pageWidth - margin - 5, y, {align: 'right'});
+                y += 5;
+                doc.text(mirrorHebrewSmart('מחלקת הלוגיסטיקה'), pageWidth - margin - 5, y, {align: 'right'});
                 y += 8;
-                doc.text(mirrorHebrewSmart('מחלקת הלוגיסטיקה'), pageWidth - margin - 10, y, {align: 'right'});
 
-                y += 12; // spacing before signature label
-                doc.text(mirrorHebrewSmart('חתימת מחתים:'), pageWidth - margin, y, {align: 'right'});
-                y += 10; // spacing before signature image
-
-                // Remove border box: draw only the signature image if available
+                // Add signature image if available
                 if (items[0].חתימת_מחתים && items[0].חתימת_מחתים.startsWith('data:image/')) {
                     try {
-                        doc.addImage(items[0].חתימת_מחתים, 'PNG', pageWidth / 2 + 5, y + 2, columnWidth - 15, 30); // Increased height
+                        doc.addImage(items[0].חתימת_מחתים, 'PNG', pageWidth / 2 + 10, y, columnWidth - 20, 25);
                     } catch (err) {
                         console.error("Error adding מחתים signature:", err);
                     }
                 }
 
-                // Second column: שם_החותם and חתימה (reset y position)
-                y = pageHeight - 120; // Match the updated starting position
-
-                doc.text(mirrorHebrewSmart('שם החותם:'), pageWidth / 2 - 5, y, {align: 'right'});
-                y += 6;
-                doc.text(mirrorHebrewSmart(items[0].שם_החותם || ''), pageWidth / 2 - 15, y, {align: 'right'});
-
-                // Add selected sheet name between signer name and signature
+                // Left column: שם_החותם and חתימה
+                y = startY;
+                doc.text(mirrorHebrewSmart(items[0].שם_החותם || ''), pageWidth / 2 - 10, y, {align: 'right'});
+                y += 5;
+                doc.text(mirrorHebrewSmart(items[0].מספר_אישי_החותם || ''), pageWidth / 2 - 10, y, {align: 'right'});
+                y += 5;
+                doc.text(mirrorHebrewSmart(selectedSheet.name || ''), pageWidth / 2 - 10, y, {align: 'right'});
                 y += 8;
-                doc.text(mirrorHebrewSmart(selectedSheet.name || ''), pageWidth / 2 - 15, y, {align: 'right'});
 
-                y += 12; // spacing before signature label
-                doc.text(mirrorHebrewSmart('חתימה:'), pageWidth / 2 - 5, y, {align: 'right'});
-                y += 10; // spacing before signature image
-
-                // Remove border box: draw only the signature image if available
+                // Add signature image if available
                 if (items[0].חתימה && items[0].חתימה.startsWith('data:image/')) {
                     try {
-                        doc.addImage(items[0].חתימה, 'PNG', margin + 5, y + 2, columnWidth - 15, 30); // Increased height
+                        doc.addImage(items[0].חתימה, 'PNG', margin + 10, y, columnWidth - 20, 25);
                     } catch (err) {
                         console.error("Error adding חותם signature:", err);
                     }
@@ -902,7 +915,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
 
             // Save the PDF
-            doc.save(`${selectedSheet.name} - טופס החתמה.pdf`);
+            doc.save(`${selectedSheet.name} - טופס החתמה תחמושת.pdf`);
             setStatusMessage({text: "הפקת דפי החתמה הושלמה בהצלחה", type: "success"});
         } catch (err) {
             console.error("Error in PDF creation:", err);
@@ -965,6 +978,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         setSignatureDialogOpen(false);
         setOpen(false);
         setSignerName('');
+        setSignerPersonalId(0);
         setDataURL('');
         setItems([{...defaultItem}]);
     }
@@ -1085,6 +1099,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             if (params.data && params.data.נקרא === 'כן') {
                                 return {backgroundColor: '#ffcccc'};
                             }
+                            // Add light blue background to every second row in החתמה mode
+                            if (activeTab === 'החתמה' && params.rowIndex % 2 === 1) {
+                                return {backgroundColor: '#add8e6'};
+                            }
                         }}
                     />
                 </div>
@@ -1134,6 +1152,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                         getRowStyle={(params) => {
                             if (params.data && params.data.נקרא === 'כן') {
                                 return {backgroundColor: '#ffcccc'};
+                            }
+                            // Add light blue background to every second row in החתמה mode
+                            if (activeTab === 'החתמה' && params.rowIndex % 2 === 1) {
+                                return {backgroundColor: '#add8e6'};
                             }
                         }}
                     />
@@ -1188,7 +1210,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             <SelectValue placeholder="בחר פריט"/>
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {(item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames).map((name, i) => (
+                                            {(dialogMode === 'דיווח' 
+                                                ? (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNamesFromHahatama : uniqueBallItemNamesFromHahatama)
+                                                : (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames)
+                                            ).map((name, i) => (
                                                 <SelectItem key={i} value={name}>{name}</SelectItem>
                                             ))}
                                         </SelectContent>
@@ -1327,7 +1352,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             <SelectValue placeholder="בחר פריט"/>
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {(item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames).map((name, i) => (
+                                            {(dialogMode === 'דיווח' 
+                                                ? (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNamesFromHahatama : uniqueBallItemNamesFromHahatama)
+                                                : (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames)
+                                            ).map((name, i) => (
                                                 <SelectItem key={i} value={name}>{name}</SelectItem>
                                             ))}
                                         </SelectContent>
@@ -1409,6 +1437,18 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                 value={signerName}
                                 onChange={(e) => setSignerName(e.target.value)}
                                 className="text-right mb-4"
+                            />
+                        </div>
+
+                        <div>
+                            <Label htmlFor="signer-personal-id" className="text-right block mb-2">מספר אישי של החותם</Label>
+                            <Input
+                                id="signer-personal-id"
+                                type="number"
+                                value={signerPersonalId}
+                                onChange={(e) => setSignerPersonalId(parseInt(e.target.value, 10) || 0)}
+                                className="text-right mb-4"
+                                placeholder="מספר אישי"
                             />
                         </div>
 

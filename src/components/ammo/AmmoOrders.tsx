@@ -5,6 +5,8 @@ import { AgGridReact } from "ag-grid-react";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { ColDef } from "ag-grid-community";
+import * as XLSX from 'xlsx';
+import { Button } from "@/components/ui/button";
 
 interface AmmoOrdersProps {
     selectedSheet: {
@@ -42,11 +44,11 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
 
     const allCompanies = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'מכלול', 'פלסם'];
 
-    // Get today's date in dd.mm.yyyy format (Hebrew locale)
+    // Get today's date in d.m.yyyy format (Hebrew locale, no leading zeros)
     const getTodayDate = () => {
         const today = new Date();
-        const day = String(today.getDate()).padStart(2, '0');
-        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = today.getDate();
+        const month = today.getMonth() + 1;
         const year = today.getFullYear();
         return `${day}.${month}.${year}`;
     };
@@ -99,24 +101,91 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
         fetchData();
     }, [selectedSheet]);
 
+    // Export to Excel function
+    const handleExportToExcel = () => {
+        const todayDate = getTodayDate();
+        
+        // Prepare ball ammo data
+        const ballExportData = ballData.map(item => ({
+            'פלוגה': item.פלוגה,
+            'פריט': item.פריט,
+            'כמות': item.כמות,
+            'צורך': item.צורך,
+            'סוג': item.is_explosion ? 'נפיצה' : 'קליעית',
+            'תאריך': item.תאריך
+        }));
+
+        // Prepare explosion ammo data
+        const explosionExportData = explosionData.map(item => ({
+            'פלוגה': item.פלוגה,
+            'פריט': item.פריט,
+            'כמות': item.כמות,
+            'צורך': item.צורך,
+            'סוג': item.is_explosion ? 'נפיצה' : 'קליעית',
+            'תאריך': item.תאריך
+        }));
+
+        // Create workbook
+        const wb = XLSX.utils.book_new();
+
+        // Add ball ammo sheet
+        if (ballExportData.length > 0) {
+            const wsBall = XLSX.utils.json_to_sheet(ballExportData);
+            XLSX.utils.book_append_sheet(wb, wsBall, 'תחמושת קליעית');
+        }
+
+        // Add explosion ammo sheet
+        if (explosionExportData.length > 0) {
+            const wsExplosion = XLSX.utils.json_to_sheet(explosionExportData);
+            XLSX.utils.book_append_sheet(wb, wsExplosion, 'תחמושת נפיץ');
+        }
+
+        // Add missing companies sheet
+        if (missingCompanies.length > 0) {
+            const wsMissing = XLSX.utils.json_to_sheet(
+                missingCompanies.map(company => ({ 'פלוגות שלא דיווחו': company }))
+            );
+            XLSX.utils.book_append_sheet(wb, wsMissing, 'פלוגות שלא דיווחו');
+        }
+
+        // Download file
+        XLSX.writeFile(wb, `שצל_יומי_${todayDate.replace(/\./g, '_')}.xlsx`);
+    };
+
     // Column definitions for ball ammo
     const ballColumnDefs: ColDef[] = [
-        { field: "פלוגה", headerName: "פלוגה", sortable: true, filter: true, width: 120 },
-        { field: "פריט", headerName: "פריט", sortable: true, filter: true, flex: 1 },
-        { field: "כמות", headerName: "כמות", sortable: true, filter: true, width: 100 },
-        { field: "צורך", headerName: "צורך", sortable: true, filter: true, width: 120 },
-        { field: "משתמש", headerName: "משתמש", sortable: true, filter: true, width: 150 },
-        { field: "תאריך", headerName: "תאריך", sortable: true, filter: true, width: 180 },
+        { field: "פלוגה", headerName: "פלוגה", sortable: true, filter: true, width: 100, cellStyle: { textAlign: 'center' } },
+        { field: "פריט", headerName: "פריט", sortable: true, filter: true, width: 200, cellStyle: { textAlign: 'center' } },
+        { field: "כמות", headerName: "כמות", sortable: true, filter: true, width: 80, cellStyle: { textAlign: 'center' } },
+        { field: "צורך", headerName: "צורך", sortable: true, filter: true, width: 100, cellStyle: { textAlign: 'center' } },
+        { 
+            field: "is_explosion", 
+            headerName: "סוג", 
+            sortable: true, 
+            filter: true, 
+            width: 100,
+            cellRenderer: (params: any) => params.value ? "נפיצה" : "קליעית",
+            cellStyle: { textAlign: 'center' }
+        },
+        { field: "תאריך", headerName: "תאריך", sortable: true, filter: true, width: 150, cellStyle: { textAlign: 'center' } },
     ];
 
     // Column definitions for explosion ammo
     const explosionColumnDefs: ColDef[] = [
-        { field: "פלוגה", headerName: "פלוגה", sortable: true, filter: true, width: 120 },
-        { field: "פריט", headerName: "פריט", sortable: true, filter: true, flex: 1 },
-        { field: "כמות", headerName: "כמות", sortable: true, filter: true, width: 100 },
-        { field: "צורך", headerName: "צורך", sortable: true, filter: true, width: 120 },
-        { field: "משתמש", headerName: "משתמש", sortable: true, filter: true, width: 150 },
-        { field: "תאריך", headerName: "תאריך", sortable: true, filter: true, width: 180 },
+        { field: "פלוגה", headerName: "פלוגה", sortable: true, filter: true, width: 100, cellStyle: { textAlign: 'center' } },
+        { field: "פריט", headerName: "פריט", sortable: true, filter: true, width: 200, cellStyle: { textAlign: 'center' } },
+        { field: "כמות", headerName: "כמות", sortable: true, filter: true, width: 80, cellStyle: { textAlign: 'center' } },
+        { field: "צורך", headerName: "צורך", sortable: true, filter: true, width: 100, cellStyle: { textAlign: 'center' } },
+        { 
+            field: "is_explosion", 
+            headerName: "סוג", 
+            sortable: true, 
+            filter: true, 
+            width: 100,
+            cellRenderer: (params: any) => params.value ? "נפיצה" : "קליעית",
+            cellStyle: { textAlign: 'center' }
+        },
+        { field: "תאריך", headerName: "תאריך", sortable: true, filter: true, width: 150, cellStyle: { textAlign: 'center' } },
     ];
 
     if (loading) {
@@ -125,7 +194,16 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
 
     return (
         <div className="p-4 space-y-6">
-            <h2 className="text-2xl font-bold">הזמנות תחמושת - {getTodayDate()}</h2>
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">הזמנות תחמושת - {getTodayDate()}</h2>
+                <Button 
+                    onClick={handleExportToExcel}
+                    className="bg-green-500 hover:bg-green-600 text-white"
+                    disabled={ballData.length === 0 && explosionData.length === 0}
+                >
+                    הורדת שצל יומי
+                </Button>
+            </div>
 
             {/* Missing Companies Alert */}
             {missingCompanies.length > 0 && (
@@ -139,7 +217,7 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
             <div className="space-y-2">
                 <h3 className="text-xl font-semibold">תחמושת קליעית</h3>
                 {ballData.length > 0 ? (
-                    <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
+                    <div className="ag-theme-alpine" style={{ width: '750px' }}>
                         <AgGridReact
                             rowData={ballData}
                             columnDefs={ballColumnDefs}
@@ -149,8 +227,6 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
                                 filter: true,
                             }}
                             domLayout="autoHeight"
-                            pagination={true}
-                            paginationPageSize={20}
                         />
                     </div>
                 ) : (
@@ -160,9 +236,9 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
 
             {/* Explosion Ammo Table */}
             <div className="space-y-2">
-                <h3 className="text-xl font-semibold">תחמושת נפץ</h3>
+                <h3 className="text-xl font-semibold">תחמושת נפיץ</h3>
                 {explosionData.length > 0 ? (
-                    <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
+                    <div className="ag-theme-alpine" style={{ width: '750px' }}>
                         <AgGridReact
                             rowData={explosionData}
                             columnDefs={explosionColumnDefs}
@@ -172,12 +248,10 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
                                 filter: true,
                             }}
                             domLayout="autoHeight"
-                            pagination={true}
-                            paginationPageSize={20}
                         />
                     </div>
                 ) : (
-                    <div className="text-gray-500 p-4 border rounded">אין דיווחים על תחמושת נפץ להיום</div>
+                    <div className="text-gray-500 p-4 border rounded">אין דיווחים על תחמושת נפיץ להיום</div>
                 )}
             </div>
         </div>
