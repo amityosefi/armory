@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import SignatureCanvas from 'react-signature-canvas';
 
 interface ArmoryItem {
   id: number;
@@ -30,6 +31,8 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
   const [people, setPeople] = useState<Person[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const sigPadRef = useRef<SignatureCanvas>(null);
 
   useEffect(() => {
     fetchPeopleInLocation();
@@ -56,30 +59,58 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
     }
   };
 
+  const handleClearSignature = () => {
+    sigPadRef.current?.clear();
+    setError('');
+  };
+
   const handleTransfer = async () => {
     if (!selectedPersonId) {
       onTransferComplete('אנא בחר חייל', false);
       return;
     }
+
+    // Check signature for weapons
+    if (item.kind === 'נשק' && sigPadRef.current?.isEmpty()) {
+      setError('נא לחתום לפני ההעברה');
+      return;
+    }
     
     try {
       const selectedPerson = people.find(p => p.id === selectedPersonId);
+      const currentTime = new Date().toLocaleString('he-IL');
       
-      const { error } = await supabase
+      // Prepare update data
+      const updateData: any = {
+        location: selectedPersonId,
+        sign_time: currentTime
+      };
+
+      // Add signature data for weapons
+      if (item.kind === 'נשק') {
+        const signature = sigPadRef.current?.toDataURL();
+        updateData.people_sign = signature || '';
+      }
+
+        updateData.logistic_sign = permissions['signature'] ? String(permissions['signature']) : '';
+        updateData.logistic_name = permissions['name'] ? String(permissions['name']) : '';
+        updateData.logistic_id = permissions['id'] ? String(permissions['id']) : '';
+      
+      const { error: updateError } = await supabase
         .from('armory_items')
-        .update({ location: selectedPersonId })
+        .update(updateData)
         .eq('id', item.id)
         .eq('kind', item.kind)
         .eq('name', item.name);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
       const message = `הועבר ${item.kind} ${item.name} (מספר: ${item.id}) לחייל ${selectedPerson?.name} (מספר אישי: ${selectedPersonId})`;
       
       // Log to armory_document
       await supabase.from('armory_document').insert({
         'משתמש': permissions['name'] || 'Unknown',
-        'תאריך': new Date().toLocaleString('he-IL'),
+        'תאריך': currentTime,
         'הודעה': message
       });
       
@@ -120,6 +151,29 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
                 ))}
               </select>
             </div>
+
+            {item.kind === 'נשק' && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">חתימת החייל:</label>
+                <div className="border-2 border-gray-300 rounded">
+                  <SignatureCanvas
+                    ref={sigPadRef}
+                    canvasProps={{
+                      className: 'w-full h-40',
+                      style: { touchAction: 'none' }
+                    }}
+                  />
+                </div>
+                {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+                <Button 
+                  onClick={handleClearSignature} 
+                  variant="outline" 
+                  className="mt-2 w-full"
+                >
+                  נקה חתימה
+                </Button>
+              </div>
+            )}
 
             <div className="flex gap-3 justify-end">
               <Button variant="outline" onClick={onClose}>ביטול</Button>

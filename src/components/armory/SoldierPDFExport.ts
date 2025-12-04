@@ -80,9 +80,6 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
     // Soldier Information
     const dateStr = new Date().toLocaleString('he-IL').split(' ');
     doc.setFontSize(10);
-    doc.text(mirrorHebrew('תאריך נוכחי: '), pageWidth - margin, y, {align: 'right'});
-
-    y += 10;
     doc.text(dateStr[0] + ' ' + dateStr[1], pageWidth - margin, y, {align: 'right'});
 
     // Get sign time from weapon item
@@ -190,6 +187,9 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
 
         const footerY = pageHeight - 60; // Moved higher from -30 to -60
 
+        // Define signature Y position (same for both sides)
+        const signatureY = footerY + 32;
+
         // Right side - Logistics (only show if there's data)
         if (weaponItem?.logistic_name || weaponItem?.logistic_id || weaponItem?.logistic_sign) {
             doc.text(mirrorHebrew('מחלקת לוגיסטיקה'), pageWidth - margin, footerY, {align: 'right'});
@@ -207,11 +207,11 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
             }
 
             if (weaponItem?.logistic_sign) {
-                // Add logistics signature image if available (bigger size)
+                // Add logistics signature image if available (bigger size) - aligned with soldier signature
                 try {
-                    doc.addImage(weaponItem.logistic_sign, 'PNG', pageWidth - margin - 50, logisticsY, 45, 25);
+                    doc.addImage(weaponItem.logistic_sign, 'PNG', pageWidth - margin - 50, signatureY, 45, 25);
                 } catch (e) {
-                    doc.text('_______________', pageWidth - margin, logisticsY + 3, {align: 'right'});
+                    doc.text('_______________', pageWidth - margin, signatureY + 3, {align: 'right'});
                 }
             }
         }
@@ -225,18 +225,13 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
         
         // Add soldier phone
         doc.text(soldier.phone, margin, footerY + 21, {align: 'left'});
-        
-        // Add signature date if available
-        if (weaponItem?.sign_time) {
-            doc.text(mirrorHebrew('תאריך חתימה: ') + weaponItem.sign_time, margin, footerY + 28, {align: 'left'});
-        }
 
         if (weaponItem?.people_sign) {
-            // Add soldier signature image if available (bigger size)
+            // Add soldier signature image if available (bigger size) - aligned with logistics signature
             try {
-                doc.addImage(weaponItem.people_sign, 'PNG', margin, footerY + 32, 45, 25);
+                doc.addImage(weaponItem.people_sign, 'PNG', margin, signatureY-10, 45, 25);
             } catch (e) {
-                doc.text('_______________', margin, footerY + 35, {align: 'left'});
+                doc.text('_______________', margin, signatureY, {align: 'left'});
             }
         }
     }

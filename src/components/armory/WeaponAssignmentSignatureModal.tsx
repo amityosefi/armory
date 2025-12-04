@@ -10,13 +10,19 @@ interface ArmoryItem {
   kind: string;
 }
 
-interface WeaponReturnSignatureModalProps {
-  item: ArmoryItem;
+interface WeaponAssignmentSignatureModalProps {
+  weaponItem: ArmoryItem;
+  sightItems: ArmoryItem[];
   onClose: () => void;
   onSubmit: (signature: string) => void;
 }
 
-const WeaponReturnSignatureModal: React.FC<WeaponReturnSignatureModalProps> = ({ item, onClose, onSubmit }) => {
+const WeaponAssignmentSignatureModal: React.FC<WeaponAssignmentSignatureModalProps> = ({ 
+  weaponItem, 
+  sightItems, 
+  onClose, 
+  onSubmit 
+}) => {
   const sigPadRef = useRef<SignatureCanvas>(null);
   const [error, setError] = useState('');
   const { permissions } = usePermissions();
@@ -42,15 +48,29 @@ const WeaponReturnSignatureModal: React.FC<WeaponReturnSignatureModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">החזרת נשק מאחסון לחייל</h2>
+          <h2 className="text-xl font-bold">החתמה על נשק</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="mb-4 p-4 bg-blue-50 rounded">
-          <p className="font-semibold">שם הפריט: {item.name}</p>
-          <p className="text-gray-600">מספר: {item.id}</p>
+        <div className="mb-4 space-y-2">
+          <div className="p-4 bg-blue-50 rounded">
+            <p className="font-semibold">נשק: {weaponItem.name}</p>
+            <p className="text-gray-600">מספר: {weaponItem.id}</p>
+          </div>
+
+          {sightItems.length > 0 && (
+            <div className="p-4 bg-green-50 rounded">
+              <p className="font-semibold mb-2">כוונות:</p>
+              {sightItems.map((sight) => (
+                <div key={sight.id} className="text-sm">
+                  <span className="font-medium">{sight.name}</span>
+                  <span className="text-gray-600"> (מספר: {sight.id})</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mb-4">
@@ -75,7 +95,7 @@ const WeaponReturnSignatureModal: React.FC<WeaponReturnSignatureModalProps> = ({
             ביטול
           </Button>
           <Button onClick={handleSubmit} className="bg-blue-500 hover:bg-blue-600">
-            אישור החזרה
+            אישור החתמה
           </Button>
         </div>
       </div>
@@ -83,4 +103,4 @@ const WeaponReturnSignatureModal: React.FC<WeaponReturnSignatureModalProps> = ({
   );
 };
 
-export default WeaponReturnSignatureModal;
+export default WeaponAssignmentSignatureModal;

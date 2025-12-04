@@ -128,14 +128,14 @@ const SoldierArmoryPage: React.FC = () => {
   };
 
   const handleToggleSave = async (item: ArmoryItem) => {
-    // If changing from כן (true) to לא (false) and item is weapon, show signature modal
+    // Only show modal if changing from כן (true) to לא (false) for weapons
     if (item.is_save && item.kind === 'נשק') {
       setSelectedWeaponForReturn(item);
       setWeaponReturnModalOpen(true);
       return;
     }
 
-    // For non-weapons or when changing from לא to כן, proceed normally
+    // For all other cases (weapons going from לא to כן, or non-weapons), proceed normally
     try {
       const { error } = await supabase
         .from('armory_items')
