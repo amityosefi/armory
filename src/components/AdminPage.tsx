@@ -59,7 +59,7 @@ const AdminPage = () => {
             setFilteredUsers([]);
         } else {
             const query = userSearchQuery.toLowerCase();
-            const filtered = rowData.filter(user => 
+            const filtered = rowData.filter(user =>
                 user.email.toLowerCase().includes(query) ||
                 user.name.toLowerCase().includes(query)
             );
@@ -180,7 +180,7 @@ const AdminPage = () => {
 
     const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const {name, value, type, checked} = e.target;
-        
+
         let finalValue: any;
         if (type === 'checkbox') {
             finalValue = checked;
@@ -190,7 +190,7 @@ const AdminPage = () => {
         } else {
             finalValue = value;
         }
-        
+
         setNewUser(prev => ({
             ...prev,
             [name]: finalValue
@@ -269,14 +269,14 @@ const AdminPage = () => {
             } else {
                 const successMsg = `המשתמש ${newUser.name} (אימייל: ${newUser.email}) נוסף בהצלחה`;
                 setStatusMessage({text: successMsg, type: "success"});
-                
+
                 // Log to armory_document
                 await supabase.from('armory_document').insert({
                     'משתמש': permissions['name'] ? String(permissions['name']) : 'Admin',
                     'תאריך': new Date().toLocaleString('he-IL'),
                     'הודעה': successMsg
                 });
-                
+
                 setNewUser({
                     email: "",
                     name: "",
@@ -337,14 +337,14 @@ const AdminPage = () => {
                     const deletedUser = data[0];
                     const successMsg = `המשתמש ${deletedUser.name || emailToDelete} (אימייל: ${emailToDelete}) נמחק בהצלחה`;
                     setStatusMessage({text: successMsg, type: "success"});
-                    
+
                     // Log to armory_document
                     await supabase.from('armory_document').insert({
                         'משתמש': permissions['name'] ? String(permissions['name']) : 'Admin',
                         'תאריך': new Date().toLocaleString('he-IL'),
                         'הודעה': successMsg
                     });
-                    
+
                     setEmailToDelete("");
                     setShowDeleteForm(false);
                     await fetchUsers();
