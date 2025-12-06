@@ -84,7 +84,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({
                 .single();
 
             if (existingItem) {
-                onError(`מספר ${formData.id} כבר קיים במערכת`);
+                onError(`מסד ${formData.id} כבר קיים במערכת`);
                 setLoading(false);
                 return;
             }

@@ -105,7 +105,7 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
 
       if (updateError) throw updateError;
 
-      const message = `הועבר ${item.kind} ${item.name} (מספר: ${item.id}) לחייל ${selectedPerson?.name} (מספר אישי: ${selectedPersonId})`;
+      const message = `הועבר ${item.name} (מסד: ${item.id}) לחייל ${selectedPerson?.name} (מספר אישי ${selectedPersonId})`;
       
       // Log to armory_document
       await supabase.from('armory_document').insert({
@@ -117,7 +117,7 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
       onTransferComplete(message, true);
     } catch (error) {
       console.error('Error transferring item:', error);
-      onTransferComplete(`שגיאה בהעברת ${item.kind} ${item.name} (מספר: ${item.id})`, false);
+      onTransferComplete(`שגיאה בהעברת ${item.name} (מסד: ${item.id})`, false);
     }
   };
 

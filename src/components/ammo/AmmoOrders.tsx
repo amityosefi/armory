@@ -55,7 +55,7 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
 
     const fetchData = async () => {
         try {
-            if (!permissions['ammo']) return;
+            if (!permissions['ammo'] || permissions['admin']) return;
             setLoading(true);
             const todayDate = getTodayDate();
 

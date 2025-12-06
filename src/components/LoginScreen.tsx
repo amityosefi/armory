@@ -11,9 +11,12 @@ interface LoginScreenProps {
     onLoginSuccess: (response: TokenResponse) => void
 }
 
+const SESSION_TIMEOUT = 60000; // 1 minute in milliseconds
+
 const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
     const [isLoading, setIsLoading] = useState(true)
     const [isAuthenticated, setIsAuthenticated] = useState(false)
+    const [authChecked, setAuthChecked] = useState(false)
 
     const setAuth = useAuthStore((state) => state.setAuth)
     const {setPermissions, permissions, setIsPermissionsLoaded} = usePermissions()
@@ -52,40 +55,87 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
 
     // Check for existing token on mount
     useEffect(() => {
-        const checkSavedToken = async () => {
-            const savedToken = localStorage.getItem('googleAuthToken')
-            const savedEmail = localStorage.getItem('userEmail')
+        if (authChecked) return; // Prevent re-running
 
-            if (savedToken && savedEmail) {
-                try {
-                    const parsedToken = JSON.parse(savedToken) as TokenResponse
-                    // revalidate email in supabase
-                    const {data, error} = await supabase
-                        .from('users')
-                        .select('*')
-                        .eq('email', savedEmail)
-                        .single()
-
-                    if (error || !data) {
-                        console.error('Email not found in Supabase:', error)
-                        localStorage.clear()
-                    } else {
-                        onLoginSuccess(parsedToken)
-                        setPermissions(data as Record<string, boolean>);
-                        setIsPermissionsLoaded(true);
-                        setAuth(savedEmail, data as Record<string, boolean>);
-                        setIsAuthenticated(true);
-                        return
-                    }
-                } catch (err) {
-                    console.error('Error restoring auth:', err)
-                    localStorage.clear()
-                }
-            }
+        console.log('Starting auth check...')
+        
+        // Absolute fallback - force show login after 3 seconds no matter what
+        const absoluteTimeout = setTimeout(() => {
+            console.log('Absolute timeout reached - forcing login screen')
+            setAuthChecked(true)
             setIsLoading(false)
+        }, 3000)
+
+        const checkSavedToken = async () => {
+            try {
+                const savedToken = localStorage.getItem('googleAuthToken')
+                const savedEmail = localStorage.getItem('userEmail')
+                const loginTime = localStorage.getItem('loginTime')
+
+                if (!savedToken || !savedEmail) {
+                    console.log('No saved credentials found')
+                    clearTimeout(absoluteTimeout)
+                    setAuthChecked(true)
+                    setIsLoading(false)
+                    return
+                }
+
+                // Check if session has expired (1 minute)
+                if (loginTime && Date.now() - parseInt(loginTime) > SESSION_TIMEOUT) {
+                    console.log('Session expired - forcing re-login')
+                    localStorage.clear()
+                    clearTimeout(absoluteTimeout)
+                    setAuthChecked(true)
+                    setIsLoading(false)
+                    return
+                }
+
+                console.log('Checking saved credentials for:', savedEmail)
+                const parsedToken = JSON.parse(savedToken) as TokenResponse
+                
+                // revalidate email in supabase
+                const {data, error} = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('email', savedEmail)
+                    .single();
+
+                if (error || !data) {
+                    console.error('Authentication failed:', error)
+                    localStorage.clear()
+                    clearTimeout(absoluteTimeout)
+                    setAuthChecked(true)
+                    setIsLoading(false)
+                    return
+                }
+
+                console.log('Authentication successful, redirecting...')
+                clearTimeout(absoluteTimeout)
+                setAuthChecked(true)
+                setIsLoading(false)
+                
+                // Update login time to extend session
+                localStorage.setItem('loginTime', Date.now().toString())
+                
+                onLoginSuccess(parsedToken)
+                setPermissions(data as Record<string, boolean>);
+                setIsPermissionsLoaded(true);
+                setAuth(savedEmail, data as Record<string, boolean>);
+                setIsAuthenticated(true)
+            } catch (err) {
+                console.error('Error during authentication check:', err)
+                localStorage.clear()
+                clearTimeout(absoluteTimeout)
+                setAuthChecked(true)
+                setIsLoading(false)
+            }
         }
+        
         checkSavedToken()
-    }, [onLoginSuccess, setAuth, setPermissions, setIsPermissionsLoaded])
+
+        // Cleanup
+        return () => clearTimeout(absoluteTimeout)
+    }, [authChecked])
 
     const login = useGoogleLogin({
         onSuccess: async (codeResponse: TokenResponse) => {
@@ -112,9 +162,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                     return
                 }
 
-                // Save to localStorage
+                // Save to localStorage with login time
                 localStorage.setItem('googleAuthToken', JSON.stringify(codeResponse))
                 localStorage.setItem('userEmail', email)
+                localStorage.setItem('loginTime', Date.now().toString())
 
                 setPermissions(data as Record<string, boolean>);
                 setIsPermissionsLoaded(true);

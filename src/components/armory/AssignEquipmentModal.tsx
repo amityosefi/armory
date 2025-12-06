@@ -124,7 +124,7 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, 
 
       if (error) throw error;
 
-      const message = `הוקצה ${selectedKind} ${selectedName} (מספר: ${selectedId}) לחייל מספר אישי: ${soldierID}`;
+      const message = `הוקצה ${selectedName} (מסד: ${selectedId}) לחייל מספר אישי ${soldierID}`;
       
       // Log to armory_document
       await supabase.from('armory_document').insert({
@@ -136,7 +136,7 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, 
       onAssignComplete(message, true);
     } catch (error) {
       console.error('Error assigning item:', error);
-      onAssignComplete(`שגיאה בהקצאת ${selectedKind} ${selectedName} (מספר: ${selectedId})`, false);
+      onAssignComplete(`שגיאה בהקצאת ${selectedName} (מסד: ${selectedId})`, false);
     }
   };
 

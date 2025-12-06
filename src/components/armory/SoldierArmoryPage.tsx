@@ -145,7 +145,7 @@ const SoldierArmoryPage: React.FC = () => {
       if (error) throw error;
       
       const newStatus = !item.is_save ? 'מאופסן' : 'לא מאופסן';
-      const message = `סטטוס אחסון של ${item.name} (מספר: ${item.id}) עודכן ל${newStatus} עבור חייל ${soldier?.name}`;
+      const message = `${item.name} (מסד: ${item.id}) עודכן ל-${newStatus} - חייל ${soldier?.name}`;
       
       setArmoryItems(armoryItems.map(i => 
         i.id === item.id ? { ...i, is_save: !i.is_save } : i
@@ -154,7 +154,7 @@ const SoldierArmoryPage: React.FC = () => {
       await logToArmoryDocument(message);
     } catch (error) {
       console.error('Error toggling save status:', error);
-      setStatusMessage({ text: `שגיאה בעדכון סטטוס אחסון עבור ${item.name} (מספר: ${item.id})`, isSuccess: false });
+      setStatusMessage({ text: `שגיאה בעדכון ${item.name} (מסד: ${item.id})`, isSuccess: false });
     }
   };
 
@@ -178,7 +178,7 @@ const SoldierArmoryPage: React.FC = () => {
 
       if (error) throw error;
       
-      const message = `נשק ${selectedWeaponForReturn.name} (מספר: ${selectedWeaponForReturn.id}) הוחזר לאחסון עבור חייל ${soldier?.name}`;
+      const message = `${selectedWeaponForReturn.name} (מסד: ${selectedWeaponForReturn.id}) הוחזר לחייל ${soldier?.name} מאפסון `;
       
       setArmoryItems(armoryItems.map(i => 
         i.id === selectedWeaponForReturn.id ? { 
@@ -198,7 +198,7 @@ const SoldierArmoryPage: React.FC = () => {
       setSelectedWeaponForReturn(null);
     } catch (error) {
       console.error('Error returning weapon:', error);
-      setStatusMessage({ text: `שגיאה בהחזרת נשק ${selectedWeaponForReturn.name}`, isSuccess: false });
+      setStatusMessage({ text: `שגיאה בהחזרת ${selectedWeaponForReturn.name}`, isSuccess: false });
     }
   };
 
@@ -218,14 +218,14 @@ const SoldierArmoryPage: React.FC = () => {
 
       if (error) throw error;
       
-      const message = `הפריט ${item.name} (מספר: ${item.id}) הוחזר מחייל ${soldier?.name} ל${newLocation}`;
+      const message = `${item.name} (מסד: ${item.id}) הוחזר ל-${newLocation} - חייל ${soldier?.name}`;
       
       setArmoryItems(armoryItems.filter(i => i.id !== item.id));
       setStatusMessage({ text: message, isSuccess: true });
       await logToArmoryDocument(message);
     } catch (error) {
       console.error('Error returning item:', error);
-      setStatusMessage({ text: `שגיאה בהחזרת ${item.name} (מספר: ${item.id}) מחייל ${soldier?.name}`, isSuccess: false });
+      setStatusMessage({ text: `שגיאה בהחזרת ${item.name} (מסד: ${item.id})`, isSuccess: false });
     }
   };
 
@@ -233,7 +233,7 @@ const SoldierArmoryPage: React.FC = () => {
 
     try {
       const itemCount = armoryItems.length;
-      const itemsList = armoryItems.map(item => `${item.name} (מספר: ${item.id})`).join(', ');
+      const itemsList = armoryItems.map(item => `${item.name} (מסד: ${item.id})`).join(', ');
       
       const { error: itemsError } = await supabase
         .from('armory_items')
@@ -476,9 +476,10 @@ const SoldierArmoryPage: React.FC = () => {
         />
       )}
 
-      {weaponReturnModalOpen && selectedWeaponForReturn && (
+      {weaponReturnModalOpen && selectedWeaponForReturn && soldier && (
         <WeaponReturnSignatureModal 
-          item={selectedWeaponForReturn} 
+          item={selectedWeaponForReturn}
+          soldierID={soldier.id}
           onClose={() => { setWeaponReturnModalOpen(false); setSelectedWeaponForReturn(null); }} 
           onSubmit={handleWeaponReturnSignature} 
         />

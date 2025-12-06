@@ -59,6 +59,7 @@ const ArmorySum: React.FC<ArmorySumProps> = ({selectedSheet}) => {
     // Fetch data from Supabase in chunks
     const fetchData = async () => {
         try {
+            if (!permissions['armory'] && permissions['admin']) return;
             setLoading(true);
             
             // Fetch armory items in chunks

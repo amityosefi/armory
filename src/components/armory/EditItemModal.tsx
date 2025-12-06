@@ -110,7 +110,7 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
             // Build detailed success message
             let changes = [];
             if (itemData) {
-                if (formData.id !== itemData.id) changes.push(`מספר: ${formData.id} ← ${itemData.id}`);
+                if (formData.id !== itemData.id) changes.push(`מסד: ${formData.id} ← ${itemData.id}`);
                 if (formData.name !== itemData.name) changes.push(`שם: ${formData.name} ← ${itemData.name}`);
                 if (formData.kind !== itemData.kind) changes.push(`סוג: ${formData.kind} ← ${itemData.kind}`);
                 if (formData.location !== itemData.location) changes.push(`מיקום: ${formData.location} ← ${itemData.location}`);

@@ -223,7 +223,7 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
                     .single();
 
                 if (existingNewItem) {
-                    onError(`מספר ${newId} כבר קיים במערכת`);
+                    onError(`מסד ${newId} כבר קיים במערכת`);
                     setLoading(false);
                     return;
                 }

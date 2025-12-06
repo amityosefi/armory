@@ -53,7 +53,7 @@ const LogisticSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
 
     // Fetch all logistic data from Supabase
     const fetchData = async () => {
-        if (permissions['logistic']) {
+        if (permissions['logistic'] || permissions['admin']) {
             try {
                 setLoading(true);
                 const {data, error} = await supabase
