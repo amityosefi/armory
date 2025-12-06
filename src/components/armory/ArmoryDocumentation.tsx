@@ -60,7 +60,7 @@ const ArmoryDocumentation: React.FC = () => {
     // Fetch data from Supabase
     const fetchData = async () => {
         try {
-            if (!permissions['armory']) return;
+            if (!permissions['armory'] && !permissions['admin']) return;
             setLoading(true);
             const {data, error} = await supabase
                 .from("armory_document")
@@ -182,7 +182,7 @@ const ArmoryDocumentation: React.FC = () => {
         <div className="container mx-auto p-4">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-right">תיעוד</h2>
-                {!permissions['Plugot'] && (
+                {permissions['armory'] || permissions['admin'] && (
                     <Button
                         onClick={() => setIsModalOpen(true)}
                         className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-2 px-4 rounded-lg shadow-lg"

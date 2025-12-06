@@ -55,7 +55,7 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
 
     const fetchData = async () => {
         try {
-            if (!permissions['ammo'] || permissions['admin']) return;
+            if (!permissions['ammo'] || !permissions['admin']) return;
             setLoading(true);
             const todayDate = getTodayDate();
 
@@ -154,38 +154,18 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
 
     // Column definitions for ball ammo
     const ballColumnDefs: ColDef[] = [
-        { field: "פלוגה", headerName: "פלוגה", sortable: true, filter: true, width: 100, cellStyle: { textAlign: 'center' } },
-        { field: "פריט", headerName: "פריט", sortable: true, filter: true, width: 200, cellStyle: { textAlign: 'center' } },
+        { field: "תאריך", headerName: "תאריך", sortable: true, filter: true, width: 180, cellStyle: { textAlign: 'center' } },
         { field: "כמות", headerName: "כמות", sortable: true, filter: true, width: 80, cellStyle: { textAlign: 'center' } },
-        { field: "צורך", headerName: "צורך", sortable: true, filter: true, width: 100, cellStyle: { textAlign: 'center' } },
-        { 
-            field: "is_explosion", 
-            headerName: "סוג", 
-            sortable: true, 
-            filter: true, 
-            width: 100,
-            cellRenderer: (params: any) => params.value ? "נפיצה" : "קליעית",
-            cellStyle: { textAlign: 'center' }
-        },
-        { field: "תאריך", headerName: "תאריך", sortable: true, filter: true, width: 150, cellStyle: { textAlign: 'center' } },
+        { field: "פריט", headerName: "פריט", sortable: true, filter: true, width: 200, cellStyle: { textAlign: 'center' } },
+        { field: "פלוגה", headerName: "פלוגה", sortable: true, filter: true, width: 80, cellStyle: { textAlign: 'center' } },
     ];
 
     // Column definitions for explosion ammo
     const explosionColumnDefs: ColDef[] = [
-        { field: "פלוגה", headerName: "פלוגה", sortable: true, filter: true, width: 100, cellStyle: { textAlign: 'center' } },
-        { field: "פריט", headerName: "פריט", sortable: true, filter: true, width: 200, cellStyle: { textAlign: 'center' } },
+        { field: "תאריך", headerName: "תאריך", sortable: true, filter: true, width: 180, cellStyle: { textAlign: 'center' } },
         { field: "כמות", headerName: "כמות", sortable: true, filter: true, width: 80, cellStyle: { textAlign: 'center' } },
-        { field: "צורך", headerName: "צורך", sortable: true, filter: true, width: 100, cellStyle: { textAlign: 'center' } },
-        { 
-            field: "is_explosion", 
-            headerName: "סוג", 
-            sortable: true, 
-            filter: true, 
-            width: 100,
-            cellRenderer: (params: any) => params.value ? "נפיצה" : "קליעית",
-            cellStyle: { textAlign: 'center' }
-        },
-        { field: "תאריך", headerName: "תאריך", sortable: true, filter: true, width: 150, cellStyle: { textAlign: 'center' } },
+        { field: "פריט", headerName: "פריט", sortable: true, filter: true, width: 200, cellStyle: { textAlign: 'center' } },
+        { field: "פלוגה", headerName: "פלוגה", sortable: true, filter: true, width: 80, cellStyle: { textAlign: 'center' } },
     ];
 
     if (loading) {
@@ -217,17 +197,19 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
             <div className="space-y-2">
                 <h3 className="text-xl font-semibold">תחמושת קליעית</h3>
                 {ballData.length > 0 ? (
-                    <div className="ag-theme-alpine" style={{ width: '750px' }}>
-                        <AgGridReact
-                            rowData={ballData}
-                            columnDefs={ballColumnDefs}
-                            defaultColDef={{
-                                resizable: true,
-                                sortable: true,
-                                filter: true,
-                            }}
-                            domLayout="autoHeight"
-                        />
+                    <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+                        <div className="ag-theme-alpine" style={{ width: '550px', height: '400px' }}>
+                            <AgGridReact
+                                rowData={ballData}
+                                columnDefs={ballColumnDefs}
+                                defaultColDef={{
+                                    resizable: true,
+                                    sortable: true,
+                                    filter: true,
+                                }}
+                                domLayout="normal"
+                            />
+                        </div>
                     </div>
                 ) : (
                     <div className="text-gray-500 p-4 border rounded">אין דיווחים על תחמושת קליעית להיום</div>
@@ -238,17 +220,19 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
             <div className="space-y-2">
                 <h3 className="text-xl font-semibold">תחמושת נפיץ</h3>
                 {explosionData.length > 0 ? (
-                    <div className="ag-theme-alpine" style={{ width: '750px' }}>
-                        <AgGridReact
-                            rowData={explosionData}
-                            columnDefs={explosionColumnDefs}
-                            defaultColDef={{
-                                resizable: true,
-                                sortable: true,
-                                filter: true,
-                            }}
-                            domLayout="autoHeight"
-                        />
+                    <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+                        <div className="ag-theme-alpine" style={{ width: '550px', height: '400px' }}>
+                            <AgGridReact
+                                rowData={explosionData}
+                                columnDefs={explosionColumnDefs}
+                                defaultColDef={{
+                                    resizable: true,
+                                    sortable: true,
+                                    filter: true,
+                                }}
+                                domLayout="normal"
+                            />
+                        </div>
                     </div>
                 ) : (
                     <div className="text-gray-500 p-4 border rounded">אין דיווחים על תחמושת נפיץ להיום</div>

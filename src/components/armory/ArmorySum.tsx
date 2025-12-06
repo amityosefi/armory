@@ -54,12 +54,11 @@ const ArmorySum: React.FC<ArmorySumProps> = ({selectedSheet}) => {
     const [peopleData, setPeopleData] = useState<PersonData[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
-    const gridRef = useRef<AgGridReact>(null);
 
     // Fetch data from Supabase in chunks
     const fetchData = async () => {
         try {
-            if (!permissions['armory'] && permissions['admin']) return;
+            if (!permissions['armory'] && !permissions['admin']) return;
             setLoading(true);
             
             // Fetch armory items in chunks

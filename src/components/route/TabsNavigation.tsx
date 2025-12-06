@@ -28,9 +28,25 @@ function TabsNavigation({
     const visibleTabs = useMemo(
         () => {
             if (!isPermissionsLoaded) return [];
+            
+            // Define admin-accessible tabs per section
+            const adminTabs: Record<string, string[]> = {
+                'armory': ['סיכום', 'תיעוד'],
+                'logistic': ['סיכום'],
+                'ammo': ['סיכום', 'שצל']
+            };
+            
             return sheets
                 .map((sheet, idx) => ({sheet, idx}))
-                .filter(({sheet}) => permissions[sheet.range] || permissions[section]);
+                .filter(({sheet}) => {
+                    // Check if user has direct permission for this tab or section
+                    if (permissions[sheet.range] || permissions[section]) return true;
+                    
+                    // Check if admin has access to this specific tab
+                    if (permissions['admin'] && adminTabs[section]?.includes(sheet.range)) return true;
+                    
+                    return false;
+                });
         },
         [sheets, permissions, section, isPermissionsLoaded]
     );

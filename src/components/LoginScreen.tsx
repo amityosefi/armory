@@ -49,6 +49,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
             return '/logistic/0';
         else if (permissions['ammo'])
             return '/ammo/0';
+        else if (permissions['admin'])
+            return '/armory/8';
         else
             return `/soldier/${permissions['id']}`
     };
@@ -57,11 +59,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
     useEffect(() => {
         if (authChecked) return; // Prevent re-running
 
-        console.log('Starting auth check...')
-        
         // Absolute fallback - force show login after 3 seconds no matter what
         const absoluteTimeout = setTimeout(() => {
-            console.log('Absolute timeout reached - forcing login screen')
             setAuthChecked(true)
             setIsLoading(false)
         }, 3000)
@@ -73,7 +72,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                 const loginTime = localStorage.getItem('loginTime')
 
                 if (!savedToken || !savedEmail) {
-                    console.log('No saved credentials found')
                     clearTimeout(absoluteTimeout)
                     setAuthChecked(true)
                     setIsLoading(false)
@@ -82,7 +80,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
 
                 // Check if session has expired (1 minute)
                 if (loginTime && Date.now() - parseInt(loginTime) > SESSION_TIMEOUT) {
-                    console.log('Session expired - forcing re-login')
                     localStorage.clear()
                     clearTimeout(absoluteTimeout)
                     setAuthChecked(true)
@@ -90,7 +87,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                     return
                 }
 
-                console.log('Checking saved credentials for:', savedEmail)
                 const parsedToken = JSON.parse(savedToken) as TokenResponse
                 
                 // revalidate email in supabase
@@ -109,7 +105,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                     return
                 }
 
-                console.log('Authentication successful, redirecting...')
                 clearTimeout(absoluteTimeout)
                 setAuthChecked(true)
                 setIsLoading(false)

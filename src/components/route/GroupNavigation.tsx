@@ -19,7 +19,7 @@ const GroupNavigation: React.FC = () => {
   // Helper function to check if user has access to any sheet in the group
   const hasGroupAccess = (group: typeof sheetGroups[0]) => {
     // Check if user has the group-level permission (e.g., 'armory')
-    if (permissions[group.pathName]) return true;
+    if (permissions[group.pathName] || permissions['admin']) return true;
     // Check if user has permission for any sheet within the group (e.g., 'ג')
     return group.sheets.some(sheet => permissions[sheet.range]);
   };

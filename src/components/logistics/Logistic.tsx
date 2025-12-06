@@ -376,8 +376,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         // Find all rows with the same date in rowData
         const matchingRows = rowData.filter(item => item.תאריך === date && item.סטטוס === 'הזמנה');
 
-        console.log(matchingRows)
-
         // Create items array from matching rows
         const itemsToShow = matchingRows.map(row => ({
             פריט: row.פריט || '',
@@ -440,10 +438,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         const newReadStatus = params.newValue;
 
         try {
-            // Update the read status in Supabase
-            // console.log(newReadStatus);
-            // console.log(id);
-            // console.log("id value:", id, typeof id);
 
             const {data, error} = await supabase
                 .from("logistic")
@@ -550,7 +544,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         }
         // Format items for insertion
         const formattedDate = new Date().toLocaleString('he-IL');
-        console.log(items)
         let formattedItems = items.map(item => ({
             תאריך: formattedDate,
             פריט: item.פריט,
