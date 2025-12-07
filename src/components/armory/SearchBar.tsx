@@ -12,17 +12,47 @@ const SearchBar: React.FC = () => {
   const [allItems, setAllItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Helper function to fetch all rows with pagination
+  const fetchAllRows = async (tableName: string) => {
+    const pageSize = 1000;
+    let allData: any[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('*')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error) {
+        console.error(`Error fetching ${tableName}:`, error);
+        break;
+      }
+
+      if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        hasMore = data.length === pageSize;
+        page++;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return allData;
+  };
+
   // Fetch all data on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [peopleResponse, itemsResponse] = await Promise.all([
-          supabase.from('people').select('*'),
-          supabase.from('armory_items').select('*')
+        const [peopleData, itemsData] = await Promise.all([
+          fetchAllRows('people'),
+          fetchAllRows('armory_items')
         ]);
 
-        if (peopleResponse.data) setAllPeople(peopleResponse.data);
-        if (itemsResponse.data) setAllItems(itemsResponse.data);
+        setAllPeople(peopleData);
+        setAllItems(itemsData);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -31,15 +61,27 @@ const SearchBar: React.FC = () => {
     fetchData();
   }, []);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!searchText.trim()) return;
 
     setLoading(true);
-    const searchLower = searchText.trim().toLowerCase();
-    const foundResults: SearchResult[] = [];
+    
+    // Refetch data to ensure we have the latest soldiers and items
+    try {
+      const [latestPeople, latestItems] = await Promise.all([
+        fetchAllRows('people'),
+        fetchAllRows('armory_items')
+      ]);
+      
+      // Update state with latest data
+      setAllPeople(latestPeople);
+      setAllItems(latestItems);
 
-    // Search in people table
-    allPeople.forEach(person => {
+      const searchLower = searchText.trim().toLowerCase();
+      const foundResults: SearchResult[] = [];
+
+      // Search in people table
+      latestPeople.forEach(person => {
       const matchFields = [
         person.id?.toString(),
         person.name,
@@ -63,7 +105,7 @@ const SearchBar: React.FC = () => {
     });
 
     // Search in armory_items table
-    allItems.forEach(item => {
+    latestItems.forEach(item => {
       const matchFields = [
         item.id?.toString(),
         item.name,
@@ -81,7 +123,7 @@ const SearchBar: React.FC = () => {
         const location = item.location;
         if (location !== 'גדוד' && location !== 'סדנא' && location !== 'מחסן') {
           // Convert both to strings for comparison to handle type mismatches
-          const person = allPeople.find(p => String(p.id) === String(location));
+          const person = latestPeople.find(p => String(p.id) === String(location));
           personName = person?.name;
         }
 
@@ -98,7 +140,11 @@ const SearchBar: React.FC = () => {
 
     setResults(foundResults);
     setShowModal(true);
-    setLoading(false);
+    } catch (error) {
+      console.error('Error during search:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

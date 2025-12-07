@@ -39,6 +39,7 @@ interface HRRecord {
     first: string;
     last: string;
     location: string;
+    phone?: string;
 }
 
 const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
@@ -158,7 +159,7 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
         try {
             const { data, error } = await supabase
                 .from('hr')
-                .select('id, first, last, location');
+                .select('id, first, last, location, phone');
 
             if (error) throw error;
             setHrData((data as HRRecord[]) || []);
@@ -230,11 +231,15 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                 // Check if mapped location exists in available locations, otherwise use current location
                 const finalLocation = availableLocations.includes(mappedLocation) ? mappedLocation : currentLocation;
                 
+                // Get phone and remove any dashes
+                const phoneValue = hrRecord.phone ? hrRecord.phone.replace(/-/g, '') : '';
+                
                 setFormData(prev => ({
                     ...prev,
                     id: value,
                     name: fullName,
-                    location: finalLocation
+                    location: finalLocation,
+                    phone: phoneValue
                 }));
                 setShowIdDropdown(false);
                 return;
@@ -262,11 +267,15 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
         // Check if mapped location exists in available locations, otherwise use current location
         const finalLocation = availableLocations.includes(mappedLocation) ? mappedLocation : currentLocation;
         
+        // Get phone and remove any dashes
+        const phoneValue = hrRecord.phone ? hrRecord.phone.replace(/-/g, '') : '';
+        
         setFormData(prev => ({
             ...prev,
             id: String(hrRecord.id),
             name: fullName,
-            location: finalLocation
+            location: finalLocation,
+            phone: phoneValue
         }));
         setShowIdDropdown(false);
         setFilteredHRIds([]);
@@ -370,7 +379,15 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
 
             if (insertError) {
                 console.error("Error adding soldier:", insertError);
-                const errorMsg = `שגיאה בהוספת חייל: ${insertError.message}`;
+                
+                // Check if it's a duplicate key error
+                let errorMsg: string;
+                if (insertError.code === '23505' || insertError.message.includes('duplicate key') || insertError.message.includes('unique constraint')) {
+                    errorMsg = `חייל עם מספר אישי ${idStr} כבר קיים במערכת. אנא בדוק את המספר האישי או חפש את החייל הקיים.`;
+                } else {
+                    errorMsg = `שגיאה בהוספת חייל: ${insertError.message}`;
+                }
+                
                 setError(errorMsg);
                 setLoading(false);
                 return;
