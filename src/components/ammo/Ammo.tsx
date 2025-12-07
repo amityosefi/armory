@@ -451,6 +451,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             פריט: row.פריט || '',
             כמות: row.כמות || 1,
             צורך: row.צורך || 'ניפוק',
+            סוג_תחמושת: row.סוג_תחמושת || (isBall ? 'קליעית' : 'נפיצה'),
         }));
 
         // Set the items state to populate the dialog
@@ -467,6 +468,9 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const handleReadStatusChange = async (params: any) => {
         const {data} = params;
         const id = data.id;
+        const ddate = data['תאריך'];
+        const ditem = data['פריט'];
+        const oldReadStatus = params.oldValue;
         const newReadStatus = params.newValue;
 
         try {
@@ -487,7 +491,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
             // Refresh data after update
             fetchData();
-            setStatusMessage({text: "סטטוס קריאה עודכן בהצלחה", type: "success"});
+            setStatusMessage({text: `סטטוס קריאה עודכן בהצלחה - תאריך: ${ddate}, פריט: ${ditem}, מ-"${oldReadStatus}" ל-"${newReadStatus}"`, type: "success"});
         } catch (err: any) {
             console.error("Unexpected error during read status update:", err);
             // Revert to old value
@@ -733,9 +737,14 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 }
             }
 
+            // Create detailed message with deleted items info
+            const deletedItemsDetails = selectedRows.map(row => 
+                `${row.פריט} (כמות: ${row.כמות}, תאריך: ${row.תאריך})`
+            ).join(', ');
+            
             await fetchData();
             setSelectedRows([]);
-            setStatusMessage({text: `${selectedRows.length} פריטים נמחקו בהצלחה`, type: "success"});
+            setStatusMessage({text: `${selectedRows.length} פריטים נמחקו בהצלחה: ${deletedItemsDetails}`, type: "success"});
         } catch (err: any) {
             console.error("Unexpected error during deletion:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});

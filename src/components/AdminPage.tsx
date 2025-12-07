@@ -181,9 +181,44 @@ const AdminPage = () => {
     const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const {name, value, type, checked} = e.target;
         
+        const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'פלסם', 'מכלול'];
+        const otherPermissions = ['admin', 'armory', 'logistic', 'ammo'];
+        
         let finalValue: any;
         if (type === 'checkbox') {
             finalValue = checked;
+            
+            // If checking a company permission, uncheck ALL other permissions
+            if (checked && companyPermissions.includes(name)) {
+                setNewUser(prev => {
+                    const updated = {...prev, [name]: true};
+                    // Uncheck all other company permissions
+                    companyPermissions.forEach(perm => {
+                        if (perm !== name) {
+                            (updated as any)[perm] = false;
+                        }
+                    });
+                    // Uncheck all other permissions (admin, armory, logistic, ammo)
+                    otherPermissions.forEach(perm => {
+                        (updated as any)[perm] = false;
+                    });
+                    return updated;
+                });
+                return; // Exit early since we already set the state
+            }
+            
+            // If checking admin/armory/logistic/ammo, uncheck all company permissions
+            if (checked && otherPermissions.includes(name)) {
+                setNewUser(prev => {
+                    const updated = {...prev, [name]: true};
+                    // Uncheck all company permissions
+                    companyPermissions.forEach(perm => {
+                        (updated as any)[perm] = false;
+                    });
+                    return updated;
+                });
+                return; // Exit early since we already set the state
+            }
         } else if (name === 'id') {
             // Handle numeric id field
             finalValue = value === '' ? null : parseInt(value, 10);
@@ -245,6 +280,23 @@ const AdminPage = () => {
             formValid = false;
         } else {
             errors.signature = "";
+        }
+        
+        // Validate company permissions - only one allowed and cannot be combined with other permissions
+        const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'פלסם', 'מכלול'];
+        const otherPermissions = ['admin', 'armory', 'logistic', 'ammo'];
+        const selectedCompanies = companyPermissions.filter(perm => newUser[perm as keyof typeof newUser]);
+        const selectedOthers = otherPermissions.filter(perm => newUser[perm as keyof typeof newUser]);
+        
+        if (selectedCompanies.length > 1) {
+            setStatusMessage({text: "ניתן לבחור רק פלוגה אחת (א, ב, ג, מסייעת, אלון, פלסם, מכלול)", type: "error"});
+            formValid = false;
+        }
+        
+        // Check if company permission is combined with other permissions
+        if (selectedCompanies.length > 0 && selectedOthers.length > 0) {
+            setStatusMessage({text: "לא ניתן לשלב הרשאת פלוגה (א, ב, ג, מסייעת, אלון, פלסם, מכלול) עם הרשאות אחרות", type: "error"});
+            formValid = false;
         }
 
         setFormErrors(errors);

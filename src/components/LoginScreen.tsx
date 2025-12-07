@@ -5,7 +5,6 @@ import {usePermissions} from '@/contexts/PermissionsContext'
 import {supabase} from '@/lib/supabaseClient' // <-- your supabase client
 import logo from '@/assets/logo.jpeg' // Import the logo
 import {Navigate} from "react-router-dom";
-import logistic from "@/components/logistics/Logistic"; // Import the login screen styles
 
 interface LoginScreenProps {
     onLoginSuccess: (response: TokenResponse) => void

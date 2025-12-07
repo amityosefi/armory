@@ -397,6 +397,9 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     const handleStatusChange = async (params: any) => {
         const {data} = params;
         const id = data.id;
+        const ddate = data['תאריך'];
+        const ditem = data['פריט'];
+        const oldStatus = params.oldValue;
         const newStatus = params.newValue;
 
         try {
@@ -419,7 +422,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
             // Refresh data after update
             fetchData();
-            setStatusMessage({text: "סטטוס עודכן בהצלחה", type: "success"});
+            setStatusMessage({text: `סטטוס עודכן בהצלחה - תאריך: ${ddate}, פריט: ${ditem}, מ-"${oldStatus}" ל-"${newStatus}"`, type: "success"});
         } catch (err: any) {
             console.error("Unexpected error during status update:", err);
             // Revert to old value
@@ -435,6 +438,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         const ddate = data['תאריך'];
         const ditem = data['פריט'];
         const damount = data['כמות'];
+        const oldReadStatus = params.oldValue;
         const newReadStatus = params.newValue;
 
         try {
@@ -457,7 +461,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
             // Refresh data after update
             fetchData();
-            setStatusMessage({text: "סטטוס קריאה עודכן בהצלחה", type: "success"});
+            setStatusMessage({text: `סטטוס קריאה עודכן בהצלחה - תאריך: ${ddate}, פריט: ${ditem}, מ-"${oldReadStatus}" ל-"${newReadStatus}"`, type: "success"});
         } catch (err: any) {
             console.error("Unexpected error during read status update:", err);
             // Revert to old value
@@ -640,9 +644,14 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 console.error("Error deleting items:", error);
                 setStatusMessage({text: `שגיאה במחיקת פריטים: ${error.message}`, type: "error"});
             } else {
+                // Create detailed message with deleted items info
+                const deletedItemsDetails = selectedRows.map(row => 
+                    `${row.פריט} (כמות: ${row.כמות}, תאריך: ${row.תאריך})`
+                ).join(', ');
+                
                 await fetchData();
                 setSelectedRows([]);
-                setStatusMessage({text: `${selectedRows.length} פריטים נמחקו בהצלחה`, type: "success"});
+                setStatusMessage({text: `${selectedRows.length} פריטים נמחקו בהצלחה: ${deletedItemsDetails}`, type: "success"});
             }
         } catch (err: any) {
             console.error("Unexpected error during deletion:", err);
