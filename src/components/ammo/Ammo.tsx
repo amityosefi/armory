@@ -319,7 +319,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         signatureData.forEach((row: LogisticItem) => {
             const item = row.פריט;
             const quantity = typeof row.כמות === 'number' ? row.כמות : parseInt(String(row.כמות), 10) || 0;
-            const signedQuantity = row.צורך === 'זיכוי' ? -Math.abs(quantity) : Math.abs(quantity);
+            const signedQuantity = row.צורך === 'ניפוק' ? Math.abs(quantity) : -Math.abs(quantity);
 
             if (itemSummary.has(item)) {
                 // Item exists, update quantity
@@ -370,11 +370,12 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         signatureData.forEach((row: LogisticItem) => {
             const item = row.פריט;
             const quantity = typeof row.כמות === 'number' ? row.כמות : parseInt(String(row.כמות), 10) || 0;
+            const signedQuantity = row.צורך === 'ניפוק' ? Math.abs(quantity) : -Math.abs(quantity);
 
             if (itemSummary.has(item)) {
                 // Item exists, update quantity
                 const existing = itemSummary.get(item)!;
-                existing.כמות = (existing.כמות || 0) + quantity;
+                existing.כמות = (existing.כמות || 0) + signedQuantity;
 
                 // Keep the latest date
                 const existingDate = new Date(existing.תאריך || '').getTime() || 0;
@@ -388,7 +389,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 // New item, add to map
                 itemSummary.set(item, {
                     פריט: item,
-                    כמות: quantity,
+                    כמות: signedQuantity,
                     תאריך: row.תאריך || '',
                     משתמש: row.משתמש || '',
                     שם_החותם: row.שם_החותם || '',
@@ -416,8 +417,6 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             {field: 'תאריך' as keyof LogisticItem, headerName: 'תאריך', sortable: true, filter: true, width: 160},
             {field: 'פריט' as keyof LogisticItem, headerName: 'פריט', sortable: true, filter: true, width: 110},
             {field: 'כמות' as keyof LogisticItem, headerName: 'כמות', sortable: true, filter: true, width: 70,},
-            {field: 'צורך' as keyof LogisticItem, headerName: 'צורך', sortable: true, filter: true, width: 80},
-            {field: 'סטטוס' as keyof LogisticItem, headerName: 'סטטוס', sortable: true, filter: true, width: 80},
             {
                 headerName: 'נקרא',
                 field: 'נקרא' as keyof LogisticItem,
@@ -527,8 +526,8 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 // Calculate current quantities for this item in החתמה status
                 const ballItemData = ballSignatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
                 const explosionItemData = explosionSignatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
-                const ballCurrentQty = ballItemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
-                const explosionCurrentQty = explosionItemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
+                const ballCurrentQty = ballItemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי' || i.צורך === 'שצל') ? -i.כמות : i.כמות), 0);
+                const explosionCurrentQty = explosionItemData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי' || i.צורך === 'שצל') ? -i.כמות : i.כמות), 0);
                 
                 // Determine which type this item is based on סוג_תחמושת
                 const isExplosion = item.סוג_תחמושת === 'נפיצה';
@@ -578,7 +577,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 const currentQty = isExplosion ? explosionCurrentQty : ballCurrentQty;
                 
                 // Check if זיכוי would lead to negative
-                if (item.צורך === 'זיכוי') {
+                if (item.צורך === 'זיכוי'  || item.צורך === 'שצל') {
                     const itemQty = item.כמות || 0;
 
                     if (currentQty - itemQty < 0) {
@@ -645,7 +644,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 חתימת_מחתים: permissions['signature'] ? String(permissions['signature']) : '',
                 מספר_אישי_מחתים: permissions['id'] ? String(permissions['id']) : '',
                 חתימה: dataURL,
-                צורך: !permissions['ammo'] ? 'זיכוי' : (item.צורך || 'ניפוק'),
+                צורך: dialogMode === 'דיווח' ? 'שצל' : (item.צורך || 'ניפוק'),
                 סטטוס: dialogMode,
                 משתמש: permissions['name'] || '',
                 פלוגה: selectedSheet.range,
@@ -655,7 +654,8 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             itemsToInsert.push(formattedItem);
 
             // If החתמה, create battalion entries
-            if (dialogMode === 'החתמה') {
+            if (dialogMode === 'החתמה' && item.צורך !== 'שצל') {
+                const need = (item.צורך === 'ניפוק') ? 'זיכוי' : 'ניפוק';
                 const battalionEntry = {
                     תאריך: formattedDate,
                     פריט: item.פריט,
@@ -663,11 +663,11 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                     שם_החותם: '',
                     חתימת_מחתים: '',
                     חתימה: '',
-                    צורך: (item.צורך === 'ניפוק') ? 'זיכוי' : 'ניפוק',
+                    צורך: need,
                     סטטוס: dialogMode,
                     משתמש: permissions['name'] || '',
                     פלוגה: 'גדוד',
-                    הערה: 'זיכוי מועבר מפלוגה ' + selectedSheet.range,
+                    הערה: item.צורך + ' מ' + selectedSheet.name,
                     is_explosion: isExplosion,
                 };
 
@@ -769,9 +769,9 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Function to create PDF export
     const handlePdfExport = async () => {
         try {
-            // Get active tab data to export from both tables, filtered by location
-            const ballDataToExport = (ballDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range);
-            const explosionDataToExport = (explosionDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range);
+            // Get active tab data to export from both tables, filtered by location and exclude שצל items
+            const ballDataToExport = (ballDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range && item.צורך !== 'שצל');
+            const explosionDataToExport = (explosionDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range && item.צורך !== 'שצל');
             const dataToExport = [...ballDataToExport, ...explosionDataToExport];
 
             if (dataToExport.length === 0) {
@@ -1065,7 +1065,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
             {/* Ball Ammo Grid */}
             <div className="mb-8">
-                <div className="flex justify-between items-center mb-2">
+                <div className="flex justify-start items-center gap-4 mb-2">
                     <h3 className="text-xl font-bold">קליעית</h3>
                     {(permissions['ammo']) && activeTab !== 'החתמה' && (
                         <Button
@@ -1077,7 +1077,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                         </Button>
                     )}
                 </div>
-                <div className="ag-theme-alpine w-[110vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
+                <div className="ag-theme-alpine w-[90vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
                     <AgGridReact
                         rowData={activeTab === 'החתמה' ? summarizedBallSignatureData : ballDataByStatus[activeTab] || []}
                         columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
@@ -1119,19 +1119,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
             {/* Explosion Ammo Grid */}
             <div className="mb-8">
-                <div className="flex justify-between items-center mb-2">
+                <div className="flex justify-start items-center gap-4 mb-2">
                     <h3 className="text-xl font-bold">נפיצה</h3>
-                    {(permissions['ammo']) && activeTab !== 'החתמה' && (
-                        <Button
-                            onClick={() => handleDeleteSelectedItems()}
-                            className="bg-red-500 hover:bg-red-600"
-                            disabled={selectedRows.length === 0}
-                        >
-                            מחיקת דיווח ({selectedRows.length})
-                        </Button>
-                    )}
                 </div>
-                <div className="ag-theme-alpine w-[110vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
+                <div className="ag-theme-alpine w-[90vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
                     <AgGridReact
                         rowData={activeTab === 'החתמה' ? summarizedExplosionSignatureData : explosionDataByStatus[activeTab] || []}
                         columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
@@ -1253,7 +1244,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                 <div>
                                     <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
                                     <Select
-                                        value={!permissions['ammo'] ? 'זיכוי' : (item.צורך || 'ניפוק')}
+                                        value={!permissions['ammo'] ? 'שצל' : (item.צורך || 'ניפוק')}
                                         onValueChange={(value) => {
                                             const newItems = [...items];
                                             newItems[index].צורך = value;
@@ -1265,8 +1256,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             <SelectValue placeholder="בחר צורך"/>
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="ניפוק">ניפוק</SelectItem>
-                                            <SelectItem value="זיכוי">זיכוי</SelectItem>
+                                            <SelectItem value="שצל">שצל</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -1407,6 +1397,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="ניפוק">ניפוק</SelectItem>
+                                            <SelectItem value="שצל">שצל</SelectItem>
                                             <SelectItem value="זיכוי">זיכוי</SelectItem>
                                         </SelectContent>
                                     </Select>

@@ -71,6 +71,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [loading, setLoading] = useState(true);
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
     const [uniqueItems, setUniqueItems] = useState<string[]>([]);
+    const [uniqueItemsWarehouse, setUniqueItemsWarehouse] = useState<string[]>([]);
 
     // Dialog states
     const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -199,9 +200,15 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const processWarehouseData = (data: LogisticItem[]) => {
         // Create a map to hold sums by item
         const itemSums = new Map<string, number>();
+        const uniqueItemsSet = new Set<string>();
 
         // Loop through each record
         data.forEach(item => {
+            // Add item to unique items set
+            if (item.פריט) {
+                uniqueItemsSet.add(item.פריט);
+            }
+
             // Calculate sum based on צורך (issue/credit)
             const currentSum = itemSums.get(item.פריט) || 0;
             const quantityChange = item.צורך === 'זיכוי' ? -item.כמות : item.כמות;
@@ -220,6 +227,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
         aggregated.sort((a, b) => a.פריט.localeCompare(b.פריט));
 
         setAggregatedDataWarehouse(aggregated);
+        setUniqueItemsWarehouse(Array.from(uniqueItemsSet));
     };
 
     // Add items to Supabase
@@ -367,6 +375,16 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
         try {
             setLoading(true);
 
+            // Validate that source and destination are different
+            if (transferFrom === transferTo) {
+                setStatusMessage({
+                    text: "לא ניתן להעביר פריטים לאותו מיקום",
+                    type: "error"
+                });
+                setLoading(false);
+                return;
+            }
+
             // Filter out items with empty fields
             const validItems = transferItems.filter(item => item.פריט && item.כמות > 0);
 
@@ -498,6 +516,14 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     useEffect(() => {
         fetchData();
     }, [selectedSheet.range]);
+
+    // Automatically adjust transferTo when transferFrom changes to prevent same-location transfers
+    useEffect(() => {
+        if (transferFrom === transferTo) {
+            setTransferTo(transferFrom === 'גדוד' ? 'מחסן' : 'גדוד');
+        }
+    }, [transferFrom]);
+
     return (
         <div className="p-4">
             {statusMessage.text && (
@@ -733,7 +759,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 <div className="flex-1">
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
-                                        options={uniqueItems.map(name => ({value: name, label: name}))}
+                                        options={(creditLocation === 'גדוד' ? uniqueItems : uniqueItemsWarehouse).map(name => ({value: name, label: name}))}
                                         value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
                                         onChange={(selectedOption) => {
                                             updateItem(
@@ -853,8 +879,8 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                         <SelectValue placeholder="בחר יעד" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="גדוד">גדוד</SelectItem>
-                                        <SelectItem value="מחסן">מחסן</SelectItem>
+                                        <SelectItem value="גדוד" disabled={transferFrom === "גדוד"}>גדוד</SelectItem>
+                                        <SelectItem value="מחסן" disabled={transferFrom === "מחסן"}>מחסן</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -865,7 +891,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 <div className="flex-1">
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
-                                        options={uniqueItems.map(name => ({value: name, label: name}))}
+                                        options={(transferFrom === 'גדוד' ? uniqueItems : uniqueItemsWarehouse).map(name => ({value: name, label: name}))}
                                         value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
                                         onChange={(selectedOption) => {
                                             updateItem(
