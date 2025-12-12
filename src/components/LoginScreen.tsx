@@ -167,6 +167,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                 onLoginSuccess(codeResponse);
                 setIsAuthenticated(true);
 
+                // Update last_login in background
+                const loginDate = new Date().toLocaleDateString('he-IL');
+                console.log('Attempting to update last_login to:', loginDate, 'for email:', email);
+                
+                const { data: updateData, error: updateError } = await supabase
+                    .from('users')
+                    .update({ "last_login": loginDate })
+                    .eq('email', email);
+                
+                if (updateError) {
+                    console.error('Failed to update last_login:', updateError);
+                } else {
+                    console.log('Last login updated successfully:', updateData);
+                }
+
             } catch (err) {
                 console.error('Login failed:', err)
                 alert('An error occurred during login. Please try again.')

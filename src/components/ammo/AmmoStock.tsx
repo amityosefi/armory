@@ -89,6 +89,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
     const [uniqueBallItems, setUniqueBallItems] = useState<string[]>([]);
     const [uniqueExplosionItems, setUniqueExplosionItems] = useState<string[]>([]);
+    const [uniqueBallItemsWarehouse, setUniqueBallItemsWarehouse] = useState<string[]>([]);
+    const [uniqueExplosionItemsWarehouse, setUniqueExplosionItemsWarehouse] = useState<string[]>([]);
     const [selectedTable, setSelectedTable] = useState<TableType>(false); // false = ball, true = explosion
 
     // Dialog states
@@ -181,8 +183,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         setRawExplosionDataWarehouse(explosionDataWarehouse as LogisticItem[]);
                         
                         // Process מחסן data for both types
-                        processData(ballDataWarehouse as LogisticItem[], false, setAggregatedBallDataWarehouse, () => {});
-                        processData(explosionDataWarehouse as LogisticItem[], true, setAggregatedExplosionDataWarehouse, () => {});
+                        processData(ballDataWarehouse as LogisticItem[], false, setAggregatedBallDataWarehouse, setUniqueBallItemsWarehouse);
+                        processData(explosionDataWarehouse as LogisticItem[], true, setAggregatedExplosionDataWarehouse, setUniqueExplosionItemsWarehouse);
                     }
                     
                     // Don't clear status message here to allow success messages to show
@@ -397,6 +399,16 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
         try {
             setLoading(true);
 
+            // Validate that source and destination are different
+            if (transferFrom === transferTo) {
+                setStatusMessage({
+                    text: "לא ניתן להעביר פריטים לאותו מיקום",
+                    type: "error"
+                });
+                setLoading(false);
+                return;
+            }
+
             // Filter out items with empty fields
             const validItems = transferItems.filter(item => item.פריט && item.כמות > 0);
 
@@ -541,6 +553,13 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     useEffect(() => {
         fetchData();
     }, [selectedSheet.range]);
+
+    // Automatically adjust transferTo when transferFrom changes to prevent same-location transfers
+    useEffect(() => {
+        if (transferFrom === transferTo) {
+            setTransferTo(transferFrom === 'גדוד' ? 'מחסן' : 'גדוד');
+        }
+    }, [transferFrom]);
 
     return (
         <div className="p-9">
@@ -723,8 +742,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
                                         options={!(item.is_explosion ?? selectedTable) ? 
-                                            uniqueBallItems.map(name => ({value: name, label: name})) :
-                                            uniqueExplosionItems.map(name => ({value: name, label: name}))}
+                                            Array.from(new Set([...uniqueBallItems, ...uniqueBallItemsWarehouse])).sort((a, b) => a.localeCompare(b)).map(name => ({value: name, label: name})) :
+                                            Array.from(new Set([...uniqueExplosionItems, ...uniqueExplosionItemsWarehouse])).sort((a, b) => a.localeCompare(b)).map(name => ({value: name, label: name}))}
                                         value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
                                         onChange={(selectedOption) => {
                                             updateItem(
@@ -874,7 +893,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                                 <SelectValue placeholder="בחר פריט" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {(!(item.is_explosion ?? selectedTable) ? uniqueBallItems : uniqueExplosionItems)
+                                                {(!(item.is_explosion ?? selectedTable) ? 
+                                                    Array.from(new Set([...uniqueBallItems, ...uniqueBallItemsWarehouse])).sort((a, b) => a.localeCompare(b)) : 
+                                                    Array.from(new Set([...uniqueExplosionItems, ...uniqueExplosionItemsWarehouse])).sort((a, b) => a.localeCompare(b)))
                                                     .map(name => (
                                                         <SelectItem key={name} value={name}>{name}</SelectItem>
                                                     ))
@@ -971,8 +992,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                         <SelectValue placeholder="מיקום יעד" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="גדוד">גדוד</SelectItem>
-                                        <SelectItem value="מחסן">מחסן</SelectItem>
+                                        <SelectItem value="גדוד" disabled={transferFrom === "גדוד"}>גדוד</SelectItem>
+                                        <SelectItem value="מחסן" disabled={transferFrom === "מחסן"}>מחסן</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -1012,7 +1033,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                                 <SelectValue placeholder="בחר פריט" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {(!(item.is_explosion ?? selectedTable) ? uniqueBallItems : uniqueExplosionItems)
+                                                {(!(item.is_explosion ?? selectedTable) ? 
+                                                    Array.from(new Set([...uniqueBallItems, ...uniqueBallItemsWarehouse])).sort((a, b) => a.localeCompare(b)) : 
+                                                    Array.from(new Set([...uniqueExplosionItems, ...uniqueExplosionItemsWarehouse])).sort((a, b) => a.localeCompare(b)))
                                                     .map(name => (
                                                         <SelectItem key={name} value={name}>{name}</SelectItem>
                                                     ))

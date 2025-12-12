@@ -184,7 +184,7 @@ const LogisticSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
                 pinned: 'right',
                 width: 150,
                 cellStyle: params => {
-                    if (params.data && params.data.פריט === 'סה״כ') {
+                    if (params.data?.פריט === 'סה״כ') {
                         return {fontWeight: 'bold', backgroundColor: '#f2f2f2'};
                     }
                     return null;
@@ -207,10 +207,10 @@ const LogisticSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
                     return '0';
                 },
                 cellStyle: params => {
-                    if (params.data && params.data.פריט === 'סה״כ') {
-                        return {fontWeight: 'bold', backgroundColor: '#f2f2f2'};
+                    if (params.data?.פריט === 'סה״כ') {
+                        return {fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'center'};
                     }
-                    return null;
+                    return {textAlign: 'center', fontWeight: 'normal', backgroundColor: 'transparent'};
                 }
             });
         });
@@ -229,14 +229,10 @@ const LogisticSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
                 return '0';
             },
             cellStyle: params => {
-                if (params.data) {
-                    if (params.data.פריט === 'סה״כ') {
-                        return {fontWeight: 'bold', backgroundColor: '#e6e6e6'};
-                    } else {
-                        return {fontWeight: 'bold', backgroundColor: 'transparent'};
-                    }
+                if (params.data?.פריט === 'סה״כ') {
+                    return {fontWeight: 'bold', backgroundColor: '#e6e6e6', textAlign: 'center'};
                 }
-                return null;
+                return {fontWeight: 'bold', backgroundColor: 'transparent', textAlign: 'center'};
             }
         });
 

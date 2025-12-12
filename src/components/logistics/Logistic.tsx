@@ -360,7 +360,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 field: 'סטטוס' as keyof LogisticItem, headerName: 'סטטוס', sortable: true, filter: true, width: 100,
                 editable: permissions['logistic'],
                 cellEditor: 'agSelectCellEditor',
-                cellEditorParams: {values: ['הזמנה', 'התעצמות', 'החתמה']},
+                cellEditorParams: {values: ['הזמנה', 'התעצמות']},
                 onCellValueChanged: async (params: any) => {
                     await handleStatusChange(params);
                 }
@@ -487,14 +487,29 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
             setOpen(false);
             setSignatureDialogOpen(false);
+            setLoading(false);
             return;
         }
         
         // Validate personal ID for החתמה mode
         if (dialogMode === 'החתמה' && !signerPersonalId) {
-            setStatusMessage({text: "יש למלא מספר אישי של החותם", type: "error"});
+            setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
+            setOpen(false);
             setLoading(false);
+            setSignatureDialogOpen(false);
             return;
+        }
+        
+        // Validate צורך for החתמה mode - only allow ניפוק or זיכוי
+        if (dialogMode === 'החתמה') {
+            const invalidItems = items.filter(item => item.צורך !== 'ניפוק' && item.צורך !== 'זיכוי');
+            if (invalidItems.length > 0) {
+                setStatusMessage({text: "בהחתמה ניתן לבחור רק ניפוק או זיכוי", type: "error"});
+                setOpen(false);
+                setLoading(false);
+                setSignatureDialogOpen(false);
+                return;
+            }
         }
         
         // Validate that זיכוי won't result in negative quantities in החתמה
@@ -551,8 +566,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         let formattedItems = items.map(item => ({
             תאריך: formattedDate,
             פריט: item.פריט,
-            // For החתמה: store negative for זיכוי. For הזמנה: always store positive
-            כמות: item.כמות,
+            כמות: (item.צורך === 'זיכוי') ? -(item.כמות || 0) : (item.כמות || 0),
             שם_החותם: signerName,
             מספר_אישי_החותם: signerPersonalId,
             מספר_אישי_מחתים: permissions['id'] || 0,
@@ -571,15 +585,14 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             const battalionEntries = items.map(item => ({
                 תאריך: formattedDate,
                 פריט: item.פריט,
-                // Opposite quantity logic: negative for issues, positive for credits
-                כמות: (item.צורך === 'זיכוי' && item.כמות !== undefined) ? (item.כמות || 0) : -(item.כמות || 0),
+                כמות: (item.צורך === 'זיכוי') ? (item.כמות || 0) : -(item.כמות || 0),
                 שם_החותם: '',
                 מספר_אישי_החותם: 0,
                 מספר_אישי_מחתים: 0,
                 חתימת_מחתים: '',
                 חתימה: '',
-                צורך: item.צורך || 'ניפוק',
-                הערה: item.הערה || '',
+                צורך: 'ניפוק',
+                הערה: '',
                 סטטוס: dialogMode,
                 משתמש: permissions['name'] || '',
                 פלוגה: 'גדוד', // Battalion inventory
@@ -628,7 +641,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         try {
             setLoading(true);
 
-            if (selectedRows.filter(row => row.נקרא).length > 0) {
+            if (selectedRows.filter(row => row.נקרא === 'כן').length > 0) {
                 setStatusMessage({text: `לא ניתן למחוק פריטים שנקראו`, type: "error"});
                 return;
             }
@@ -1125,7 +1138,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="ניפוק">ניפוק</SelectItem>
-                                            <SelectItem value="בלאי">בלאי/ החלפה</SelectItem>
+                                            <SelectItem value="בלאי" disabled={dialogMode === 'החתמה'}>בלאי/ החלפה</SelectItem>
                                             <SelectItem value="זיכוי">זיכוי</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -1300,7 +1313,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="ניפוק">ניפוק</SelectItem>
-                                            <SelectItem value="בלאי">בלאי/ החלפה</SelectItem>
+                                            <SelectItem value="בלאי" disabled={dialogMode === 'החתמה'}>בלאי/ החלפה</SelectItem>
                                             <SelectItem value="זיכוי">זיכוי</SelectItem>
                                         </SelectContent>
                                     </Select>
