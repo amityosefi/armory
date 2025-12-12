@@ -742,8 +742,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
                                         options={!(item.is_explosion ?? selectedTable) ? 
-                                            uniqueBallItems.map(name => ({value: name, label: name})) :
-                                            uniqueExplosionItems.map(name => ({value: name, label: name}))}
+                                            Array.from(new Set([...uniqueBallItems, ...uniqueBallItemsWarehouse])).sort((a, b) => a.localeCompare(b)).map(name => ({value: name, label: name})) :
+                                            Array.from(new Set([...uniqueExplosionItems, ...uniqueExplosionItemsWarehouse])).sort((a, b) => a.localeCompare(b)).map(name => ({value: name, label: name}))}
                                         value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
                                         onChange={(selectedOption) => {
                                             updateItem(
@@ -894,8 +894,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {(!(item.is_explosion ?? selectedTable) ? 
-                                                    (creditLocation === 'גדוד' ? uniqueBallItems : uniqueBallItemsWarehouse) : 
-                                                    (creditLocation === 'גדוד' ? uniqueExplosionItems : uniqueExplosionItemsWarehouse))
+                                                    Array.from(new Set([...uniqueBallItems, ...uniqueBallItemsWarehouse])).sort((a, b) => a.localeCompare(b)) : 
+                                                    Array.from(new Set([...uniqueExplosionItems, ...uniqueExplosionItemsWarehouse])).sort((a, b) => a.localeCompare(b)))
                                                     .map(name => (
                                                         <SelectItem key={name} value={name}>{name}</SelectItem>
                                                     ))
@@ -1034,8 +1034,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {(!(item.is_explosion ?? selectedTable) ? 
-                                                    (transferFrom === 'גדוד' ? uniqueBallItems : uniqueBallItemsWarehouse) : 
-                                                    (transferFrom === 'גדוד' ? uniqueExplosionItems : uniqueExplosionItemsWarehouse))
+                                                    Array.from(new Set([...uniqueBallItems, ...uniqueBallItemsWarehouse])).sort((a, b) => a.localeCompare(b)) : 
+                                                    Array.from(new Set([...uniqueExplosionItems, ...uniqueExplosionItemsWarehouse])).sort((a, b) => a.localeCompare(b)))
                                                     .map(name => (
                                                         <SelectItem key={name} value={name}>{name}</SelectItem>
                                                     ))

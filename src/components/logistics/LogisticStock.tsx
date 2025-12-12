@@ -638,7 +638,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 <div className="flex-1">
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
-                                        options={uniqueItems.map(name => ({value: name, label: name}))}
+                                        options={Array.from(new Set([...uniqueItems, ...uniqueItemsWarehouse])).sort((a, b) => a.localeCompare(b)).map(name => ({value: name, label: name}))}
                                         value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
                                         onChange={(selectedOption) => {
                                             updateItem(
@@ -759,7 +759,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 <div className="flex-1">
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
-                                        options={(creditLocation === 'גדוד' ? uniqueItems : uniqueItemsWarehouse).map(name => ({value: name, label: name}))}
+                                        options={Array.from(new Set([...uniqueItems, ...uniqueItemsWarehouse])).sort((a, b) => a.localeCompare(b)).map(name => ({value: name, label: name}))}
                                         value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
                                         onChange={(selectedOption) => {
                                             updateItem(
@@ -891,7 +891,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 <div className="flex-1">
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
-                                        options={(transferFrom === 'גדוד' ? uniqueItems : uniqueItemsWarehouse).map(name => ({value: name, label: name}))}
+                                        options={Array.from(new Set([...uniqueItems, ...uniqueItemsWarehouse])).sort((a, b) => a.localeCompare(b)).map(name => ({value: name, label: name}))}
                                         value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
                                         onChange={(selectedOption) => {
                                             updateItem(
