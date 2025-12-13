@@ -46,7 +46,12 @@ function App() {
                                 path="/admin"
                                 element={
                                     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4 w-full" dir="rtl">
-                                        <AdminPage />
+                                        <div className="w-full max-w-full md:px-4">
+                                            <NavBar
+                                                onSignOut={handleSignOut}
+                                            />
+                                            <AdminPage />
+                                        </div>
                                     </div>
                                 }
                             />

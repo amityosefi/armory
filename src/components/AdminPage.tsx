@@ -17,6 +17,7 @@ const AdminPage = () => {
 
     const navigate = useNavigate();
     const sigPadRef = useRef<SignaturePad>(null);
+    const tableContainerRef = useRef<HTMLDivElement>(null);
     const {permissions} = usePermissions();
     const [rowData, setRowData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -47,6 +48,7 @@ const AdminPage = () => {
         מכלול: false,
         פלסם: false,
         signature: "", // Add signature field
+        companyPermission: "", // Dropdown for company permissions
     });
 
     // User search state for delete form
@@ -104,10 +106,10 @@ const AdminPage = () => {
             width: 70,
             pinned: 'right' as const,
         },
-        {field: "name", headerName: "Name", width: 150, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
+        {field: "name", headerName: "שם", width: 150, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
         {
             field: "email",
-            headerName: "Email",
+            headerName: "אימייל",
             width: 200,
             filter: 'agTextColumnFilter',
             filterParams: { filterOptions: ['contains'], defaultOption: 'contains' },
@@ -118,17 +120,28 @@ const AdminPage = () => {
             }
         },
         {field: "id", headerName: "מספר אישי", width: 120, filter: 'agNumberColumnFilter'},
-        {field: "admin", headerName: "מנהל", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "armory", headerName: "נשקיה", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "ammo", headerName: "תחמושת", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "logistic", headerName: "לוגיסטיקה", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "א", headerName: "א", width: 80, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "ב", headerName: "ב", width: 80, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "ג", headerName: "ג", width: 80, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "מסייעת", headerName: "מסייעת", width: 100, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "אלון", headerName: "אלון", width: 80, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "מכלול", headerName: "מכלול", width: 80, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
-        {field: "פלסם", headerName: "פלסם", width: 80, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains'], defaultOption: 'contains' }},
+        {
+            headerName: "הרשאות",
+            width: 350,
+            filter: 'agTextColumnFilter',
+            filterParams: { filterOptions: ['contains'], defaultOption: 'contains' },
+            valueGetter: (params: any) => {
+                const user = params.data;
+                const permissions = [];
+                if (user.admin) permissions.push('מנהל');
+                if (user.armory) permissions.push('נשקיה');
+                if (user.logistic) permissions.push('לוגיסטיקה');
+                if (user.ammo) permissions.push('תחמושת');
+                if (user.א) permissions.push('א');
+                if (user.ב) permissions.push('ב');
+                if (user.ג) permissions.push('ג');
+                if (user.מסייעת) permissions.push('מסייעת');
+                if (user.אלון) permissions.push('אלון');
+                if (user.מכלול) permissions.push('מכלול');
+                if (user.פלסם) permissions.push('פלסם');
+                return permissions.join(', ');
+            }
+        },
     ], []);
 
     // Default column definition to ensure consistent alignment
@@ -159,6 +172,14 @@ const AdminPage = () => {
         fetchUsers();
     }, []);
 
+    // Scroll table to the right on mount and when data changes
+    useEffect(() => {
+        if (tableContainerRef.current) {
+            // Scroll to the right (start position for RTL)
+            tableContainerRef.current.scrollLeft = tableContainerRef.current.scrollWidth;
+        }
+    }, [rowData]);
+
     // Save signature
     const saveSignature = () => {
         if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
@@ -178,8 +199,9 @@ const AdminPage = () => {
         }
     };
 
-    const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const {name, value, type, checked} = e.target;
+    const handleNewUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const {name, value, type} = e.target;
+        const checked = (e.target as HTMLInputElement).checked;
         
         const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'פלסם', 'מכלול'];
         const otherPermissions = ['admin', 'armory', 'logistic', 'ammo'];
@@ -211,10 +233,11 @@ const AdminPage = () => {
             if (checked && otherPermissions.includes(name)) {
                 setNewUser(prev => {
                     const updated = {...prev, [name]: true};
-                    // Uncheck all company permissions
+                    // Uncheck all company permissions and reset dropdown
                     companyPermissions.forEach(perm => {
                         (updated as any)[perm] = false;
                     });
+                    (updated as any).companyPermission = '';
                     return updated;
                 });
                 return; // Exit early since we already set the state
@@ -345,6 +368,7 @@ const AdminPage = () => {
                     מכלול: false,
                     פלסם: false,
                     signature: "",
+                    companyPermission: "",
                 });
                 if (sigPadRef.current) {
                     sigPadRef.current.clear();
@@ -547,19 +571,23 @@ const AdminPage = () => {
                         </div>
 
                         <h3 className="font-medium mt-4 text-right">הרשאות:</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="flex items-center space-x-2">
-                                <label className="flex items-center space-x-2 text-right">
-                                    <input
-                                        type="checkbox"
-                                        name="admin"
-                                        checked={newUser.admin}
-                                        onChange={handleNewUserChange}
-                                        className="ml-2"
-                                    />
-                                    מנהל
-                                </label>
-                            </div>
+                        
+                        {/* Admin Checkbox */}
+                        <div className="mb-4">
+                            <label className="flex items-center space-x-2 text-right">
+                                <input
+                                    type="checkbox"
+                                    name="admin"
+                                    checked={newUser.admin}
+                                    onChange={handleNewUserChange}
+                                    className="ml-2"
+                                />
+                                מנהל
+                            </label>
+                        </div>
+
+                        {/* Armory, Logistic, Ammo Checkboxes */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div className="flex items-center space-x-2">
                                 <label className="flex items-center space-x-2 text-right">
                                     <input
@@ -596,90 +624,50 @@ const AdminPage = () => {
                                     תחמושת
                                 </label>
                             </div>
-                            <div className="flex items-center space-x-2">
-                                <label className="flex items-center space-x-2 text-right">
-                                    <input
-                                        type="checkbox"
-                                        name="א"
-                                        checked={newUser.א}
-                                        onChange={handleNewUserChange}
-                                        className="ml-2"
-                                    />
-                                    א
-                                </label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <label className="flex items-center space-x-2 text-right">
-                                    <input
-                                        type="checkbox"
-                                        name="ב"
-                                        checked={newUser.ב}
-                                        onChange={handleNewUserChange}
-                                        className="ml-2"
-                                    />
-                                    ב
-                                </label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <label className="flex items-center space-x-2 text-right">
-                                    <input
-                                        type="checkbox"
-                                        name="ג"
-                                        checked={newUser.ג}
-                                        onChange={handleNewUserChange}
-                                        className="ml-2"
-                                    />
-                                    ג
-                                </label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <label className="flex items-center space-x-2 text-right">
-                                    <input
-                                        type="checkbox"
-                                        name="מסייעת"
-                                        checked={newUser.מסייעת}
-                                        onChange={handleNewUserChange}
-                                        className="ml-2"
-                                    />
-                                    מסייעת
-                                </label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <label className="flex items-center space-x-2 text-right">
-                                    <input
-                                        type="checkbox"
-                                        name="אלון"
-                                        checked={newUser.אלון}
-                                        onChange={handleNewUserChange}
-                                        className="ml-2"
-                                    />
-                                    אלון
-                                </label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <label className="flex items-center space-x-2 text-right">
-                                    <input
-                                        type="checkbox"
-                                        name="מכלול"
-                                        checked={newUser.מכלול}
-                                        onChange={handleNewUserChange}
-                                        className="ml-2"
-                                    />
-                                    מכלול
-                                </label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <label className="flex items-center space-x-2 text-right">
-                                    <input
-                                        type="checkbox"
-                                        name="פלסם"
-                                        checked={newUser.פלסם}
-                                        onChange={handleNewUserChange}
-                                        className="ml-2"
-                                    />
-                                    פלסם
-                                </label>
-                            </div>
+                        </div>
+
+                        {/* Company Permissions Dropdown */}
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-right mb-2">פלוגה</label>
+                            <select
+                                name="companyPermission"
+                                value={newUser.companyPermission}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'פלסם', 'מכלול'];
+                                    const otherPermissions = ['admin', 'armory', 'logistic', 'ammo'];
+                                    
+                                    setNewUser(prev => {
+                                        const updated = {...prev, companyPermission: value};
+                                        
+                                        // Reset all company checkboxes
+                                        companyPermissions.forEach(perm => {
+                                            (updated as any)[perm] = false;
+                                        });
+                                        
+                                        // If a company is selected, set it and uncheck other permissions
+                                        if (value) {
+                                            (updated as any)[value] = true;
+                                            otherPermissions.forEach(perm => {
+                                                (updated as any)[perm] = false;
+                                            });
+                                        }
+                                        
+                                        return updated;
+                                    });
+                                }}
+                                className="mt-1 p-2 block w-full border border-gray-300 rounded text-right"
+                                dir="rtl"
+                            >
+                                <option value="">-- בחר פלוגה --</option>
+                                <option value="א">א</option>
+                                <option value="ב">ב</option>
+                                <option value="ג">ג</option>
+                                <option value="מסייעת">מסייעת</option>
+                                <option value="אלון">אלון</option>
+                                <option value="מכלול">מכלול</option>
+                                <option value="פלסם">פלסם</option>
+                            </select>
                         </div>
 
                         <div className="flex justify-end mt-4">
@@ -754,7 +742,202 @@ const AdminPage = () => {
                 </div>
             )}
 
-            <div className="ag-theme-alpine w-full h-[40vh] mb-8" style={{direction: "rtl"}}>
+            {/* User Cards Section - Moved above table */}
+            <div className="mb-8 space-y-6">
+                {/* מנהלים Users - First */}
+                {rowData.filter(u => u.admin).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">מנהלים</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.admin).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* נשקיה Users */}
+                {rowData.filter(u => u.armory).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">נשקיה</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.armory).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* לוגיסטיקה Users */}
+                {rowData.filter(u => u.logistic).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">לוגיסטיקה</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.logistic).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* תחמושת Users */}
+                {rowData.filter(u => u.ammo).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">תחמושת</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.ammo).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Additional User Cards Section - Company permissions */}
+            <div className="mt-8 space-y-6">
+
+                {/* Company א */}
+                {rowData.filter(u => u.א).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">פלוגה א</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.א).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Company ב */}
+                {rowData.filter(u => u.ב).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">פלוגה ב</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.ב).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Company ג */}
+                {rowData.filter(u => u.ג).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">פלוגה ג</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.ג).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Company מסייעת */}
+                {rowData.filter(u => u.מסייעת).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">פלוגה מסייעת</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.מסייעת).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Company אלון */}
+                {rowData.filter(u => u.אלון).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">פלוגה אלון</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.אלון).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Company מכלול */}
+                {rowData.filter(u => u.מכלול).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">פלוגה מכלול</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.מכלול).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Company פלסם */}
+                {rowData.filter(u => u.פלסם).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">פלוגה פלסם</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.פלסם).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-lime-500 to-lime-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* AG Grid Table - Moved to bottom */}
+            <div ref={tableContainerRef} className="ag-theme-alpine w-full h-[40vh] mt-8 overflow-x-auto" style={{direction: "rtl"}}>
                 <style>
                     {`
                     .ag-right-aligned-header .ag-header-cell-label {

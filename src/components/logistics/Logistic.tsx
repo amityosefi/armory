@@ -143,22 +143,41 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             try {
                 setLoading(true);
                 
-                // Fetch data for both current פלוגה and גדוד
-                const {data, error} = await supabase
-                    .from("logistic")
-                    .select("*")
-                    .in("פלוגה", [selectedSheet.range, "גדוד"]);
+                // Fetch data for both current פלוגה and גדוד in chunks
+                let allData: LogisticItem[] = [];
+                let offset = 0;
+                const chunkSize = 1000;
+                let hasMore = true;
 
-                if (error) {
-                    console.error("Error fetching data:", error);
-                    setStatusMessage({
-                        text: `שגיאה בטעינת נתונים: ${error.message}`,
-                        type: "error"
-                    });
-                } else {
-                    // @ts-ignore
-                    setRowData(data || []);
+                while (hasMore) {
+                    const {data, error} = await supabase
+                        .from("logistic")
+                        .select("*")
+                        .in("פלוגה", [selectedSheet.range, "גדוד"])
+                        .range(offset, offset + chunkSize - 1);
+
+                    if (error) {
+                        console.error("Error fetching data:", error);
+                        setStatusMessage({
+                            text: `שגיאה בטעינת נתונים: ${error.message}`,
+                            type: "error"
+                        });
+                        break;
+                    }
+
+                    if (data && data.length > 0) {
+                        // @ts-ignore
+                        allData = [...allData, ...(data as LogisticItem[])];
+                        offset += chunkSize;
+                        hasMore = data.length === chunkSize;
+                    } else {
+                        hasMore = false;
+                    }
                 }
+
+                // @ts-ignore
+                setRowData(allData);
+
             } catch (err: any) {
                 console.error("Unexpected error:", err);
                 setStatusMessage({
@@ -1374,12 +1393,17 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             <Label htmlFor="signer-personal-id" className="text-right block mb-2">מספר אישי של החותם</Label>
                             <Input
                                 id="signer-personal-id"
-                                type="number"
-                                value={signerPersonalId || ''}
-                                onChange={(e) => setSignerPersonalId(parseInt(e.target.value) || 0)}
-                                className="text-right mb-4"
+                                type="text"
                                 inputMode="numeric"
-                                pattern="[0-9]*"
+                                value={signerPersonalId === 0 ? '' : signerPersonalId}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (value === '' || /^[1-9]\d*$/.test(value)) {
+                                        setSignerPersonalId(value === '' ? 0 : parseInt(value, 10));
+                                    }
+                                }}
+                                className="text-right mb-4"
+                                placeholder="מספר אישי"
                             />
                         </div>
 

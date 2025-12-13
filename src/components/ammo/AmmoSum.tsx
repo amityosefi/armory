@@ -63,21 +63,37 @@ const AmmoSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
             try {
                 setLoading(true);
                 
-                // Fetch all ammo data from unified table
-                const ammoResponse = await supabase
-                    .from("ammo")
-                    .select("*")
-                    .eq("סטטוס", "החתמה"); // We only want items with status "החתמה"
+                // Fetch all ammo data from unified table in chunks
+                let allAmmoData: LogisticItem[] = [];
+                let offset = 0;
+                const chunkSize = 1000;
+                let hasMore = true;
 
-                if (ammoResponse.error) {
-                    console.error("Error fetching ammo data:", ammoResponse.error);
-                } else {
-                    // @ts-ignore
-                    const allData = (ammoResponse.data as LogisticItem[]) || [];
-                    // Split data by is_explosion flag
-                    setBallData(allData.filter((item: LogisticItem) => !item.is_explosion));
-                    setExplosionData(allData.filter((item: LogisticItem) => item.is_explosion));
+                while (hasMore) {
+                    const ammoResponse = await supabase
+                        .from("ammo")
+                        .select("*")
+                        .eq("סטטוס", "החתמה")
+                        .range(offset, offset + chunkSize - 1);
+
+                    if (ammoResponse.error) {
+                        console.error("Error fetching ammo data:", ammoResponse.error);
+                        break;
+                    }
+
+                    if (ammoResponse.data && ammoResponse.data.length > 0) {
+                        // @ts-ignore
+                        allAmmoData = [...allAmmoData, ...(ammoResponse.data as LogisticItem[])];
+                        offset += chunkSize;
+                        hasMore = ammoResponse.data.length === chunkSize;
+                    } else {
+                        hasMore = false;
+                    }
                 }
+
+                // Split data by is_explosion flag
+                setBallData(allAmmoData.filter((item: LogisticItem) => !item.is_explosion));
+                setExplosionData(allAmmoData.filter((item: LogisticItem) => item.is_explosion));
                 
             } catch (err: any) {
                 console.error("Unexpected error:", err);

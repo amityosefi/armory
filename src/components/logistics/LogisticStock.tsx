@@ -119,35 +119,80 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             try {
                 setLoading(true);
                 
-                // Fetch גדוד data
-                const {data: gadudData, error: gadudError} = await supabase
-                    .from("logistic")
-                    .select("*")
-                    .eq("פלוגה", selectedSheet.range);
+                // Fetch גדוד data in chunks
+                let allGadudData: LogisticItem[] = [];
+                let offset = 0;
+                const chunkSize = 1000;
+                let hasMore = true;
 
-                // Fetch מחסן data
-                const {data: warehouseData, error: warehouseError} = await supabase
-                    .from("logistic")
-                    .select("*")
-                    .eq("פלוגה", "מחסן");
+                while (hasMore) {
+                    const {data: gadudData, error: gadudError} = await supabase
+                        .from("logistic")
+                        .select("*")
+                        .eq("פלוגה", selectedSheet.range)
+                        .range(offset, offset + chunkSize - 1);
 
-                if (gadudError || warehouseError) {
-                    console.error("Error fetching data:", gadudError || warehouseError);
-                    setStatusMessage({
-                        text: `שגיאה בטעינת נתונים: ${(gadudError || warehouseError)?.message}`,
-                        type: "error"
-                    });
-                } else {
-                    // @ts-ignore
-                    setRawData(gadudData || []);
-                    // @ts-ignore
-                    processData(gadudData || []);
-                    
-                    // @ts-ignore
-                    setRawDataWarehouse(warehouseData || []);
-                    // @ts-ignore
-                    processWarehouseData(warehouseData || []);
+                    if (gadudError) {
+                        console.error("Error fetching gadud data:", gadudError);
+                        setStatusMessage({
+                            text: `שגיאה בטעינת נתונים: ${gadudError.message}`,
+                            type: "error"
+                        });
+                        break;
+                    }
+
+                    if (gadudData && gadudData.length > 0) {
+                        // @ts-ignore
+                        allGadudData = [...allGadudData, ...(gadudData as LogisticItem[])];
+                        offset += chunkSize;
+                        hasMore = gadudData.length === chunkSize;
+                    } else {
+                        hasMore = false;
+                    }
                 }
+
+                // Fetch מחסן data in chunks
+                let allWarehouseData: LogisticItem[] = [];
+                offset = 0;
+                hasMore = true;
+
+                while (hasMore) {
+                    const {data: warehouseData, error: warehouseError} = await supabase
+                        .from("logistic")
+                        .select("*")
+                        .eq("פלוגה", "מחסן")
+                        .range(offset, offset + chunkSize - 1);
+
+                    if (warehouseError) {
+                        console.error("Error fetching warehouse data:", warehouseError);
+                        setStatusMessage({
+                            text: `שגיאה בטעינת נתוני מחסן: ${warehouseError.message}`,
+                            type: "error"
+                        });
+                        break;
+                    }
+
+                    if (warehouseData && warehouseData.length > 0) {
+                        // @ts-ignore
+                        allWarehouseData = [...allWarehouseData, ...(warehouseData as LogisticItem[])];
+                        offset += chunkSize;
+                        hasMore = warehouseData.length === chunkSize;
+                    } else {
+                        hasMore = false;
+                    }
+                }
+
+                // Process all data
+                // @ts-ignore
+                setRawData(allGadudData);
+                // @ts-ignore
+                processData(allGadudData);
+                
+                // @ts-ignore
+                setRawDataWarehouse(allWarehouseData);
+                // @ts-ignore
+                processWarehouseData(allWarehouseData);
+
             } catch (err: any) {
                 console.error("Unexpected error:", err);
                 setStatusMessage({

@@ -137,25 +137,42 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             try {
                 setLoading(true);
 
-                // Fetch all ammo data
-                const {data: ammoData, error: ammoError} = await supabase
-                    .from('ammo')
-                    .select("*")
-                    .in("פלוגה", [selectedSheet.range, 'גדוד']);
+                // Fetch all ammo data in chunks of 1000
+                let allAmmoData: LogisticItem[] = [];
+                let offset = 0;
+                const chunkSize = 1000;
+                let hasMore = true;
 
-                if (ammoError) {
-                    console.error("Error fetching ammo data:", ammoError);
-                    setStatusMessage({
-                        text: `שגיאה בטעינת נתוני תחמושת: ${ammoError.message}`,
-                        type: "error"
-                    });
-                } else {
-                    // @ts-ignore
-                    const allData = (ammoData as LogisticItem[]) || [];
-                    // Split data by is_explosion flag
-                    setBallRowData(allData.filter((item: LogisticItem) => !item.is_explosion));
-                    setExplosionRowData(allData.filter((item: LogisticItem) => item.is_explosion));
+                while (hasMore) {
+                    const {data: ammoData, error: ammoError} = await supabase
+                        .from('ammo')
+                        .select("*")
+                        .in("פלוגה", [selectedSheet.range, 'גדוד'])
+                        .range(offset, offset + chunkSize - 1);
+
+                    if (ammoError) {
+                        console.error("Error fetching ammo data:", ammoError);
+                        setStatusMessage({
+                            text: `שגיאה בטעינת נתוני תחמושת: ${ammoError.message}`,
+                            type: "error"
+                        });
+                        break;
+                    }
+
+                    if (ammoData && ammoData.length > 0) {
+                        // @ts-ignore
+                        allAmmoData = [...allAmmoData, ...(ammoData as LogisticItem[])];
+                        offset += chunkSize;
+                        hasMore = ammoData.length === chunkSize;
+                    } else {
+                        hasMore = false;
+                    }
                 }
+
+                // Split data by is_explosion flag
+                setBallRowData(allAmmoData.filter((item: LogisticItem) => !item.is_explosion));
+                setExplosionRowData(allAmmoData.filter((item: LogisticItem) => item.is_explosion));
+
             } catch (err: any) {
                 console.error("Unexpected error:", err);
                 setStatusMessage({
@@ -350,8 +367,8 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
         });
 
-        // Convert map to array
-        return Array.from(itemSummary.values());
+        // Convert map to array and filter out items with כמות = 0
+        return Array.from(itemSummary.values()).filter(item => item.כמות !== 0);
     }, [ballDataByStatus]);
 
     // Create summary data for החתמה table - Explosion
@@ -401,8 +418,8 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
         });
 
-        // Convert map to array
-        return Array.from(itemSummary.values());
+        // Convert map to array and filter out items with כמות = 0
+        return Array.from(itemSummary.values()).filter(item => item.כמות !== 0);
     }, [explosionDataByStatus]);
 
     // AG Grid column definitions
@@ -1077,7 +1094,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                         </Button>
                     )}
                 </div>
-                <div className="ag-theme-alpine w-[90vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
+                <div className="ag-theme-alpine w-[60vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
                     <AgGridReact
                         rowData={activeTab === 'החתמה' ? summarizedBallSignatureData : ballDataByStatus[activeTab] || []}
                         columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
@@ -1122,7 +1139,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 <div className="flex justify-start items-center gap-4 mb-2">
                     <h3 className="text-xl font-bold">נפיצה</h3>
                 </div>
-                <div className="ag-theme-alpine w-[90vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
+                <div className="ag-theme-alpine w-[60vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
                     <AgGridReact
                         rowData={activeTab === 'החתמה' ? summarizedExplosionSignatureData : explosionDataByStatus[activeTab] || []}
                         columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
@@ -1444,9 +1461,15 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             <Label htmlFor="signer-personal-id" className="text-right block mb-2">מספר אישי של החותם</Label>
                             <Input
                                 id="signer-personal-id"
-                                type="number"
-                                value={signerPersonalId}
-                                onChange={(e) => setSignerPersonalId(parseInt(e.target.value, 10) || 0)}
+                                type="text"
+                                inputMode="numeric"
+                                value={signerPersonalId === 0 ? '' : signerPersonalId}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (value === '' || /^[1-9]\d*$/.test(value)) {
+                                        setSignerPersonalId(value === '' ? 0 : parseInt(value, 10));
+                                    }
+                                }}
                                 className="text-right mb-4"
                                 placeholder="מספר אישי"
                             />

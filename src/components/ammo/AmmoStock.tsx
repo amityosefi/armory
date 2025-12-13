@@ -141,53 +141,88 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             try {
                 setLoading(true);
                 
-                // Fetch גדוד data
-                const ammoResponse = await supabase
-                    .from("ammo")
-                    .select("*")
-                    .eq("פלוגה", selectedSheet.range);
+                // Fetch גדוד data in chunks
+                let allGdudData: LogisticItem[] = [];
+                let offset = 0;
+                const chunkSize = 1000;
+                let hasMore = true;
 
-                // Fetch מחסן data
-                const warehouseResponse = await supabase
-                    .from("ammo")
-                    .select("*")
-                    .eq("פלוגה", "מחסן");
+                while (hasMore) {
+                    const ammoResponse = await supabase
+                        .from("ammo")
+                        .select("*")
+                        .eq("פלוגה", selectedSheet.range)
+                        .range(offset, offset + chunkSize - 1);
 
-                if (ammoResponse.error) {
-                    console.error("Error fetching ammo data:", ammoResponse.error);
-                    setStatusMessage({
-                        text: `שגיאה בטעינת נתוני תחמושת: ${ammoResponse.error.message}`,
-                        type: "error"
-                    });
-                } else {
-                    // Process גדוד data
-                    // @ts-ignore
-                    const allData = (ammoResponse.data as LogisticItem[]) || [];
-                    const ballData = allData.filter((item: LogisticItem) => !item.is_explosion);
-                    const explosionData = allData.filter((item: LogisticItem) => item.is_explosion);
-                    
-                    setRawBallData(ballData as LogisticItem[]);
-                    setRawExplosionData(explosionData as LogisticItem[]);
-                    
-                    // Process גדוד data for both types
-                    processData(ballData as LogisticItem[], false, setAggregatedBallData, setUniqueBallItems);
-                    processData(explosionData as LogisticItem[], true, setAggregatedExplosionData, setUniqueExplosionItems);
-                    
-                    // Process מחסן data
-                    if (!warehouseResponse.error && warehouseResponse.data) {
-                        const warehouseData = (warehouseResponse.data as LogisticItem[]) || [];
-                        const ballDataWarehouse = warehouseData.filter((item: LogisticItem) => !item.is_explosion);
-                        const explosionDataWarehouse = warehouseData.filter((item: LogisticItem) => item.is_explosion);
-                        
-                        setRawBallDataWarehouse(ballDataWarehouse as LogisticItem[]);
-                        setRawExplosionDataWarehouse(explosionDataWarehouse as LogisticItem[]);
-                        
-                        // Process מחסן data for both types
-                        processData(ballDataWarehouse as LogisticItem[], false, setAggregatedBallDataWarehouse, setUniqueBallItemsWarehouse);
-                        processData(explosionDataWarehouse as LogisticItem[], true, setAggregatedExplosionDataWarehouse, setUniqueExplosionItemsWarehouse);
+                    if (ammoResponse.error) {
+                        console.error("Error fetching ammo data:", ammoResponse.error);
+                        setStatusMessage({
+                            text: `שגיאה בטעינת נתוני תחמושת: ${ammoResponse.error.message}`,
+                            type: "error"
+                        });
+                        break;
                     }
+
+                    if (ammoResponse.data && ammoResponse.data.length > 0) {
+                        // @ts-ignore
+                        allGdudData = [...allGdudData, ...(ammoResponse.data as LogisticItem[])];
+                        offset += chunkSize;
+                        hasMore = ammoResponse.data.length === chunkSize;
+                    } else {
+                        hasMore = false;
+                    }
+                }
+
+                // Fetch מחסן data in chunks
+                let allWarehouseData: LogisticItem[] = [];
+                offset = 0;
+                hasMore = true;
+
+                while (hasMore) {
+                    const warehouseResponse = await supabase
+                        .from("ammo")
+                        .select("*")
+                        .eq("פלוגה", "מחסן")
+                        .range(offset, offset + chunkSize - 1);
+
+                    if (warehouseResponse.error) {
+                        console.error("Error fetching warehouse data:", warehouseResponse.error);
+                        break;
+                    }
+
+                    if (warehouseResponse.data && warehouseResponse.data.length > 0) {
+                        // @ts-ignore
+                        allWarehouseData = [...allWarehouseData, ...(warehouseResponse.data as LogisticItem[])];
+                        offset += chunkSize;
+                        hasMore = warehouseResponse.data.length === chunkSize;
+                    } else {
+                        hasMore = false;
+                    }
+                }
+
+                // Process גדוד data
+                const ballData = allGdudData.filter((item: LogisticItem) => !item.is_explosion);
+                const explosionData = allGdudData.filter((item: LogisticItem) => item.is_explosion);
+                
+                setRawBallData(ballData as LogisticItem[]);
+                setRawExplosionData(explosionData as LogisticItem[]);
+                
+                // Process גדוד data for both types
+                processData(ballData as LogisticItem[], false, setAggregatedBallData, setUniqueBallItems);
+                processData(explosionData as LogisticItem[], true, setAggregatedExplosionData, setUniqueExplosionItems);
+                
+                // Process מחסן data
+                if (allWarehouseData.length > 0) {
+                    const warehouseData = allWarehouseData;
+                    const ballDataWarehouse = warehouseData.filter((item: LogisticItem) => !item.is_explosion);
+                    const explosionDataWarehouse = warehouseData.filter((item: LogisticItem) => item.is_explosion);
                     
-                    // Don't clear status message here to allow success messages to show
+                    setRawBallDataWarehouse(ballDataWarehouse as LogisticItem[]);
+                    setRawExplosionDataWarehouse(explosionDataWarehouse as LogisticItem[]);
+                    
+                    // Process מחסן data for both types
+                    processData(ballDataWarehouse as LogisticItem[], false, setAggregatedBallDataWarehouse, setUniqueBallItemsWarehouse);
+                    processData(explosionDataWarehouse as LogisticItem[], true, setAggregatedExplosionDataWarehouse, setUniqueExplosionItemsWarehouse);
                 }
             } catch (err: any) {
                 console.error("Unexpected error:", err);

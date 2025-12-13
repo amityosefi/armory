@@ -56,17 +56,38 @@ const LogisticSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
         if (permissions['logistic'] || permissions['admin']) {
             try {
                 setLoading(true);
-                const {data, error} = await supabase
-                    .from("logistic")
-                    .select("*")
-                    .eq("סטטוס", "החתמה"); // We only want items with status "החתמה"
+                
+                // Fetch data in chunks of 1000
+                let allData: LogisticItem[] = [];
+                let offset = 0;
+                const chunkSize = 1000;
+                let hasMore = true;
 
-                if (error) {
-                    console.error("Error fetching data:", error);
-                } else {
-                    // @ts-ignore
-                    setLogisticData(data || []);
+                while (hasMore) {
+                    const {data, error} = await supabase
+                        .from("logistic")
+                        .select("*")
+                        .eq("סטטוס", "החתמה")
+                        .range(offset, offset + chunkSize - 1);
+
+                    if (error) {
+                        console.error("Error fetching data:", error);
+                        break;
+                    }
+
+                    if (data && data.length > 0) {
+                        // @ts-ignore
+                        allData = [...allData, ...(data as LogisticItem[])];
+                        offset += chunkSize;
+                        hasMore = data.length === chunkSize;
+                    } else {
+                        hasMore = false;
+                    }
                 }
+
+                // @ts-ignore
+                setLogisticData(allData);
+
             } catch (err: any) {
                 console.error("Unexpected error:", err);
             } finally {

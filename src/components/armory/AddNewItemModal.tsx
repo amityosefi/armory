@@ -103,7 +103,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({
 
             if (error) throw error;
 
-            onSuccess(`פריט ${formData.id} - ${formData.name} נוסף בהצלחה`);
+            onSuccess(`פריט חדש נוסף בהצלחה | סוג: ${formData.kind} | שם: ${formData.name} | צ: ${formData.id} | מיקום: ${formData.location}`);
             handleReset();
             onClose();
         } catch (err: any) {
@@ -169,6 +169,7 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({
                                     {kind}
                                 </option>
                             ))}
+                            <option value="ציוד">ציוד</option>
                         </select>
                     </div>
 
