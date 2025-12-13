@@ -143,22 +143,41 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             try {
                 setLoading(true);
                 
-                // Fetch data for both current פלוגה and גדוד
-                const {data, error} = await supabase
-                    .from("logistic")
-                    .select("*")
-                    .in("פלוגה", [selectedSheet.range, "גדוד"]);
+                // Fetch data for both current פלוגה and גדוד in chunks
+                let allData: LogisticItem[] = [];
+                let offset = 0;
+                const chunkSize = 1000;
+                let hasMore = true;
 
-                if (error) {
-                    console.error("Error fetching data:", error);
-                    setStatusMessage({
-                        text: `שגיאה בטעינת נתונים: ${error.message}`,
-                        type: "error"
-                    });
-                } else {
-                    // @ts-ignore
-                    setRowData(data || []);
+                while (hasMore) {
+                    const {data, error} = await supabase
+                        .from("logistic")
+                        .select("*")
+                        .in("פלוגה", [selectedSheet.range, "גדוד"])
+                        .range(offset, offset + chunkSize - 1);
+
+                    if (error) {
+                        console.error("Error fetching data:", error);
+                        setStatusMessage({
+                            text: `שגיאה בטעינת נתונים: ${error.message}`,
+                            type: "error"
+                        });
+                        break;
+                    }
+
+                    if (data && data.length > 0) {
+                        // @ts-ignore
+                        allData = [...allData, ...(data as LogisticItem[])];
+                        offset += chunkSize;
+                        hasMore = data.length === chunkSize;
+                    } else {
+                        hasMore = false;
+                    }
                 }
+
+                // @ts-ignore
+                setRowData(allData);
+
             } catch (err: any) {
                 console.error("Unexpected error:", err);
                 setStatusMessage({

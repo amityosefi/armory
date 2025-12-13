@@ -137,25 +137,42 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             try {
                 setLoading(true);
 
-                // Fetch all ammo data
-                const {data: ammoData, error: ammoError} = await supabase
-                    .from('ammo')
-                    .select("*")
-                    .in("פלוגה", [selectedSheet.range, 'גדוד']);
+                // Fetch all ammo data in chunks of 1000
+                let allAmmoData: LogisticItem[] = [];
+                let offset = 0;
+                const chunkSize = 1000;
+                let hasMore = true;
 
-                if (ammoError) {
-                    console.error("Error fetching ammo data:", ammoError);
-                    setStatusMessage({
-                        text: `שגיאה בטעינת נתוני תחמושת: ${ammoError.message}`,
-                        type: "error"
-                    });
-                } else {
-                    // @ts-ignore
-                    const allData = (ammoData as LogisticItem[]) || [];
-                    // Split data by is_explosion flag
-                    setBallRowData(allData.filter((item: LogisticItem) => !item.is_explosion));
-                    setExplosionRowData(allData.filter((item: LogisticItem) => item.is_explosion));
+                while (hasMore) {
+                    const {data: ammoData, error: ammoError} = await supabase
+                        .from('ammo')
+                        .select("*")
+                        .in("פלוגה", [selectedSheet.range, 'גדוד'])
+                        .range(offset, offset + chunkSize - 1);
+
+                    if (ammoError) {
+                        console.error("Error fetching ammo data:", ammoError);
+                        setStatusMessage({
+                            text: `שגיאה בטעינת נתוני תחמושת: ${ammoError.message}`,
+                            type: "error"
+                        });
+                        break;
+                    }
+
+                    if (ammoData && ammoData.length > 0) {
+                        // @ts-ignore
+                        allAmmoData = [...allAmmoData, ...(ammoData as LogisticItem[])];
+                        offset += chunkSize;
+                        hasMore = ammoData.length === chunkSize;
+                    } else {
+                        hasMore = false;
+                    }
                 }
+
+                // Split data by is_explosion flag
+                setBallRowData(allAmmoData.filter((item: LogisticItem) => !item.is_explosion));
+                setExplosionRowData(allAmmoData.filter((item: LogisticItem) => item.is_explosion));
+
             } catch (err: any) {
                 console.error("Unexpected error:", err);
                 setStatusMessage({

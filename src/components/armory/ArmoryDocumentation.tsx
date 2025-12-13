@@ -62,21 +62,41 @@ const ArmoryDocumentation: React.FC = () => {
         try {
             if (!permissions['armory'] && !permissions['admin']) return;
             setLoading(true);
-            const {data, error} = await supabase
-                .from("armory_document")
-                .select("*");
+            
+            // Fetch data in chunks of 1000
+            let allData: any[] = [];
+            let offset = 0;
+            const chunkSize = 1000;
+            let hasMore = true;
 
-            if (error) {
-                console.error("Error fetching data:", error);
-            } else {
-                // Sort data by date in ascending order (oldest first)
-                const sortedData = (data || []).sort((a, b) => {
-                    const dateA = parseHebrewDate((a['תאריך'] as string) || '');
-                    const dateB = parseHebrewDate((b['תאריך'] as string) || '');
-                    return dateA.getTime() - dateB.getTime(); // Ascending order
-                });
-                setRowData([...sortedData].reverse());
+            while (hasMore) {
+                const {data, error} = await supabase
+                    .from("armory_document")
+                    .select("*")
+                    .range(offset, offset + chunkSize - 1);
+
+                if (error) {
+                    console.error("Error fetching data:", error);
+                    break;
+                }
+
+                if (data && data.length > 0) {
+                    allData = [...allData, ...data];
+                    offset += chunkSize;
+                    hasMore = data.length === chunkSize;
+                } else {
+                    hasMore = false;
+                }
             }
+
+            // Sort data by date in ascending order (oldest first)
+            const sortedData = allData.sort((a, b) => {
+                const dateA = parseHebrewDate((a['תאריך'] as string) || '');
+                const dateB = parseHebrewDate((b['תאריך'] as string) || '');
+                return dateA.getTime() - dateB.getTime(); // Ascending order
+            });
+            setRowData([...sortedData].reverse());
+
         } catch (err: any) {
             console.error("Unexpected error:", err);
         } finally {
