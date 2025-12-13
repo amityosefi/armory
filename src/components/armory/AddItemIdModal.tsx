@@ -203,17 +203,32 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
                 }
 
                 // Insert all items
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from("armory_items")
-                    .insert(itemsToAdd);
+                    .insert(itemsToAdd)
+                    .select();
 
-                if (error) throw error;
+                if (error) {
+                    // Check for duplicate key error
+                    if (error.code === '23505') {
+                        onError(`שגיאה: קיימים מספרים כפולים במערכת`);
+                    } else {
+                        onError(`שגיאה בהוספת פריטים: ${error.message}`);
+                    }
+                    onClose();
+                    handleReset();
+                    setLoading(false);
+                    return;
+                }
 
+                // Success
                 const message = existingIds.length > 0
-                    ? `נוספו ${itemsToAdd.length} פריטים בהצלחה. מספרים קיימים שדולגו: ${existingIds.join(', ')}`
-                    : `נוספו ${itemsToAdd.length} פריטים (${start}-${end}) בהצלחה`;
+                    ? `נוספו ${itemsToAdd.length} פריטים בהצלחה | סוג: ${selectedKind} | שם: ${selectedName} | מיקום: ${selectedLocation} | טווח: ${start}-${end} | צ קיימים שדולגו: ${existingIds.join(', ')}`
+                    : `נוספו ${itemsToAdd.length} פריטים בהצלחה | סוג: ${selectedKind} | שם: ${selectedName} | מיקום: ${selectedLocation} | טווח צ: ${start}-${end}`;
 
                 onSuccess(message);
+                onClose();
+                handleReset();
             } else {
                 // Single item mode
                 const { data: existingNewItem } = await supabase
@@ -228,7 +243,7 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
                     return;
                 }
 
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from("armory_items")
                     .insert([
                         {
@@ -237,18 +252,32 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
                             kind: selectedKind,
                             location: selectedLocation,
                         },
-                    ]);
+                    ])
+                    .select();
 
-                if (error) throw error;
+                if (error) {
+                    // Check for duplicate key error
+                    if (error.code === '23505') {
+                        onError(`שגיאה: מספר ${newId} כבר קיים במערכת`);
+                    } else {
+                        onError(`שגיאה בהוספת פריט: ${error.message}`);
+                    }
+                    onClose();
+                    handleReset();
+                    setLoading(false);
+                    return;
+                }
 
-                onSuccess(`פריט ${newId} - ${selectedName} נוסף בהצלחה | מיקום: ${selectedLocation}`);
+                // Success
+                onSuccess(`פריט נוסף בהצלחה | סוג: ${selectedKind} | שם: ${selectedName} | מספר: ${newId} | מיקום: ${selectedLocation}`);
+                onClose();
+                handleReset();
             }
-
-            onClose();
-            handleReset();
         } catch (err: any) {
             console.error("Error adding item:", err);
-            onError(`שגיאה בהוספת פריט: ${err.message}`);
+            onError(`שגיאה לא צפויה: ${err.message}`);
+            onClose();
+            handleReset();
         } finally {
             setLoading(false);
         }
@@ -280,7 +309,7 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
                     <div className="flex items-center gap-3 justify-end">
                         <div className="text-right">
                             <DialogTitle className="text-2xl font-bold flex items-center gap-2 justify-end">
-                                <span>הוספת פריט חדש</span>
+                                <span>הוספת צ חדש</span>
                                 <Plus className="w-6 h-6 text-green-600" />
                             </DialogTitle>
                             <DialogDescription className="text-right mt-1">
@@ -316,6 +345,7 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
                                     {kind}
                                 </option>
                             ))}
+                            <option value="ציוד">ציוד</option>
                         </select>
                     </div>
 

@@ -1374,12 +1374,17 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             <Label htmlFor="signer-personal-id" className="text-right block mb-2">מספר אישי של החותם</Label>
                             <Input
                                 id="signer-personal-id"
-                                type="number"
-                                value={signerPersonalId || ''}
-                                onChange={(e) => setSignerPersonalId(parseInt(e.target.value) || 0)}
-                                className="text-right mb-4"
+                                type="text"
                                 inputMode="numeric"
-                                pattern="[0-9]*"
+                                value={signerPersonalId === 0 ? '' : signerPersonalId}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (value === '' || /^[1-9]\d*$/.test(value)) {
+                                        setSignerPersonalId(value === '' ? 0 : parseInt(value, 10));
+                                    }
+                                }}
+                                className="text-right mb-4"
+                                placeholder="מספר אישי"
                             />
                         </div>
 

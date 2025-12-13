@@ -94,6 +94,7 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
         'הנשק יוחזר לנשקייה נקי ומשומן - ואחת לחודש יבצע בדיקת נשק.',
         'החייל/ת ביצע/ה בוחן לנשק אישי ובוחן למק פורק.',
         'הנשק ינופק באישור השלישות.',
+        'שים לב: שינוי אמצעים אפשרי רק דרך מחלקת לוגיסטיקה ולא דרך שום גורם אחר',
     ];
 
     doc.setFontSize(12);
@@ -101,7 +102,7 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
         doc.text(`${mirrorHebrew(line)} •`, pageWidth - margin, y + i * 8, {align: 'right'});
     });
 
-    y += 40;
+    y += 50;
 
     // Group items by kind
     const groupedItems: { [key: string]: ArmoryItem[] } = {};
