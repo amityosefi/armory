@@ -153,7 +153,9 @@ const LogisticSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
                     // Handle any potential non-numeric values
                     const quantity = typeof record.כמות === 'number' ?
                         record.כמות : parseFloat(String(record.כמות)) || 0;
-                    totalQuantity += quantity;
+                    // If צורך is זיכוי, count as negative
+                    const adjustedQuantity = record.צורך === 'זיכוי' ? -quantity : quantity;
+                    totalQuantity += adjustedQuantity;
                 });
 
                 // Add the total quantity to the row

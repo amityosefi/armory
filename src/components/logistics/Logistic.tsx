@@ -356,7 +356,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 headerName: '',
                 colId: 'checkboxCol'
             },
-            {field: 'תאריך' as keyof LogisticItem, headerName: 'תאריך', sortable: true, filter: true, width: 160},
+            {field: 'תאריך' as keyof LogisticItem, headerName: 'תאריך', sortable: true, filter: true, width: 160, sort: 'desc', sortIndex: 0},
             {field: 'פריט' as keyof LogisticItem, headerName: 'פריט', sortable: true, filter: true, width: 110},
             {field: 'כמות' as keyof LogisticItem, headerName: 'כמות', sortable: true, filter: true, width: 70,},
             {field: 'צורך' as keyof LogisticItem, headerName: 'צורך', sortable: true, filter: true, width: 80},
@@ -396,7 +396,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         const matchingRows = rowData.filter(item => item.תאריך === date && item.סטטוס === 'הזמנה');
 
         // Create items array from matching rows
-        const itemsToShow = matchingRows.map(row => ({
+        const itemsToShow = matchingRows.filter(row => row.צורך !== 'בלאי')
+            .map(row => ({
             פריט: row.פריט || '',
             כמות: row.כמות || 1,
             צורך: row.צורך || 'ניפוק',
@@ -531,6 +532,33 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
         }
         
+        // Validate that זיכוי won't result in negative quantities in הזמנה (דרישות) mode
+        if (dialogMode === 'הזמנה') {
+            const signatureData = dataByStatus['החתמה'] || [];
+            
+            for (const item of items) {
+                if (item.צורך === 'זיכוי') {
+                    // Calculate current quantity for this item in החתמה status for current פלוגה
+                    const itemData = signatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
+                    const currentQty = itemData.reduce((sum, i) => sum + (i.כמות || 0), 0);
+                    
+                    const itemQty = item.כמות || 0;
+                    
+                    // Check if זיכוי would lead to negative total quantity
+                    if (currentQty - itemQty < 0) {
+                        setStatusMessage({
+                            text: `לא ניתן לזכות - הכמות תהיה שלילית:\n${item.פריט} (כמות נוכחית: ${currentQty}, מנסה לזכות: ${itemQty}, יתרה חדשה: ${currentQty - itemQty})`,
+                            type: "error"
+                        });
+                        setLoading(false);
+                        setOpen(false);
+                        setSignatureDialogOpen(false);
+                        return;
+                    }
+                }
+            }
+        }
+        
         // Validate that זיכוי won't result in negative quantities in החתמה
         if (dialogMode === 'החתמה') {
             const signatureData = dataByStatus['החתמה'] || [];
@@ -585,13 +613,13 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         let formattedItems = items.map(item => ({
             תאריך: formattedDate,
             פריט: item.פריט,
-            כמות: (item.צורך === 'זיכוי') ? -(item.כמות || 0) : (item.כמות || 0),
+            כמות: item.כמות || 1,
             שם_החותם: signerName,
             מספר_אישי_החותם: signerPersonalId,
             מספר_אישי_מחתים: permissions['id'] || 0,
             חתימת_מחתים: permissions['signature'] ? String(permissions['signature']) : '',
             חתימה: dataURL,
-            צורך: item.צורך || 'ניפוק',
+            צורך: item.צורך,
             הערה: item.הערה || '',
             סטטוס: dialogMode,
             משתמש: permissions['name'] || '',
@@ -604,13 +632,13 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             const battalionEntries = items.map(item => ({
                 תאריך: formattedDate,
                 פריט: item.פריט,
-                כמות: (item.צורך === 'זיכוי') ? (item.כמות || 0) : -(item.כמות || 0),
+                כמות: item.כמות || 1,
                 שם_החותם: '',
                 מספר_אישי_החותם: 0,
                 מספר_אישי_מחתים: 0,
                 חתימת_מחתים: '',
                 חתימה: '',
-                צורך: 'ניפוק',
+                צורך: (item.צורך === 'ניפוק') ? 'זיכוי' : 'ניפוק',
                 הערה: '',
                 סטטוס: dialogMode,
                 משתמש: permissions['name'] || '',
@@ -740,9 +768,16 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 return groups;
             }, {});
 
+            // Sort dates in descending order (newest first)
+            const sortedDateEntries = Object.entries(groupedByDate).sort((a, b) => {
+                const dateA = new Date(a[0] || '').getTime();
+                const dateB = new Date(b[0] || '').getTime();
+                return dateB - dateA; // Descending order (newest first)
+            });
+
             // Process each date group on its own page
             let pageIndex = 0;
-            for (const [date, items] of Object.entries(groupedByDate)) {
+            for (const [date, items] of sortedDateEntries) {
                 // Add new page if not the first group
                 if (pageIndex > 0) {
                     doc.addPage();
@@ -1006,6 +1041,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 <div className="ag-theme-alpine w-[110vh] h-[45vh] mb-8 overflow-auto" style={{maxWidth: '100%'}}>
                     <AgGridReact
                         ref={gridRef}
+                        key={`${activeTab}-${rowData.length}`}
                         rowData={activeTab === 'החתמה' ? summarizedSignatureData : displayDataByStatus[activeTab] || []}
                         columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
                         enableRtl={true}
