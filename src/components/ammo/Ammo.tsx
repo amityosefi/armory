@@ -252,11 +252,20 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const uniqueBallItemNames = useMemo(() => {
         // Filter items from גדוד only
         const ballGadudItems = ballRowData.filter(item => item.פלוגה === 'גדוד');
-        const uniqueItems = new Set<string>();
-
+        
+        // Calculate quantities for each item
+        const itemQuantities = new Map<string, number>();
         ballGadudItems.forEach(item => {
-            if (item.פריט) {
-                uniqueItems.add(item.פריט);
+            const currentQty = itemQuantities.get(item.פריט) || 0;
+            const quantityChange = item.צורך === 'זיכוי' ? -item.כמות : item.כמות;
+            itemQuantities.set(item.פריט, currentQty + quantityChange);
+        });
+        
+        // Only include items with כמות > 0
+        const uniqueItems = new Set<string>();
+        itemQuantities.forEach((quantity, itemName) => {
+            if (quantity > 0) {
+                uniqueItems.add(itemName);
             }
         });
 
@@ -266,11 +275,20 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const uniqueExplosionItemNames = useMemo(() => {
         // Filter items from גדוד only
         const explosionGadudItems = explosionRowData.filter(item => item.פלוגה === 'גדוד');
-        const uniqueItems = new Set<string>();
-
+        
+        // Calculate quantities for each item
+        const itemQuantities = new Map<string, number>();
         explosionGadudItems.forEach(item => {
-            if (item.פריט) {
-                uniqueItems.add(item.פריט);
+            const currentQty = itemQuantities.get(item.פריט) || 0;
+            const quantityChange = item.צורך === 'זיכוי' ? -item.כמות : item.כמות;
+            itemQuantities.set(item.פריט, currentQty + quantityChange);
+        });
+        
+        // Only include items with כמות > 0
+        const uniqueItems = new Set<string>();
+        itemQuantities.forEach((quantity, itemName) => {
+            if (quantity > 0) {
+                uniqueItems.add(itemName);
             }
         });
 
