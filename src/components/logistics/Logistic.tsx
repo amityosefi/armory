@@ -6,7 +6,7 @@ import {supabase} from "@/lib/supabaseClient"
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
-import {Check, ChevronsUpDown, Trash} from "lucide-react";
+import {Check, ChevronsUpDown, Trash, LayoutGrid, Table} from "lucide-react";
 import {ColDef} from "ag-grid-community";
 import CreatableSelect from 'react-select/creatable';
 
@@ -83,6 +83,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     const [signatureItemPopoverOpen, setSignatureItemPopoverOpen] = useState(false);
     const sigPadRef = useRef<SignatureCanvas>(null);
     const [activeTab, setActiveTab] = useState<string>('הזמנה'); // Track active tab
+    const [viewMode, setViewMode] = useState<'table' | 'cards'>('table'); // Toggle between table and card view
 
     // Import logo image for PDF
     const [logoBase64, setLogoBase64] = useState<string>('');
@@ -235,6 +236,29 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         
         return filtered;
     }, [dataByStatus, selectedSheet.range]);
+
+    // Group הזמנה data by תאריך for card view
+    const groupedByDate = useMemo(() => {
+        const hazamanaData = displayDataByStatus['הזמנה'] || [];
+        const grouped: { [date: string]: LogisticItem[] } = {};
+        
+        hazamanaData.forEach(item => {
+            const date = item.תאריך || '';
+            if (!grouped[date]) {
+                grouped[date] = [];
+            }
+            grouped[date].push(item);
+        });
+        
+        // Sort dates in descending order (newest first)
+        const sortedEntries = Object.entries(grouped).sort((a, b) => {
+            const dateA = new Date(a[0] || '').getTime();
+            const dateB = new Date(b[0] || '').getTime();
+            return dateB - dateA;
+        });
+        
+        return sortedEntries;
+    }, [displayDataByStatus]);
 
     // Get all unique item names from both גדוד and current פלוגה - for הזמנה (דרישות)
     const allItemNames = useMemo(() => {
@@ -447,6 +471,37 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             console.error("Unexpected error during status update:", err);
             // Revert to old value
             params.node.setDataValue('סטטוס', params.oldValue);
+            setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
+        }
+    };
+
+    // Handle read status toggle for card view
+    const handleCardReadStatusToggle = async (item: LogisticItem) => {
+        if (!item.id) {
+            setStatusMessage({text: "שגיאה: לא ניתן לעדכן פריט ללא מזהה", type: "error"});
+            return;
+        }
+
+        const currentStatus = item.נקרא;
+        const newStatus = currentStatus === 'כן' ? 'לא' : 'כן';
+
+        try {
+            const {error} = await supabase
+                .from("logistic")
+                .update({"נקרא": newStatus})
+                .eq("id", item.id);
+
+            if (error) {
+                console.error("Error updating read status:", error);
+                setStatusMessage({text: `שגיאה בעדכון סטטוס קריאה: ${error.message}`, type: "error"});
+                return;
+            }
+
+            // Refresh data after update
+            await fetchData();
+            setStatusMessage({text: `סטטוס קריאה עודכן בהצלחה - ${item.פריט} שונה ל-"${newStatus}"`, type: "success"});
+        } catch (err: any) {
+            console.error("Unexpected error during read status update:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
         }
     };
@@ -1024,61 +1079,152 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             )}
 
             {/* Status tabs */}
-            <div className="flex overflow-x-auto border-b mb-4">
-                {STATUSES.map(status => (
-                    <button
-                        key={status}
-                        className={`py-2 px-4 ${activeTab === status ? 'border-b-2 border-blue-500 font-bold' : ''}`}
-                        onClick={() => setActiveTab(status)}
-                    >
-                        {status}
-                    </button>
-                ))}
+            <div className="flex justify-between items-center border-b mb-4">
+                <div className="flex overflow-x-auto">
+                    {STATUSES.map(status => (
+                        <button
+                            key={status}
+                            className={`py-2 px-4 ${activeTab === status ? 'border-b-2 border-blue-500 font-bold' : ''}`}
+                            onClick={() => setActiveTab(status)}
+                        >
+                            {status}
+                        </button>
+                    ))}
+                </div>
+                
+                {/* View toggle for הזמנה tab only */}
+                {activeTab === 'הזמנה' && (
+                    <div className="flex gap-2 ml-4">
+                        <Button
+                            variant={viewMode === 'table' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setViewMode('table')}
+                            className="flex items-center gap-1"
+                        >
+                            <Table className="h-4 w-4" />
+                            טבלה
+                        </Button>
+                        <Button
+                            variant={viewMode === 'cards' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setViewMode('cards')}
+                            className="flex items-center gap-1"
+                        >
+                            <LayoutGrid className="h-4 w-4" />
+                            כרטיסים
+                        </Button>
+                    </div>
+                )}
             </div>
 
-            {/* AG Grid component with improved layout */}
-            <div className="ag-theme-alpine w-[110vh] h-[45vh] mb-8 overflow-auto" style={{maxWidth: '100%'}}>
-                <div className="ag-theme-alpine w-[110vh] h-[45vh] mb-8 overflow-auto" style={{maxWidth: '100%'}}>
-                    <AgGridReact
-                        ref={gridRef}
-                        key={`${activeTab}-${rowData.length}`}
-                        rowData={activeTab === 'החתמה' ? summarizedSignatureData : displayDataByStatus[activeTab] || []}
-                        columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
-                        enableRtl={true}
-                        defaultColDef={{
-                            ...defaultColDef,
-                            checkboxSelection: activeTab !== 'החתמה' ? (params) => {
-                                // This will make the checkbox appear only in the first column
-                                return params.column.getColId() === 'checkboxCol';
-                            } : false
-                        }}
-                        suppressHorizontalScroll={false}
-                        rowSelection={activeTab !== 'החתמה' ? 'multiple' : undefined}
-                        suppressRowClickSelection={true} /* Changed to always true to prevent row selection on click */
-                        onSelectionChanged={(params) => {
-                            const selectedRows = params.api.getSelectedRows();
-                            setSelectedRows(selectedRows);
-                        }}
-                        onCellClicked={(event) => {
-                            if (permissions['logistic'] && event.colDef && event.colDef.field === 'תאריך')
-                                handleDateClicked(event.data)
-                        }}
-                        getRowStyle={(params) => {
-                            // For החתמה tab, apply light blue to odd rows
-                            if (activeTab === 'החתמה') {
-                                if (params.node && params.node.rowIndex !== undefined && params.node.rowIndex !== null && params.node.rowIndex % 2 !== 0) {
-                                    return {backgroundColor: '#e3f2fd'}; // Light blue background for odd rows
-                                }
-                                return undefined;
-                            }
-                            // For other tabs, keep the red background for נקרא=כן
-                            if (params.data && params.data.נקרא === 'כן') {
-                                return {backgroundColor: '#ffcccc'}; // Light red background
-                            }
-                        }}
-                    />
+            {/* Conditional rendering: Card view or Table view */}
+            {activeTab === 'הזמנה' && viewMode === 'cards' ? (
+                // Card view for הזמנה
+                <div className="space-y-4 mb-8">
+                    {groupedByDate.length === 0 ? (
+                        <div className="text-center p-8 text-gray-500">
+                            אין דרישות להצגה
+                        </div>
+                    ) : (
+                        groupedByDate.map(([date, items]) => (
+                            <div key={date} className="border rounded-lg shadow-sm bg-white overflow-hidden">
+                                {/* Date header */}
+                                <div 
+                                    className="bg-blue-50 border-b px-4 py-3 flex justify-between items-center cursor-pointer hover:bg-blue-100 transition-colors"
+                                    onClick={() => {
+                                        if (permissions['logistic']) {
+                                            handleDateClicked({תאריך: date});
+                                        }
+                                    }}
+                                >
+                                    <h3 className="font-bold text-lg text-blue-900">{date}</h3>
+                                    <span className="text-sm text-blue-700">{items.length} פריטים</span>
+                                </div>
+                                
+                                {/* Items list */}
+                                <div className="divide-y">
+                                    {items.map((item, idx) => (
+                                        <div 
+                                            key={item.id || idx} 
+                                            className={`p-4 hover:bg-gray-100 cursor-pointer transition-colors ${item.נקרא === 'כן' ? 'bg-red-50 hover:bg-red-100' : ''}`}
+                                            onClick={() => handleCardReadStatusToggle(item)}
+                                        >
+                                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">פריט:</span>
+                                                    <span className="mr-2 text-gray-900">{item.פריט}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">כמות:</span>
+                                                    <span className="mr-2 text-gray-900">{item.כמות}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">צורך:</span>
+                                                    <span className="mr-2 text-gray-900">{item.צורך}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">דורש:</span>
+                                                    <span className="mr-2 text-gray-900">{item.משתמש}</span>
+                                                </div>
+                                                {item.הערה && (
+                                                    <div className="col-span-2">
+                                                        <span className="font-semibold text-gray-600">הערה:</span>
+                                                        <span className="mr-2 text-gray-900">{item.הערה}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
-            </div>
+            ) : (
+                // Table view (AG Grid) for all tabs
+                <div className="ag-theme-alpine w-[110vh] h-[45vh] mb-8 overflow-auto" style={{maxWidth: '100%'}}>
+                    <div className="ag-theme-alpine w-[110vh] h-[45vh] mb-8 overflow-auto" style={{maxWidth: '100%'}}>
+                        <AgGridReact
+                            ref={gridRef}
+                            key={`${activeTab}-${rowData.length}`}
+                            rowData={activeTab === 'החתמה' ? summarizedSignatureData : displayDataByStatus[activeTab] || []}
+                            columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
+                            enableRtl={true}
+                            defaultColDef={{
+                                ...defaultColDef,
+                                checkboxSelection: activeTab !== 'החתמה' ? (params) => {
+                                    // This will make the checkbox appear only in the first column
+                                    return params.column.getColId() === 'checkboxCol';
+                                } : false
+                            }}
+                            suppressHorizontalScroll={false}
+                            rowSelection={activeTab !== 'החתמה' ? 'multiple' : undefined}
+                            suppressRowClickSelection={true} /* Changed to always true to prevent row selection on click */
+                            onSelectionChanged={(params) => {
+                                const selectedRows = params.api.getSelectedRows();
+                                setSelectedRows(selectedRows);
+                            }}
+                            onCellClicked={(event) => {
+                                if (permissions['logistic'] && event.colDef && event.colDef.field === 'תאריך')
+                                    handleDateClicked(event.data)
+                            }}
+                            getRowStyle={(params) => {
+                                // For החתמה tab, apply light blue to odd rows
+                                if (activeTab === 'החתמה') {
+                                    if (params.node && params.node.rowIndex !== undefined && params.node.rowIndex !== null && params.node.rowIndex % 2 !== 0) {
+                                        return {backgroundColor: '#e3f2fd'}; // Light blue background for odd rows
+                                    }
+                                    return undefined;
+                                }
+                                // For other tabs, keep the red background for נקרא=כן
+                                if (params.data && params.data.נקרא === 'כן') {
+                                    return {backgroundColor: '#ffcccc'}; // Light red background
+                                }
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* Item form dialog */}
             <Dialog open={open} onOpenChange={setOpen}>
