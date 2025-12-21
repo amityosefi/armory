@@ -77,10 +77,10 @@ function TabsNavigation({
     return (
         <div className="mb-4 border-b border-gray-200 flex justify-between items-center">
             {isMobile ? (
-                <div className="relative w-full md:w-auto">
+                <div className="relative w-48 md:w-auto" dir="rtl">
                     <button
                         onClick={toggleDropdown}
-                        className="flex items-center justify-between w-full p-4 text-left border-b-2 border-transparent text-blue-600"
+                        className="flex items-center justify-between w-full p-4 text-right border-b-2 border-transparent text-blue-600"
                     >
                         <span>{activeLabel}</span>
                         <svg className={`w-5 h-5 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`}
@@ -92,12 +92,12 @@ function TabsNavigation({
                     </button>
 
                     {isDropdownOpen && (
-                        <ul className="absolute left-0 z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
+                        <ul className="absolute right-0 z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg" dir="rtl">
                             {visibleTabs
                                 .map(({ sheet, idx }) => (
                                     <li key={idx}>
                                         <button
-                                            className={`w-full text-left p-3 ${activeTabIndex === idx ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
+                                            className={`w-full text-right p-3 ${activeTabIndex === idx ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
                                             onClick={() => {
                                                 onTabChange(idx);
                                                 setIsDropdownOpen(false);

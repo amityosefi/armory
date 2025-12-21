@@ -70,18 +70,6 @@ const WeaponReturnSignatureModal: React.FC<WeaponReturnSignatureModalProps> = ({
               <X className="w-6 h-6" />
             </button>
           </div>
-          {soldierItems.length > 0 && (
-            <div className="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded">
-              <p className="font-semibold mb-1">פריטי החייל:</p>
-              <ul className="list-disc list-inside space-y-1">
-                {soldierItems.map((soldierItem) => (
-                  <li key={soldierItem.id}>
-                    {soldierItem.name} (מסד: {soldierItem.id})
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
 
         <div className="mb-4 p-4 bg-blue-50 rounded">

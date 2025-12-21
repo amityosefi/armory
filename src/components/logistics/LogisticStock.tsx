@@ -59,7 +59,7 @@ type AggregatedItem = {
 
 type ItemFormData = {
     פריט: string;
-    כמות: number;
+    כמות: number | undefined;
 };
 
 const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
@@ -79,9 +79,9 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [transferDialogOpen, setTransferDialogOpen] = useState(false);
 
     // Form data states
-    const [addItems, setAddItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1}]);
-    const [creditItems, setCreditItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1}]);
-    const [transferItems, setTransferItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1}]);
+    const [addItems, setAddItems] = useState<ItemFormData[]>([{פריט: "", כמות: undefined}]);
+    const [creditItems, setCreditItems] = useState<ItemFormData[]>([{פריט: "", כמות: undefined}]);
+    const [transferItems, setTransferItems] = useState<ItemFormData[]>([{פריט: "", כמות: undefined}]);
     
     // Location selection states
     const [addLocation, setAddLocation] = useState<string>('גדוד');
@@ -281,7 +281,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             setLoading(true);
 
             // Filter out items with empty fields
-            const validItems = addItems.filter(item => item.פריט && item.כמות > 0);
+            const validItems = addItems.filter(item => item.פריט && item.כמות && item.כמות > 0);
 
             if (validItems.length === 0) {
                 setStatusMessage({
@@ -320,7 +320,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setAddDialogOpen(false);
-                setAddItems([{פריט: "", כמות: 1}]);
+                setAddItems([{פריט: "", כמות: undefined}]);
                 fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -340,7 +340,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             setLoading(true);
 
             // Filter out items with empty fields
-            const validItems = creditItems.filter(item => item.פריט && item.כמות > 0);
+            const validItems = creditItems.filter(item => item.פריט && item.כמות && item.כמות > 0);
 
             if (validItems.length === 0) {
                 setStatusMessage({
@@ -357,8 +357,9 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 const currentItem = sourceData.find(aggItem => aggItem.פריט === item.פריט);
                 const currentQuantity = currentItem ? currentItem.כמות : 0;
                 
-                if (currentQuantity - item.כמות < 0) {
-                    invalidItems.push(`${item.פריט} - כמות לא מספיקה ב${creditLocation} (נוכחי: ${currentQuantity}, מנסה לזכות: ${item.כמות})`);
+                const itemQty = item.כמות || 0;
+                if (currentQuantity - itemQty < 0) {
+                    invalidItems.push(`${item.פריט} - כמות לא מספיקה ב${creditLocation} (נוכחי: ${currentQuantity}, מנסה לזכות: ${itemQty})`);
                 }
             }
 
@@ -401,7 +402,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setCreditDialogOpen(false);
-                setCreditItems([{פריט: "", כמות: 1}]);
+                setCreditItems([{פריט: "", כמות: undefined}]);
                 fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -431,7 +432,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             }
 
             // Filter out items with empty fields
-            const validItems = transferItems.filter(item => item.פריט && item.כמות > 0);
+            const validItems = transferItems.filter(item => item.פריט && item.כמות && item.כמות > 0);
 
             if (validItems.length === 0) {
                 setStatusMessage({
@@ -446,10 +447,11 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             for (const item of validItems) {
                 const sourceData = transferFrom === 'גדוד' ? aggregatedData : aggregatedDataWarehouse;
                 const sourceItem = sourceData.find(aggItem => aggItem.פריט === item.פריט);
-                const sourceQuantity = sourceItem ? sourceItem.כמות : 0;
-
-                if (sourceQuantity - item.כמות < 0) {
-                    invalidTransfers.push(`${item.פריט} - כמות לא מספיקה ב${transferFrom} (נוכחי: ${sourceQuantity}, מנסה להעביר: ${item.כמות})`);
+                const sourceQuantity = sourceItem ? sourceItem.כמות ?? 0 : 0;
+                
+                const itemQty = item.כמות ?? 0;
+                if (sourceQuantity - itemQty < 0) {
+                    invalidTransfers.push(`${item.פריט} - כמות לא מספיקה ב${transferFrom} (נוכחי: ${sourceQuantity}, מנסה להעביר: ${itemQty})`);
                 }
             }
 
@@ -510,7 +512,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setTransferDialogOpen(false);
-                setTransferItems([{פריט: "", כמות: 1}]);
+                setTransferItems([{פריט: "", כמות: undefined}]);
                 fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -526,7 +528,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
     // Helper function to add an empty item to a form
     const addEmptyItem = (items: ItemFormData[], setItems: React.Dispatch<React.SetStateAction<ItemFormData[]>>) => {
-        setItems([...items, {פריט: "", כמות: 1}]);
+        setItems([...items, {פריט: "", כמות: undefined}]);
     };
 
     // Helper function to remove an item from a form
@@ -569,6 +571,15 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
         }
     }, [transferFrom]);
 
+    // Get available items for transfer based on source location (only items with quantity > 0)
+    const availableTransferItems = useMemo(() => {
+        const sourceData = transferFrom === 'גדוד' ? aggregatedData : aggregatedDataWarehouse;
+        return sourceData
+            .filter(item => item.כמות > 0)
+            .map(item => item.פריט)
+            .sort((a, b) => a.localeCompare(b));
+    }, [transferFrom, aggregatedData, aggregatedDataWarehouse]);
+
     return (
         <div className="p-4">
             {statusMessage.text && (
@@ -581,7 +592,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             {/* Buttons row */}
             {permissions['logistic'] && (
                 <div className="flex justify-between mb-1">
-                    <div className="space-x-2">
+                    <div className="flex flex-wrap gap-2">
                     <h2 className="text-2xl font-bold">{selectedSheet.name}</h2>
                     <Button
                         onClick={() => setAddDialogOpen(true)}
@@ -620,6 +631,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             minWidth: 100,
                             sortable: true,
                             filter: true,
+                            cellStyle: { textAlign: 'right' },
                         }}
                         enableRtl={true}
                         getRowStyle={(params) => {
@@ -644,6 +656,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             minWidth: 100,
                             sortable: true,
                             filter: true,
+                            cellStyle: { textAlign: 'right' },
                         }}
                         enableRtl={true}
                         getRowStyle={(params) => {
@@ -668,10 +681,10 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         <div className="mb-4">
                             <Label className="text-right block mb-2">מיקום</Label>
                             <Select value={addLocation} onValueChange={setAddLocation}>
-                                <SelectTrigger>
+                                <SelectTrigger className="text-right">
                                     <SelectValue placeholder="בחר מיקום" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="text-right">
                                     <SelectItem value="גדוד">גדוד</SelectItem>
                                     <SelectItem value="מחסן">מחסן</SelectItem>
                                 </SelectContent>
@@ -789,10 +802,10 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         <div className="mb-4">
                             <Label className="text-right block mb-2">מיקום</Label>
                             <Select value={creditLocation} onValueChange={setCreditLocation}>
-                                <SelectTrigger>
+                                <SelectTrigger className="text-right">
                                     <SelectValue placeholder="בחר מיקום" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="text-right">
                                     <SelectItem value="גדוד">גדוד</SelectItem>
                                     <SelectItem value="מחסן">מחסן</SelectItem>
                                 </SelectContent>
@@ -908,10 +921,10 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             <div>
                                 <Label className="text-right block mb-2">מ</Label>
                                 <Select value={transferFrom} onValueChange={setTransferFrom}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="text-right">
                                         <SelectValue placeholder="בחר מקור" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="text-right">
                                         <SelectItem value="גדוד">גדוד</SelectItem>
                                         <SelectItem value="מחסן">מחסן</SelectItem>
                                     </SelectContent>
@@ -920,10 +933,10 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             <div>
                                 <Label className="text-right block mb-2">אל</Label>
                                 <Select value={transferTo} onValueChange={setTransferTo}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="text-right">
                                         <SelectValue placeholder="בחר יעד" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="text-right">
                                         <SelectItem value="גדוד" disabled={transferFrom === "גדוד"}>גדוד</SelectItem>
                                         <SelectItem value="מחסן" disabled={transferFrom === "מחסן"}>מחסן</SelectItem>
                                     </SelectContent>
@@ -936,7 +949,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 <div className="flex-1">
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
-                                        options={Array.from(new Set([...uniqueItems, ...uniqueItemsWarehouse])).sort((a, b) => a.localeCompare(b)).map(name => ({value: name, label: name}))}
+                                        options={availableTransferItems.map(name => ({value: name, label: name}))}
                                         value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
                                         onChange={(selectedOption) => {
                                             updateItem(

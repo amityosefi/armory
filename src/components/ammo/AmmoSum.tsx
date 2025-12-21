@@ -194,7 +194,7 @@ const AmmoSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
                     const qty = typeof record.כמות === 'number'
                         ? record.כמות
                         : parseFloat(String(record.כמות)) || 0;
-                    const signed = record.צורך === 'זיכוי' ? -Math.abs(qty) : Math.abs(qty);
+                    const signed = record.צורך === 'זיכוי' || record.צורך === 'שצל' ? -Math.abs(qty) : Math.abs(qty);
                     totalQuantity += signed;
                 });
 

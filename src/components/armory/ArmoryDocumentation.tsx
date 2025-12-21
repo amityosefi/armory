@@ -176,7 +176,7 @@ const ArmoryDocumentation: React.FC = () => {
             } else if (key === 'תאריך') {
                 return { ...baseConfig, width: 180 };
             } else if (key === 'הודעה') {
-                return { ...baseConfig, width: 1000 };
+                return { ...baseConfig, width: 1000, cellStyle: {textAlign: 'right'} };
             } else {
                 return { ...baseConfig, width: 100 };
             }

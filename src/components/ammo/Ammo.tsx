@@ -6,7 +6,7 @@ import {supabase} from "@/lib/supabaseClient"
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
-import {Trash} from "lucide-react";
+import {Trash, LayoutGrid, Table} from "lucide-react";
 import {ColDef} from "ag-grid-community";
 
 import {
@@ -28,6 +28,12 @@ import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageP
 import logoImg from "@/assets/logo.jpeg";
 
 const STATUSES = ['החתמה', 'דיווח'] as const;
+
+// Map internal status names to display names
+const STATUS_DISPLAY_MAP: Record<string, string> = {
+    'החתמה': 'החתמה',
+    'דיווח': 'דיווחים'
+};
 
 interface LogisticProps {
     selectedSheet: {
@@ -78,6 +84,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const [signerPersonalId, setSignerPersonalId] = useState(0);
     const sigPadRef = useRef<SignatureCanvas>(null);
     const [activeTab, setActiveTab] = useState<string>('דיווח'); // Track active tab
+    const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards'); // Toggle between table and card view
+    const [cardActionModalOpen, setCardActionModalOpen] = useState(false);
+    const [selectedCardItem, setSelectedCardItem] = useState<LogisticItem | null>(null);
+    const [showInfoText, setShowInfoText] = useState(true);
 
     // Import logo image for PDF
     const [logoBase64, setLogoBase64] = useState<string>('');
@@ -107,7 +117,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Default item template for form
     const defaultItem = {
         פריט: '',
-        כמות: 1,
+        כמות: undefined,
         צורך: 'ניפוק',
         שם_החותם: '',
         חתימה: '',
@@ -126,7 +136,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     function getEmptyItem(): Partial<LogisticItem> {
         return {
             פריט: '',
-            כמות: 1,
+            כמות: undefined,
             צורך: 'ניפוק',
         };
     }
@@ -248,11 +258,49 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         return grouped;
     }, [explosionRowData]);
 
-    // Get unique item names from החתמה items for dropdown (separate lists for ball and explosion ammo from גדוד)
+    // Group דיווח data by תאריך for card view (combine ball and explosion data)
+    const groupedByDate = useMemo(() => {
+        const ballData = ballDataByStatus['דיווח'] || [];
+        const explosionData = explosionDataByStatus['דיווח'] || [];
+        const allData = [...ballData, ...explosionData];
+        const grouped: { [date: string]: LogisticItem[] } = {};
+
+        allData.forEach(item => {
+            const date = item.תאריך || '';
+            if (!grouped[date]) {
+                grouped[date] = [];
+            }
+            grouped[date].push(item);
+        });
+
+        // Sort dates in descending order (newest first)
+        const sortedEntries = Object.entries(grouped).sort((a, b) => {
+            // Parse Hebrew locale date format: "dd.mm.yyyy, hh:mm:ss"
+            const parseHebrewDate = (dateStr: string) => {
+                if (!dateStr) return 0;
+                // Format: "20.12.2025, 21:38:45"
+                const [datePart, timePart] = dateStr.split(', ');
+                if (!datePart) return 0;
+
+                const [day, month, year] = datePart.split('.').map(Number);
+                const [hours = 0, minutes = 0, seconds = 0] = (timePart || '').split(':').map(Number);
+
+                return new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+            };
+
+            const dateA = parseHebrewDate(a[0]);
+            const dateB = parseHebrewDate(b[0]);
+            return dateB - dateA;
+        });
+
+        return sortedEntries;
+    }, [ballDataByStatus, explosionDataByStatus]);
+
+    // Get unique item names from החתמה status only for דיווח mode
     const uniqueBallItemNames = useMemo(() => {
         // Filter items from גדוד only
         const ballGadudItems = ballRowData.filter(item => item.פלוגה === 'גדוד');
-        
+
         // Calculate quantities for each item
         const itemQuantities = new Map<string, number>();
         ballGadudItems.forEach(item => {
@@ -260,7 +308,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             const quantityChange = item.צורך === 'זיכוי' ? -item.כמות : item.כמות;
             itemQuantities.set(item.פריט, currentQty + quantityChange);
         });
-        
+
         // Only include items with כמות > 0
         const uniqueItems = new Set<string>();
         itemQuantities.forEach((quantity, itemName) => {
@@ -275,7 +323,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const uniqueExplosionItemNames = useMemo(() => {
         // Filter items from גדוד only
         const explosionGadudItems = explosionRowData.filter(item => item.פלוגה === 'גדוד');
-        
+
         // Calculate quantities for each item
         const itemQuantities = new Map<string, number>();
         explosionGadudItems.forEach(item => {
@@ -283,7 +331,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             const quantityChange = item.צורך === 'זיכוי' ? -item.כמות : item.כמות;
             itemQuantities.set(item.פריט, currentQty + quantityChange);
         });
-        
+
         // Only include items with כמות > 0
         const uniqueItems = new Set<string>();
         itemQuantities.forEach((quantity, itemName) => {
@@ -298,28 +346,44 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Get unique item names from החתמה status only for דיווח mode
     const uniqueBallItemNamesFromHahatama = useMemo(() => {
         const ballHahatmaItems = (ballDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range);
-        const uniqueItems = new Set<string>();
 
+        // Calculate quantities for each item
+        const itemQuantities = new Map<string, number>();
         ballHahatmaItems.forEach(item => {
             if (item.פריט) {
-                uniqueItems.add(item.פריט);
+                const currentQty = itemQuantities.get(item.פריט) || 0;
+                const qty = (item.צורך === 'זיכוי' || item.צורך === 'שצל') ? -item.כמות : item.כמות;
+                itemQuantities.set(item.פריט, currentQty + qty);
             }
         });
 
-        return Array.from(uniqueItems).sort();
+        // Filter items with quantity > 0
+        const itemsWithPositiveQty = Array.from(itemQuantities.entries())
+            .filter(([_, qty]) => qty > 0)
+            .map(([itemName, _]) => itemName);
+
+        return itemsWithPositiveQty.sort();
     }, [ballDataByStatus, selectedSheet.range]);
 
     const uniqueExplosionItemNamesFromHahatama = useMemo(() => {
         const explosionHahatmaItems = (explosionDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range);
-        const uniqueItems = new Set<string>();
 
+        // Calculate quantities for each item
+        const itemQuantities = new Map<string, number>();
         explosionHahatmaItems.forEach(item => {
             if (item.פריט) {
-                uniqueItems.add(item.פריט);
+                const currentQty = itemQuantities.get(item.פריט) || 0;
+                const qty = (item.צורך === 'זיכוי' || item.צורך === 'שצל') ? -item.כמות : item.כמות;
+                itemQuantities.set(item.פריט, currentQty + qty);
             }
         });
 
-        return Array.from(uniqueItems).sort();
+        // Filter items with quantity > 0
+        const itemsWithPositiveQty = Array.from(itemQuantities.entries())
+            .filter(([_, qty]) => qty > 0)
+            .map(([itemName, _]) => itemName);
+
+        return itemsWithPositiveQty.sort();
     }, [explosionDataByStatus, selectedSheet.range]);
 
     const summaryColumns = useMemo<ColDef<LogisticItem>[]>(() => {
@@ -488,14 +552,21 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             סוג_תחמושת: row.סוג_תחמושת || (isBall ? 'קליעית' : 'נפיצה'),
         }));
 
-        // Set the items state to populate the dialog
-        setItems(itemsToShow);
+        if (matchingRows.length > 0) {
+            setSignerName(matchingRows[0].משתמש);
+            setSignerPersonalId(matchingRows[0].מספר_אישי_החותם ?? 0);
+            const signatureData = matchingRows[0].חתימה ?? '';
+            setDataURL(signatureData)
 
-        // Set dialog mode to signature
-        setDialogMode('החתמה');
+            // Set the items state to populate the dialog
+            setItems(itemsToShow);
 
-        // Open the signature dialog
-        setSignatureDialogOpen(true);
+            // Set dialog mode to signature
+            setDialogMode('החתמה');
+
+            // Open the signature dialog
+            setSignatureDialogOpen(true);
+        }
     }
 
     // Handle read status change
@@ -540,14 +611,99 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         }
     };
 
+    // Handler for card body click
+    const handleCardBodyClick = (item: LogisticItem) => {
+        setSelectedCardItem(item);
+        setCardActionModalOpen(true);
+    };
+
+    // Handler for deleting a single card item
+    const handleDeleteCardItem = async () => {
+        if (!selectedCardItem || !selectedCardItem.id) return;
+
+        try {
+            setLoading(true);
+            const {error} = await supabase
+                .from('ammo')
+                .delete()
+                .eq('id', selectedCardItem.id);
+
+            if (error) {
+                console.error("Error deleting ammo item:", error);
+                setStatusMessage({
+                    text: `שגיאה במחיקת פריט: ${error.message}`,
+                    type: "error"
+                });
+                setLoading(false);
+                return;
+            }
+
+            await fetchData();
+            setStatusMessage({
+                text: `פריט נמחק בהצלחה - תאריך: ${selectedCardItem.תאריך}, פריט: ${selectedCardItem.פריט}, כמות: ${selectedCardItem.כמות}`,
+                type: "success"
+            });
+            setCardActionModalOpen(false);
+            setSelectedCardItem(null);
+        } catch (err: any) {
+            console.error("Unexpected error during delete:", err);
+            setStatusMessage({
+                text: `שגיאה לא צפויה: ${err.message}`,
+                type: "error"
+            });
+            setLoading(false);
+        }
+    };
+
+    // Handler for toggling read status
+    const handleToggleReadStatus = async () => {
+        if (!selectedCardItem || !selectedCardItem.id) return;
+
+        const currentStatus = selectedCardItem.נקרא;
+        const newStatus = currentStatus === 'כן' ? 'לא' : 'כן';
+
+        try {
+            setLoading(true);
+            const {error} = await supabase
+                .from('ammo')
+                .update({נקרא: newStatus})
+                .eq('id', selectedCardItem.id);
+
+            if (error) {
+                console.error("Error updating read status:", error);
+                setStatusMessage({
+                    text: `שגיאה בעדכון סטטוס קריאה: ${error.message}`,
+                    type: "error"
+                });
+                setLoading(false);
+                return;
+            }
+
+            await fetchData();
+            setStatusMessage({
+                text: `סטטוס קריאה עודכן בהצלחה - תאריך: ${selectedCardItem.תאריך}, פריט: ${selectedCardItem.פריט}, כמות: ${selectedCardItem.כמות}, מ-"${currentStatus}" ל-"${newStatus}"`,
+                type: "success"
+            });
+            setCardActionModalOpen(false);
+            setSelectedCardItem(null);
+        } catch (err: any) {
+            console.error("Unexpected error during status update:", err);
+            setStatusMessage({
+                text: `שגיאה לא צפויה: ${err.message}`,
+                type: "error"
+            });
+            setLoading(false);
+        }
+    };
+
     // Function to add a new logistic item
     const handleAddItem = async () => {
         setStatusMessage({text: "", type: ""});
 
         if (dialogMode === 'דיווח') {
-            let invalidItems = items.filter(item => !item.פריט);
+            let invalidItems = items.filter(item => !item.פריט || !item.כמות || item.כמות <= 0);
             if (invalidItems.length > 0) {
-                setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
+                setStatusMessage({text: "יש למלא את כל השדות הנדרשים (כולל כמות)", type: "error"});
                 setOpen(false);
                 setSignatureDialogOpen(false);
                 return;
@@ -587,8 +743,13 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
         // Validation for החתמה mode
         if (dialogMode === 'החתמה') {
-            let invalidItems = items.filter(item => !item.פריט);
-            if (invalidItems.length > 0 || !signerName || !signerPersonalId || !dataURL) {
+            let invalidItems = items.filter(item => !item.פריט || !item.כמות || item.כמות <= 0);
+            const hasShatzalItems = items.some(item => item.צורך === 'שצל');
+            
+            // If has שצל items, don't require signature fields
+            const requiresSignature = !hasShatzalItems;
+            
+            if (invalidItems.length > 0 || (requiresSignature && (!signerName || !signerPersonalId || !dataURL))) {
                 setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
                 setOpen(false);
                 setSignatureDialogOpen(false);
@@ -675,10 +836,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 פריט: item.פריט,
                 כמות: item.כמות,
                 שם_החותם: signerName,
-                מספר_אישי_החותם: signerPersonalId,
+                מספר_אישי_החותם: dialogMode === 'דיווח' ? (permissions['id'] ? String(permissions['id']) : '') : signerPersonalId,
                 חתימת_מחתים: permissions['signature'] ? String(permissions['signature']) : '',
                 מספר_אישי_מחתים: permissions['id'] ? String(permissions['id']) : '',
-                חתימה: dataURL,
+                חתימה: dataURL ? dataURL : String(permissions['signature']),
                 צורך: dialogMode === 'דיווח' ? 'שצל' : (item.צורך || 'ניפוק'),
                 סטטוס: dialogMode,
                 משתמש: permissions['name'] || '',
@@ -958,6 +1119,126 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 doc.text(`${pageIndex}/${Object.keys(groupedByDate).length}`, pageWidth / 2, y, {align: 'center'});
             }
 
+            // Add שצל items at the end
+            const ballShatzalData = (ballDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range && item.צורך === 'שצל');
+            const explosionShatzalData = (explosionDataByStatus['החתמה'] || []).filter(item => item.פלוגה === selectedSheet.range && item.צורך === 'שצל');
+            const shatzalDataToExport = [...ballShatzalData, ...explosionShatzalData];
+
+            // Group שצל items by date
+            const shatzalGroupedByDate = shatzalDataToExport.reduce((groups: { [key: string]: LogisticItem[] }, item) => {
+                const date = item.תאריך || '';
+                if (!groups[date]) {
+                    groups[date] = [];
+                }
+                groups[date].push(item);
+                return groups;
+            }, {});
+
+            // Process each שצל date group on its own page
+            for (const [date, items] of Object.entries(shatzalGroupedByDate)) {
+                // Add new page for שצל items
+                doc.addPage();
+                let y = margin;
+
+                // Try to add logo
+                try {
+                    doc.addImage(logoImg, 'JPEG', margin, y, 30, 30);
+                } catch (logoErr) {
+                    console.error("Error adding logo:", logoErr);
+                }
+
+                // Add header
+                y += 35;
+                doc.setFontSize(18);
+                doc.text(mirrorHebrewSmart(`טופס החתמה שצל - פלוגה ${selectedSheet.range}`), pageWidth - margin, y, {align: 'right'});
+
+                // Add current date label
+                y += 12;
+                doc.setFontSize(12);
+                doc.text(mirrorHebrewSmart('תאריך:'), pageWidth - margin, y, {align: 'right'});
+                y += 7;
+                doc.text(today, pageWidth - margin, y, {align: 'right'});
+
+                // Add record date label
+                y += 10;
+                doc.text(mirrorHebrewSmart('תאריך הרישום:'), pageWidth - margin, y, {align: 'right'});
+                y += 7;
+                doc.text(date, pageWidth - margin, y, {align: 'right'});
+
+                // Add table header for items
+                y += 15;
+                doc.setFillColor(240, 240, 240);
+                doc.rect(margin, y, pageWidth - (2 * margin), 10, 'F');
+
+                doc.setFontSize(12);
+                doc.text(mirrorHebrewSmart('פריט'), pageWidth - margin - 10, y + 7, {align: 'right'});
+                doc.text(mirrorHebrewSmart('כמות'), pageWidth / 2 + 20, y + 7, {align: 'right'});
+                doc.text(mirrorHebrewSmart('צורך'), pageWidth / 2 - 20, y + 7, {align: 'right'});
+
+                // Add item details
+                y += 15;
+                items.forEach((item: LogisticItem, i: number) => {
+                    doc.text(mirrorHebrewSmart(item.פריט || ''), pageWidth - margin - 10, y, {align: 'right'});
+                    doc.text(mirrorHebrewSmart(`${item.כמות || '0'}`), pageWidth / 2 + 20, y, {align: 'right'});
+                    doc.text(mirrorHebrewSmart(item.צורך || ''), pageWidth / 2 - 20, y, {align: 'right'});
+                    y += 8;
+
+                    // Add a light separator line
+                    if (i < items.length - 1) {
+                        doc.setDrawColor(200, 200, 200);
+                        doc.line(margin, y - 4, pageWidth - margin, y - 4);
+                    }
+                });
+
+                // Footer with signatures side by side
+                y = pageHeight - 50;
+
+                // Draw a line to separate content from footer
+                doc.setDrawColor(0, 0, 0);
+                doc.line(margin, y - 10, pageWidth - margin, y - 10);
+
+                // Create two-column layout for signatures
+                const columnWidth = (pageWidth - (2 * margin)) / 2;
+                const startY = y;
+
+                // Right column: משתמש and חתימת_מחתים
+                doc.setFontSize(10);
+                y = startY;
+                doc.text(mirrorHebrewSmart(items[0].משתמש || ''), pageWidth - margin - 5, y, {align: 'right'});
+                y += 5;
+                doc.text(mirrorHebrewSmart(items[0].מספר_אישי_מחתים || ''), pageWidth - margin - 5, y, {align: 'right'});
+                y += 5;
+                doc.text(mirrorHebrewSmart('מחלקת הלוגיסטיקה'), pageWidth - margin - 5, y, {align: 'right'});
+                y += 8;
+
+                // Add signature image if available
+                if (items[0].חתימת_מחתים && items[0].חתימת_מחתים.startsWith('data:image/')) {
+                    try {
+                        doc.addImage(items[0].חתימת_מחתים, 'PNG', pageWidth / 2 + 10, y, columnWidth - 20, 25);
+                    } catch (err) {
+                        console.error("Error adding מחתים signature:", err);
+                    }
+                }
+
+                // Left column: שם_החותם and חתימה
+                y = startY;
+                doc.text(mirrorHebrewSmart(items[0].שם_החותם || ''), pageWidth / 2 - 10, y, {align: 'right'});
+                y += 5;
+                doc.text(mirrorHebrewSmart(items[0].מספר_אישי_החותם || ''), pageWidth / 2 - 10, y, {align: 'right'});
+                y += 5;
+                doc.text(mirrorHebrewSmart(selectedSheet.name || ''), pageWidth / 2 - 10, y, {align: 'right'});
+                y += 8;
+
+                // Add signature image if available
+                if (items[0].חתימה && items[0].חתימה.startsWith('data:image/')) {
+                    try {
+                        doc.addImage(items[0].חתימה, 'PNG', margin + 10, y, columnWidth - 20, 25);
+                    } catch (err) {
+                        console.error("Error adding חותם signature:", err);
+                    }
+                }
+            }
+
             // Save the PDF
             doc.save(`${selectedSheet.name} - טופס החתמה תחמושת.pdf`);
             setStatusMessage({text: "הפקת דפי החתמה הושלמה בהצלחה", type: "success"});
@@ -1039,10 +1320,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             )}
 
             {(permissions[selectedSheet.range] || permissions['ammo']) && (
-                <div className="flex justify-between mb-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                     <h2 className="text-2xl font-bold">{selectedSheet.name}</h2>
 
-                    <div className="space-x-2">
+                    <div className="flex flex-wrap gap-2">
                         <Button
                             onClick={() => {
                                 if (permissions['ammo']) {
@@ -1055,7 +1336,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             }}
                             className="bg-blue-500 hover:bg-blue-600"
                         >
-                            {permissions['ammo'] ? 'החתמת תחמושת' : 'דיווח שצל'}
+                            {permissions['ammo'] ? 'החתמה/ זיכוי תחמושת' : 'דיווח שצל'}
                         </Button>
 
                         {(permissions[selectedSheet.range]) && (
@@ -1086,34 +1367,137 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             )}
 
             {/* Status tabs */}
-            <div className="flex overflow-x-auto border-b mb-4">
-                {STATUSES.map(status => (
-                    <button
-                        key={status}
-                        className={`py-2 px-4 ${activeTab === status ? 'border-b-2 border-blue-500 font-bold' : ''}`}
-                        onClick={() => setActiveTab(status)}
-                    >
-                        {status}
-                    </button>
-                ))}
-            </div>
-
-            {/* Ball Ammo Grid */}
-            <div className="mb-8">
-                <div className="flex justify-start items-center gap-4 mb-2">
-                    <h3 className="text-xl font-bold">קליעית</h3>
-                    {(permissions['ammo']) && activeTab !== 'החתמה' && (
-                        <Button
-                            onClick={() => handleDeleteSelectedItems()}
-                            className="bg-red-500 hover:bg-red-600"
-                            disabled={selectedRows.length === 0}
+            <div className="border-b mb-4">
+                <div className="flex overflow-x-auto">
+                    {STATUSES.map(status => (
+                        <button
+                            key={status}
+                            className={`py-2 px-4 ${activeTab === status ? 'border-b-2 border-blue-500 font-bold' : ''}`}
+                            onClick={() => setActiveTab(status)}
                         >
-                            מחיקת דיווח ({selectedRows.length})
+                            {STATUS_DISPLAY_MAP[status] || status}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            
+            {/* View toggle for דיווח tab */}
+            {activeTab === 'דיווח' && (
+                <>
+                    <div className="flex justify-center gap-2 mb-4">
+                        <Button
+                            variant={viewMode === 'cards' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setViewMode('cards')}
+                            className="flex items-center gap-1"
+                        >
+                            <LayoutGrid className="h-4 w-4" />
                         </Button>
+                        <Button
+                            variant={viewMode === 'table' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setViewMode('table')}
+                            className="flex items-center gap-1"
+                        >
+                            <Table className="h-4 w-4" />
+                        </Button>
+                    </div>
+
+                    {/* Info text for card operations */}
+                    {viewMode === 'cards' && showInfoText && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-right relative">
+                            <button
+                                onClick={() => setShowInfoText(false)}
+                                className="absolute left-2 top-2 text-blue-600 hover:text-blue-800 font-bold text-xl"
+                                aria-label="Close"
+                            >
+                                ×
+                            </button>
+                            <h4 className="font-bold text-blue-900 mb-2">הפעולות שניתן לבצע הן:</h4>
+                            <ul className="list-disc list-inside space-y-1 text-blue-800 text-sm">
+                                {permissions['ammo'] ? (
+                                    <>
+                                        <li>העברת דיווח לשצל על ידי לחיצה על התאריך והשלמת פרטי השצל.</li>
+                                        <li>לחיצה על כרטיסיה פנימית (פריט אחד) וסימון שנקרא (כלומר דיווח טופל), והפוך.</li>
+                                        <li>לחיצה על כרטיסיה פנימית (פריט אחד) ומחיקת הפריט במידה ולא נקראה. (במידה וישנו טעות בדיווח).</li>
+                                    </>
+                                ) : (
+                                    <li>לחיצה על כרטיסיה פנימית (פריט אחד) ומחיקת הפריט במידה ולא נקראה. (במידה וישנו טעות בדיווח).</li>
+                                )}
+                                <li>כרטיסיה עם רקע אדום נחשבת ככרטיסיה שנקראה וטופלה.</li>
+                                <li>מעבר לטבלה על מנת לסנן ולהגיע לתוצאה רצויה.</li>
+                            </ul>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* Conditional rendering: Card view or Table view for דיווח */}
+            {activeTab === 'דיווח' && viewMode === 'cards' ? (
+                <div className="space-y-4 mb-8">
+                    {groupedByDate.length === 0 ? (
+                        <div className="text-center p-8 text-gray-500">
+                            אין דיווחים להצגה
+                        </div>
+                    ) : (
+                        groupedByDate.map(([date, items]) => (
+                            <div key={date} className="border rounded-lg shadow-sm bg-white overflow-hidden">
+                                {/* Date header */}
+                                <div 
+                                    className={`bg-blue-50 border-b px-4 py-3 flex justify-between items-center ${permissions['ammo'] ? 'cursor-pointer hover:bg-blue-100' : ''}`}
+                                    onClick={() => permissions['ammo'] && handleDateClicked(items[0])}
+                                >
+                                    <h3 className="font-bold text-lg text-blue-900">{date}</h3>
+                                    <span className="text-sm text-blue-700">מדווח: {items[0].משתמש}</span>
+                                </div>
+                                
+                                {/* Items list */}
+                                <div className="divide-y">
+                                    {items.map((item, idx) => (
+                                        <div 
+                                            key={item.id || idx} 
+                                            className={`p-4 cursor-pointer transition-colors ${item.נקרא === 'כן' ? 'bg-red-100 hover:bg-red-200' : 'hover:bg-gray-50'}`}
+                                            onClick={() => handleCardBodyClick(item)}
+                                        >
+                                            <div className="grid grid-cols-3 gap-3 text-sm">
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">סוג:</span>
+                                                    <span className="mr-2 text-gray-900">{item.סוג_תחמושת || 'קליעית'}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">פריט:</span>
+                                                    <span className="mr-1 text-gray-900">{item.פריט}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">כמות:</span>
+                                                    <span className="mr-2 text-gray-900">{item.כמות}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))
                     )}
                 </div>
-                <div className="ag-theme-alpine w-[60vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
-                    <AgGridReact
+            ) : (
+                <>
+                    {/* Ball Ammo Grid */}
+                    <div className="mb-8">
+                        <div className="flex justify-start items-center gap-4 mb-2">
+                            <h3 className="text-xl font-bold">קליעית</h3>
+                            {(permissions['ammo']) && activeTab !== 'החתמה' && (
+                                <Button
+                                    onClick={() => handleDeleteSelectedItems()}
+                                    className="bg-red-500 hover:bg-red-600"
+                                    disabled={selectedRows.length === 0}
+                                >
+                                    מחיקת דיווח ({selectedRows.length})
+                                </Button>
+                            )}
+                        </div>
+                        <div className="ag-theme-alpine w-[60vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
+                            <AgGridReact
                         rowData={activeTab === 'החתמה' ? summarizedBallSignatureData : ballDataByStatus[activeTab] || []}
                         columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
                         enableRtl={true}
@@ -1196,6 +1580,8 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                     />
                 </div>
             </div>
+                </>
+            )}
 
             {/* Item form dialog */}
             <Dialog open={open} onOpenChange={setOpen}>
@@ -1224,7 +1610,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר סוג"/>
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="text-right" dir="rtl">
                                             <SelectItem value="קליעית">קליעית</SelectItem>
                                             <SelectItem value="נפיצה">נפיצה</SelectItem>
                                         </SelectContent>
@@ -1244,7 +1630,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר פריט"/>
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="text-right" dir="rtl">
                                             {(dialogMode === 'דיווח' 
                                                 ? (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNamesFromHahatama : uniqueBallItemNamesFromHahatama)
                                                 : (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames)
@@ -1287,10 +1673,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         }}
                                         disabled={!permissions['ammo']} // Disable for non-munitions users
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר צורך"/>
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="text-right" dir="rtl">
                                             <SelectItem value="שצל">שצל</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -1365,7 +1751,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר סוג"/>
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="text-right" dir="rtl">
                                             <SelectItem value="קליעית">קליעית</SelectItem>
                                             <SelectItem value="נפיצה">נפיצה</SelectItem>
                                         </SelectContent>
@@ -1385,7 +1771,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר פריט"/>
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="text-right" dir="rtl">
                                             {(dialogMode === 'דיווח' 
                                                 ? (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNamesFromHahatama : uniqueBallItemNamesFromHahatama)
                                                 : (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames)
@@ -1427,10 +1813,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             setItems(newItems);
                                         }}
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר צורך"/>
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="text-right" dir="rtl">
                                             <SelectItem value="ניפוק">ניפוק</SelectItem>
                                             <SelectItem value="שצל">שצל</SelectItem>
                                             <SelectItem value="זיכוי">זיכוי</SelectItem>
@@ -1472,6 +1858,8 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                 value={signerName}
                                 onChange={(e) => setSignerName(e.target.value)}
                                 className="text-right mb-4"
+                                readOnly={items.some(item => item.צורך === 'שצל')}
+                                disabled={items.some(item => item.צורך === 'שצל')}
                             />
                         </div>
 
@@ -1490,34 +1878,40 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                 }}
                                 className="text-right mb-4"
                                 placeholder="מספר אישי"
+                                readOnly={items.some(item => item.צורך === 'שצל')}
+                                disabled={items.some(item => item.צורך === 'שצל')}
                             />
                         </div>
 
-                        <div className="border rounded p-2">
-                            <label className="block text-right font-medium mb-1">חתימה</label>
-                            <SignatureCanvas
-                                ref={sigPadRef}
-                                penColor="black"
-                                onEnd={saveSignature}  // Automatically saves when drawing ends
-                                canvasProps={{
-                                    width: 300,
-                                    height: 150,
-                                    className: "border border-gray-300 rounded",
-                                    style: {direction: "ltr"},
-                                }}
-                                clearOnResize={false}
-                                backgroundColor="white"
-                            />
-                        </div>
+                        {!items.some(item => item.צורך === 'שצל') && (
+                            <>
+                                <div className="border rounded p-2">
+                                    <label className="block text-right font-medium mb-1">חתימה</label>
+                                    <SignatureCanvas
+                                        ref={sigPadRef}
+                                        penColor="black"
+                                        onEnd={saveSignature}  // Automatically saves when drawing ends
+                                        canvasProps={{
+                                            width: 300,
+                                            height: 150,
+                                            className: "border border-gray-300 rounded",
+                                            style: {direction: "ltr"},
+                                        }}
+                                        clearOnResize={false}
+                                        backgroundColor="white"
+                                    />
+                                </div>
 
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => sigPadRef.current?.clear()}
-                            className="w-full"
-                        >
-                            נקה חתימה
-                        </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => sigPadRef.current?.clear()}
+                                    className="w-full"
+                                >
+                                    נקה חתימה
+                                </Button>
+                            </>
+                        )}
                     </div>
 
                     <DialogFooter>
@@ -1526,6 +1920,58 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                         </Button>
                         <Button type="button" onClick={handleAddItem}>
                             {dialogMode === 'דיווח' ? 'שלח דרישות' : 'החתם על פריטים'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Card Action Modal */}
+            <Dialog open={cardActionModalOpen} onOpenChange={setCardActionModalOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>פעולות על פריט</DialogTitle>
+                        <DialogDescription>
+                            {selectedCardItem && (
+                                <div className="mt-2 space-y-1 text-sm">
+                                    <p><strong>תאריך:</strong> {selectedCardItem.תאריך}</p>
+                                    <p><strong>פריט:</strong> {selectedCardItem.פריט}</p>
+                                    <p><strong>כמות:</strong> {selectedCardItem.כמות}</p>
+                                    <p><strong>סטטוס קריאה:</strong> {selectedCardItem.נקרא}</p>
+                                </div>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex flex-col gap-3 mt-4">
+                        {selectedCardItem?.נקרא === 'לא' && (
+                            <Button
+                                onClick={handleDeleteCardItem}
+                                className="bg-red-500 hover:bg-red-600 w-full"
+                            >
+                                מחק פריט
+                            </Button>
+                        )}
+                        
+                        {permissions['ammo'] && (
+                            <Button
+                                onClick={handleToggleReadStatus}
+                                className="bg-blue-500 hover:bg-blue-600 w-full"
+                            >
+                                שנה סטטוס קריאה ל-{selectedCardItem?.נקרא === 'כן' ? 'לא' : 'כן'}
+                            </Button>
+                        )}
+                    </div>
+
+                    <DialogFooter className="mt-4">
+                        <Button 
+                            type="button" 
+                            onClick={() => {
+                                setCardActionModalOpen(false);
+                                setSelectedCardItem(null);
+                            }} 
+                            variant="outline"
+                        >
+                            ביטול
                         </Button>
                     </DialogFooter>
                 </DialogContent>

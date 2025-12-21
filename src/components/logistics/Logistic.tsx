@@ -31,6 +31,13 @@ import jsPDF from "jspdf";
 
 const STATUSES = ['החתמה', 'הזמנה', 'התעצמות'] as const;
 
+// Map internal status names to display names
+const STATUS_DISPLAY_MAP: Record<string, string> = {
+    'החתמה': 'החתמה',
+    'הזמנה': 'דרישות',
+    'התעצמות': 'התעצמות'
+};
+
 interface LogisticProps {
     selectedSheet: {
         name: string;
@@ -83,7 +90,10 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     const [signatureItemPopoverOpen, setSignatureItemPopoverOpen] = useState(false);
     const sigPadRef = useRef<SignatureCanvas>(null);
     const [activeTab, setActiveTab] = useState<string>('הזמנה'); // Track active tab
-    const [viewMode, setViewMode] = useState<'table' | 'cards'>('table'); // Toggle between table and card view
+    const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards'); // Toggle between table and card view
+    const [cardDetailModalOpen, setCardDetailModalOpen] = useState(false);
+    const [selectedCardItem, setSelectedCardItem] = useState<LogisticItem | null>(null);
+    const [showInfoText, setShowInfoText] = useState(true);
 
     // Import logo image for PDF
     const [logoBase64, setLogoBase64] = useState<string>('');
@@ -113,7 +123,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Default item template for form
     const defaultItem = {
         פריט: '',
-        כמות: 1,
+        כמות: undefined,
         צורך: 'ניפוק',
         הערה: '',
         שם_החותם: '',
@@ -131,7 +141,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     function getEmptyItem(): Partial<LogisticItem> {
         return {
             פריט: '',
-            כמות: 1,
+            כמות: undefined,
             צורך: 'ניפוק',
             הערה: ''
         };
@@ -237,12 +247,12 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         return filtered;
     }, [dataByStatus, selectedSheet.range]);
 
-    // Group הזמנה data by תאריך for card view
+    // Group data by תאריך for card view based on active tab
     const groupedByDate = useMemo(() => {
-        const hazamanaData = displayDataByStatus['הזמנה'] || [];
+        const currentTabData = displayDataByStatus[activeTab] || [];
         const grouped: { [date: string]: LogisticItem[] } = {};
         
-        hazamanaData.forEach(item => {
+        currentTabData.forEach(item => {
             const date = item.תאריך || '';
             if (!grouped[date]) {
                 grouped[date] = [];
@@ -252,13 +262,26 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         
         // Sort dates in descending order (newest first)
         const sortedEntries = Object.entries(grouped).sort((a, b) => {
-            const dateA = new Date(a[0] || '').getTime();
-            const dateB = new Date(b[0] || '').getTime();
+            // Parse Hebrew locale date format: "dd.mm.yyyy, hh:mm:ss"
+            const parseHebrewDate = (dateStr: string) => {
+                if (!dateStr) return 0;
+                // Format: "20.12.2025, 21:38:45"
+                const [datePart, timePart] = dateStr.split(', ');
+                if (!datePart) return 0;
+                
+                const [day, month, year] = datePart.split('.').map(Number);
+                const [hours = 0, minutes = 0, seconds = 0] = (timePart || '').split(':').map(Number);
+                
+                return new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+            };
+            
+            const dateA = parseHebrewDate(a[0]);
+            const dateB = parseHebrewDate(b[0]);
             return dateB - dateA;
         });
         
         return sortedEntries;
-    }, [displayDataByStatus]);
+    }, [displayDataByStatus, activeTab]);
 
     // Get all unique item names from both גדוד and current פלוגה - for הזמנה (דרישות)
     const allItemNames = useMemo(() => {
@@ -475,7 +498,123 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         }
     };
 
-    // Handle read status toggle for card view
+    // Handle opening card detail modal
+    const handleCardClick = (item: LogisticItem) => {
+        setSelectedCardItem(item);
+        setCardDetailModalOpen(true);
+    };
+
+    // Handle delete item from card detail modal
+    const handleDeleteCardItem = async () => {
+        if (!selectedCardItem?.id) {
+            setStatusMessage({text: "שגיאה: לא ניתן למחוק פריט ללא מזהה", type: "error"});
+            return;
+        }
+
+        if (selectedCardItem.נקרא === 'כן') {
+            setStatusMessage({text: "לא ניתן למחוק פריט שנקרא כבר", type: "error"});
+            return;
+        }
+
+        try {
+            const {error} = await supabase
+                .from("logistic")
+                .delete()
+                .eq("id", selectedCardItem.id);
+
+            if (error) {
+                console.error("Error deleting item:", error);
+                setStatusMessage({text: `שגיאה במחיקת פריט: ${error.message}`, type: "error"});
+                return;
+            }
+
+            // Refresh data after delete
+            await fetchData();
+            setStatusMessage({
+                text: `פריט נמחק בהצלחה - תאריך: ${selectedCardItem.תאריך}, פריט: ${selectedCardItem.פריט}, כמות: ${selectedCardItem.כמות}, הערה: ${selectedCardItem.הערה || 'אין'}`,
+                type: "success"
+            });
+            setCardDetailModalOpen(false);
+            setSelectedCardItem(null);
+        } catch (err: any) {
+            console.error("Unexpected error during delete:", err);
+            setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
+        }
+    };
+
+    // Handle toggle read status from card detail modal
+    const handleToggleCardReadStatus = async () => {
+        if (!selectedCardItem?.id) {
+            setStatusMessage({text: "שגיאה: לא ניתן לעדכן פריט ללא מזהה", type: "error"});
+            return;
+        }
+
+        const currentStatus = selectedCardItem.נקרא;
+        const newStatus = currentStatus === 'כן' ? 'לא' : 'כן';
+
+        try {
+            const {error} = await supabase
+                .from("logistic")
+                .update({"נקרא": newStatus})
+                .eq("id", selectedCardItem.id);
+
+            if (error) {
+                console.error("Error updating read status:", error);
+                setStatusMessage({text: `שגיאה בעדכון סטטוס קריאה: ${error.message}`, type: "error"});
+                return;
+            }
+
+            // Refresh data after update
+            await fetchData();
+            setStatusMessage({
+                text: `סטטוס קריאה עודכן - תאריך: ${selectedCardItem.תאריך}, פריט: ${selectedCardItem.פריט}, כמות: ${selectedCardItem.כמות}, נקרא: ${newStatus} → ${currentStatus}`,
+                type: "success"
+            });
+            setCardDetailModalOpen(false);
+            setSelectedCardItem(null);
+        } catch (err: any) {
+            console.error("Unexpected error during read status update:", err);
+            setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
+        }
+    };
+
+    // Handle toggle status (הזמנה/התעצמות) from card detail modal
+    const handleToggleCardStatus = async () => {
+        if (!selectedCardItem?.id) {
+            setStatusMessage({text: "שגיאה: לא ניתן לעדכן פריט ללא מזהה", type: "error"});
+            return;
+        }
+
+        const currentStatus = selectedCardItem.סטטוס;
+        const newStatus = currentStatus === 'הזמנה' ? 'התעצמות' : 'הזמנה';
+
+        try {
+            const {error} = await supabase
+                .from("logistic")
+                .update({"סטטוס": newStatus})
+                .eq("id", selectedCardItem.id);
+
+            if (error) {
+                console.error("Error updating status:", error);
+                setStatusMessage({text: `שגיאה בעדכון סטטוס: ${error.message}`, type: "error"});
+                return;
+            }
+
+            // Refresh data after update
+            await fetchData();
+            setStatusMessage({
+                text: `סטטוס עודכן - תאריך: ${selectedCardItem.תאריך}, פריט: ${selectedCardItem.פריט}, כמות: ${selectedCardItem.כמות}, סטטוס: ${newStatus} → ${currentStatus}`,
+                type: "success"
+            });
+            setCardDetailModalOpen(false);
+            setSelectedCardItem(null);
+        } catch (err: any) {
+            console.error("Unexpected error during status update:", err);
+            setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
+        }
+    };
+
+    // Handle read status toggle for card view (kept for backward compatibility)
     const handleCardReadStatusToggle = async (item: LogisticItem) => {
         if (!item.id) {
             setStatusMessage({text: "שגיאה: לא ניתן לעדכן פריט ללא מזהה", type: "error"});
@@ -557,9 +696,9 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
 
         // Input validation
-        const invalidItems = items.filter(item => !item.פריט);
+        const invalidItems = items.filter(item => !item.פריט || !item.כמות || item.כמות <= 0);
         if (invalidItems.length > 0) {
-            setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
+            setStatusMessage({text: "יש למלא את כל השדות הנדרשים (כולל כמות)", type: "error"});
             setOpen(false);
             setSignatureDialogOpen(false);
             setLoading(false);
@@ -1032,10 +1171,10 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             )}
 
             {(permissions[selectedSheet.range] || permissions['logistic']) && (
-                <div className="flex justify-between mb-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                     <h2 className="text-2xl font-bold">{selectedSheet.name}</h2>
 
-                    <div className="space-x-2">
+                    <div className="flex flex-wrap gap-2">
                         <Button
                             onClick={() => {
                                 if (permissions['logistic']) {
@@ -1079,7 +1218,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             )}
 
             {/* Status tabs */}
-            <div className="flex justify-between items-center border-b mb-4">
+            <div className="border-b mb-4">
                 <div className="flex overflow-x-auto">
                     {STATUSES.map(status => (
                         <button
@@ -1087,38 +1226,61 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             className={`py-2 px-4 ${activeTab === status ? 'border-b-2 border-blue-500 font-bold' : ''}`}
                             onClick={() => setActiveTab(status)}
                         >
-                            {status}
+                            {STATUS_DISPLAY_MAP[status] || status}
                         </button>
                     ))}
                 </div>
-                
-                {/* View toggle for הזמנה tab only */}
-                {activeTab === 'הזמנה' && (
-                    <div className="flex gap-2 ml-4">
-                        <Button
-                            variant={viewMode === 'table' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => setViewMode('table')}
-                            className="flex items-center gap-1"
-                        >
-                            <Table className="h-4 w-4" />
-                            טבלה
-                        </Button>
-                        <Button
-                            variant={viewMode === 'cards' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => setViewMode('cards')}
-                            className="flex items-center gap-1"
-                        >
-                            <LayoutGrid className="h-4 w-4" />
-                            כרטיסים
-                        </Button>
-                    </div>
-                )}
             </div>
+            
+            {/* View toggle for הזמנה and התעצמות tabs */}
+            {(activeTab === 'הזמנה' || activeTab === 'התעצמות') && (
+                <div className="flex justify-center gap-2 mb-4">
+                    <Button
+                        variant={viewMode === 'cards' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setViewMode('cards')}
+                        className="flex items-center gap-1"
+                    >
+                        <LayoutGrid className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant={viewMode === 'table' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setViewMode('table')}
+                        className="flex items-center gap-1"
+                    >
+                        <Table className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
+
+            {/* Info text for card operations */}
+            {viewMode === 'cards' && showInfoText && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-right relative">
+                    <button
+                        onClick={() => setShowInfoText(false)}
+                        className="absolute left-2 top-2 text-blue-600 hover:text-blue-800 font-bold text-xl"
+                        aria-label="Close"
+                    >
+                        ×
+                    </button>
+                    <h4 className="font-bold text-blue-900 mb-2">הפעולות שניתן לבצע הן:</h4>
+                    <ul className="list-disc list-inside space-y-1 text-blue-800 text-sm">
+                        {permissions['logistic'] && (
+                            <>
+                                <li>העברת דרישות להחתמה על ידי לחיצה על התאריך והשלמת פרטים.</li>
+                                <li>לחיצה על כרטיסיה פנימית (פריט אחד) וסימון שנקרא (כלומר דיווח טופל), והפוך.</li>
+                            </>
+                        )}
+                        <li>כרטיסיה עם רקע אדום נחשבת ככרטיסיה שנקראה וטופלה.</li>
+                        <li>לחיצה על כרטיסיה פנימית (פריט אחד) ומחיקת הפריט במידה ולא נקראה. (במידה וישנו טעות בדרישה).</li>
+                        <li>מעבר לטבלה על מנת לסנן ולהגיע לתוצאה רצויה.</li>
+                    </ul>
+                </div>
+            )}
 
             {/* Conditional rendering: Card view or Table view */}
-            {activeTab === 'הזמנה' && viewMode === 'cards' ? (
+            {(activeTab === 'הזמנה' || activeTab === 'התעצמות') && viewMode === 'cards' ? (
                 // Card view for הזמנה
                 <div className="space-y-4 mb-8">
                     {groupedByDate.length === 0 ? (
@@ -1138,7 +1300,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     }}
                                 >
                                     <h3 className="font-bold text-lg text-blue-900">{date}</h3>
-                                    <span className="text-sm text-blue-700">{items.length} פריטים</span>
+                                    <span className="text-sm text-blue-700">דורש: {items[0].משתמש}</span>
                                 </div>
                                 
                                 {/* Items list */}
@@ -1147,7 +1309,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         <div 
                                             key={item.id || idx} 
                                             className={`p-4 hover:bg-gray-100 cursor-pointer transition-colors ${item.נקרא === 'כן' ? 'bg-red-50 hover:bg-red-100' : ''}`}
-                                            onClick={() => handleCardReadStatusToggle(item)}
+                                            onClick={() => handleCardClick(item)}
                                         >
                                             <div className="grid grid-cols-2 gap-3 text-sm">
                                                 <div>
@@ -1161,10 +1323,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                                 <div>
                                                     <span className="font-semibold text-gray-600">צורך:</span>
                                                     <span className="mr-2 text-gray-900">{item.צורך}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="font-semibold text-gray-600">דורש:</span>
-                                                    <span className="mr-2 text-gray-900">{item.משתמש}</span>
                                                 </div>
                                                 {item.הערה && (
                                                     <div className="col-span-2">
@@ -1334,10 +1492,10 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             setItems(newItems);
                                         }}
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר צורך"/>
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="text-right">
                                             <SelectItem value="ניפוק">ניפוק</SelectItem>
                                             <SelectItem value="בלאי" disabled={dialogMode === 'החתמה'}>בלאי/ החלפה</SelectItem>
                                             <SelectItem value="זיכוי">זיכוי</SelectItem>
@@ -1509,10 +1667,10 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             setItems(newItems);
                                         }}
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר צורך"/>
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="text-right">
                                             <SelectItem value="ניפוק">ניפוק</SelectItem>
                                             <SelectItem value="בלאי" disabled={dialogMode === 'החתמה'}>בלאי/ החלפה</SelectItem>
                                             <SelectItem value="זיכוי">זיכוי</SelectItem>
@@ -1622,6 +1780,93 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                         </Button>
                         <Button type="button" onClick={handleAddItem}>
                             {dialogMode === 'הזמנה' ? 'שלח דרישות' : 'החתם על פריטים'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Card Detail Modal */}
+            <Dialog open={cardDetailModalOpen} onOpenChange={setCardDetailModalOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-right">פרטי פריט</DialogTitle>
+                    </DialogHeader>
+                    
+                    {selectedCardItem && (
+                        <div className="space-y-4 py-4">
+                            <div className="grid grid-cols-2 gap-4 text-right">
+                                <div>
+                                    <span className="font-semibold text-gray-600">תאריך:</span>
+                                    <div className="text-gray-900">{selectedCardItem.תאריך}</div>
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-gray-600">פריט:</span>
+                                    <div className="text-gray-900">{selectedCardItem.פריט}</div>
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-gray-600">כמות:</span>
+                                    <div className="text-gray-900">{selectedCardItem.כמות}</div>
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-gray-600">צורך:</span>
+                                    <div className="text-gray-900">{selectedCardItem.צורך}</div>
+                                </div>
+                                {selectedCardItem.הערה && (
+                                    <div className="col-span-2">
+                                        <span className="font-semibold text-gray-600">הערה:</span>
+                                        <div className="text-gray-900">{selectedCardItem.הערה}</div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col gap-2 pt-4">
+                                {/* Delete button - only if נקרא=לא */}
+                                {selectedCardItem.נקרא !== 'כן' && (
+                                    <Button
+                                        type="button"
+                                        variant="destructive"
+                                        onClick={handleDeleteCardItem}
+                                        className="w-full"
+                                    >
+                                        מחק פריט
+                                    </Button>
+                                )}
+
+                                {/* Toggle read status - only for permission['ammo'] */}
+                                {permissions['ammo'] && (
+                                    <Button
+                                        type="button"
+                                        onClick={handleToggleCardReadStatus}
+                                        className="w-full bg-blue-600 hover:bg-blue-700"
+                                    >
+                                        שנה נקרא ל-{selectedCardItem.נקרא === 'כן' ? 'לא' : 'כן'}
+                                    </Button>
+                                )}
+
+                                {/* Toggle status - only for permission['ammo'] */}
+                                {permissions['ammo'] && (
+                                    <Button
+                                        type="button"
+                                        onClick={handleToggleCardStatus}
+                                        className="w-full bg-green-600 hover:bg-green-700"
+                                    >
+                                        שנה סטטוס ל-{selectedCardItem.סטטוס === 'הזמנה' ? 'התעצמות' : 'דרישה'}
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        <Button 
+                            type="button" 
+                            onClick={() => {
+                                setCardDetailModalOpen(false);
+                                setSelectedCardItem(null);
+                            }} 
+                            variant="outline"
+                        >
+                            ביטול
                         </Button>
                     </DialogFooter>
                 </DialogContent>

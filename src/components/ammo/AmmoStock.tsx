@@ -68,7 +68,7 @@ type AggregatedItem = {
 
 type ItemFormData = {
     פריט: string;
-    כמות: number;
+    כמות: number | undefined;
     is_explosion?: boolean;
 };
 
@@ -99,9 +99,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [transferDialogOpen, setTransferDialogOpen] = useState(false);
 
     // Form data states
-    const [addItems, setAddItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, is_explosion: false}]);
-    const [creditItems, setCreditItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, is_explosion: false}]);
-    const [transferItems, setTransferItems] = useState<ItemFormData[]>([{פריט: "", כמות: 1, is_explosion: false}]);
+    const [addItems, setAddItems] = useState<ItemFormData[]>([{פריט: "", כמות: undefined, is_explosion: false}]);
+    const [creditItems, setCreditItems] = useState<ItemFormData[]>([{פריט: "", כמות: undefined, is_explosion: false}]);
+    const [transferItems, setTransferItems] = useState<ItemFormData[]>([{פריט: "", כמות: undefined, is_explosion: false}]);
     
     // Location selection states
     const [addLocation, setAddLocation] = useState<string>('גדוד');
@@ -282,7 +282,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             setLoading(true);
 
             // Filter out items with empty fields
-            const validItems = addItems.filter(item => item.פריט && item.כמות > 0);
+            const validItems = addItems.filter(item => item.פריט && item.כמות && item.כמות > 0);
 
             if (validItems.length === 0) {
                 setStatusMessage({
@@ -323,7 +323,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setAddDialogOpen(false);
-                setAddItems([{פריט: "", כמות: 1, is_explosion: selectedTable}]);
+                setAddItems([{פריט: "", כמות: undefined, is_explosion: selectedTable}]);
                 await fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -343,7 +343,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             setLoading(true);
 
             // Filter out items with empty fields
-            const validItems = creditItems.filter(item => item.פריט && item.כמות > 0);
+            const validItems = creditItems.filter(item => item.פריט && item.כמות && item.כמות > 0);
 
             if (validItems.length === 0) {
                 setStatusMessage({
@@ -369,8 +369,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 
                 // Check if crediting would result in negative quantity
                 // Note: זיכוי (credit) reduces the quantity, so we subtract
-                if (currentQuantity - item.כמות < 0) {
-                    invalidItems.push(`${item.פריט} - כמות לא מספיקה ב${creditLocation} (נוכחי: ${currentQuantity}, מנסה לזכות: ${item.כמות})`);
+                const itemQty = item.כמות || 0;
+                if (currentQuantity - itemQty < 0) {
+                    invalidItems.push(`${item.פריט} - כמות לא מספיקה ב${creditLocation} (נוכחי: ${currentQuantity}, מנסה לזכות: ${itemQty})`);
                 }
             }
 
@@ -415,7 +416,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setCreditDialogOpen(false);
-                setCreditItems([{פריט: "", כמות: 1, is_explosion: selectedTable}]);
+                setCreditItems([{פריט: "", כמות: undefined, is_explosion: selectedTable}]);
                 fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -445,7 +446,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             }
 
             // Filter out items with empty fields
-            const validItems = transferItems.filter(item => item.פריט && item.כמות > 0);
+            const validItems = transferItems.filter(item => item.פריט && item.כמות && item.כמות > 0);
 
             if (validItems.length === 0) {
                 setStatusMessage({
@@ -470,8 +471,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 const sourceQuantity = sourceItem ? sourceItem.כמות : 0;
 
                 // Check if source will go negative
-                if (sourceQuantity - item.כמות < 0) {
-                    invalidTransfers.push(`${item.פריט} - כמות לא מספיקה ב${transferFrom} (נוכחי: ${sourceQuantity}, מנסה להעביר: ${item.כמות})`);
+                const itemQty = item.כמות || 0;
+                if (sourceQuantity - itemQty < 0) {
+                    invalidTransfers.push(`${item.פריט} - כמות לא מספיקה ב${transferFrom} (נוכחי: ${sourceQuantity}, מנסה להעביר: ${itemQty})`);
                 }
             }
 
@@ -535,7 +537,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     type: "success"
                 });
                 setTransferDialogOpen(false);
-                setTransferItems([{פריט: "", כמות: 1, is_explosion: selectedTable}]);
+                setTransferItems([{פריט: "", כמות: undefined, is_explosion: selectedTable}]);
                 fetchData(); // Refresh data
             }
         } catch (err: any) {
@@ -551,7 +553,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
     // Helper function to add an empty item to a form
     const addEmptyItem = (items: ItemFormData[], setItems: React.Dispatch<React.SetStateAction<ItemFormData[]>>) => {
-        setItems([...items, {פריט: "", כמות: 1, is_explosion: selectedTable}]);
+        setItems([...items, {פריט: "", כמות: undefined, is_explosion: selectedTable}]);
     };
 
     // Helper function to remove an item from a form
@@ -596,6 +598,23 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
         }
     }, [transferFrom]);
 
+    // Get available items for transfer based on source location (only items with quantity > 0)
+    const availableTransferBallItems = useMemo(() => {
+        const sourceData = transferFrom === 'גדוד' ? aggregatedBallData : aggregatedBallDataWarehouse;
+        return sourceData
+            .filter(item => item.כמות > 0)
+            .map(item => item.פריט)
+            .sort((a, b) => a.localeCompare(b));
+    }, [transferFrom, aggregatedBallData, aggregatedBallDataWarehouse]);
+
+    const availableTransferExplosionItems = useMemo(() => {
+        const sourceData = transferFrom === 'גדוד' ? aggregatedExplosionData : aggregatedExplosionDataWarehouse;
+        return sourceData
+            .filter(item => item.כמות > 0)
+            .map(item => item.פריט)
+            .sort((a, b) => a.localeCompare(b));
+    }, [transferFrom, aggregatedExplosionData, aggregatedExplosionDataWarehouse]);
+
     return (
         <div className="p-9">
             {statusMessage.text && (
@@ -607,7 +626,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
             {/* Buttons row */}
             {permissions['ammo'] && (
-                <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                <div className="flex justify-between mb-1">
+                    <div className="flex flex-wrap gap-2">
                     <Button
                         onClick={() => setAddDialogOpen(true)}
                         className="bg-green-500 hover:bg-green-600 text-white"
@@ -628,13 +648,14 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     >
                         העברה בין מחסן וגדוד
                     </Button>
+                    </div>
                 </div>
             )}
 
             {/* Ammo Ball Data Grid */}
-            <div className="mb-8">
-                <h2 className="text-xl font-bold mb-4 text-right">קליעית</h2>
-                <div className="ag-theme-alpine rtl" style={{height: "40vh", width: "40vh", direction: "rtl"}}>
+            <div className="mb-6">
+                <h2 className="text-xl font-semibold mb-2">קליעית</h2>
+                <div className="ag-theme-alpine rtl" style={{height: "60vh", width: "40vh", direction: "rtl"}}>
                     <AgGridReact
                         ref={ballGridRef}
                         rowData={aggregatedBallData}
@@ -644,6 +665,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             minWidth: 100,
                             sortable: true,
                             filter: true,
+                            cellStyle: { textAlign: 'right' },
                         }}
                         enableRtl={true}
                         getRowStyle={(params) => {
@@ -657,9 +679,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             </div>
 
             {/* Ammo Explosion Data Grid */}
-            <div className="mt-8">
-                <h2 className="text-xl font-bold mb-4 text-right">נפיצה</h2>
-                <div className="ag-theme-alpine rtl" style={{height: "40vh", width: "40vh", direction: "rtl"}}>
+            <div className="mt-6">
+                <h2 className="text-xl font-semibold mb-2">נפיצה</h2>
+                <div className="ag-theme-alpine rtl" style={{height: "60vh", width: "40vh", direction: "rtl"}}>
                     <AgGridReact
                         ref={explosionGridRef}
                         rowData={aggregatedExplosionData}
@@ -669,6 +691,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             minWidth: 100,
                             sortable: true,
                             filter: true,
+                            cellStyle: { textAlign: 'right' },
                         }}
                         enableRtl={true}
                         getRowStyle={(params) => {
@@ -686,9 +709,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 <h1 className="text-2xl font-bold mb-6 text-right">מלאי מחסן</h1>
                 
                 {/* מחסן Ball Data Grid */}
-                <div className="mb-8">
-                    <h2 className="text-xl font-bold mb-4 text-right">קליעית - מחסן</h2>
-                    <div className="ag-theme-alpine rtl" style={{height: "40vh", width: "40vh", direction: "rtl"}}>
+                <div className="mb-6">
+                    <h2 className="text-xl font-semibold mb-2">קליעית - מחסן</h2>
+                    <div className="ag-theme-alpine rtl" style={{height: "60vh", width: "40vh", direction: "rtl"}}>
                         <AgGridReact
                             rowData={aggregatedBallDataWarehouse}
                             columnDefs={columnDefs}
@@ -697,6 +720,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 minWidth: 100,
                                 sortable: true,
                                 filter: true,
+                                cellStyle: { textAlign: 'right' },
                             }}
                             enableRtl={true}
                             getRowStyle={(params) => {
@@ -710,9 +734,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 </div>
 
                 {/* מחסן Explosion Data Grid */}
-                <div className="mt-8">
-                    <h2 className="text-xl font-bold mb-4 text-right">נפיצה - מחסן</h2>
-                    <div className="ag-theme-alpine rtl" style={{height: "40vh", width: "40vh", direction: "rtl"}}>
+                <div className="mt-6">
+                    <h2 className="text-xl font-semibold mb-2">נפיצה - מחסן</h2>
+                    <div className="ag-theme-alpine rtl" style={{height: "60vh", width: "40vh", direction: "rtl"}}>
                         <AgGridReact
                             rowData={aggregatedExplosionDataWarehouse}
                             columnDefs={columnDefs}
@@ -721,6 +745,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 minWidth: 100,
                                 sortable: true,
                                 filter: true,
+                                cellStyle: { textAlign: 'right' },
                             }}
                             enableRtl={true}
                             getRowStyle={(params) => {
@@ -746,10 +771,10 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         <div className="mb-4">
                             <Label className="text-right block mb-2">מיקום</Label>
                             <Select value={addLocation} onValueChange={setAddLocation}>
-                                <SelectTrigger>
+                                <SelectTrigger className="text-right">
                                     <SelectValue placeholder="בחר מיקום" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="text-right" dir="rtl">
                                     <SelectItem value="גדוד">גדוד</SelectItem>
                                     <SelectItem value="מחסן">מחסן</SelectItem>
                                 </SelectContent>
@@ -764,10 +789,10 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                         value={String(item.is_explosion ?? selectedTable)}
                                         onValueChange={(val) => updateItem(index, 'is_explosion' as any, val === 'true', addItems, setAddItems)}
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר סוג תחמושת" />
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="text-right" dir="rtl">
                                             <SelectItem value="false">קליעית</SelectItem>
                                             <SelectItem value="true">נפיצה</SelectItem>
                                         </SelectContent>
@@ -884,10 +909,10 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         <div className="mb-4">
                             <Label className="text-right block mb-2">מיקום</Label>
                             <Select value={creditLocation} onValueChange={setCreditLocation}>
-                                <SelectTrigger>
+                                <SelectTrigger className="text-right">
                                     <SelectValue placeholder="בחר מיקום" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="text-right" dir="rtl">
                                     <SelectItem value="גדוד">גדוד</SelectItem>
                                     <SelectItem value="מחסן">מחסן</SelectItem>
                                 </SelectContent>
@@ -902,10 +927,10 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                         value={String(item.is_explosion ?? selectedTable)}
                                         onValueChange={(val) => updateItem(index, 'is_explosion' as any, val === 'true', creditItems, setCreditItems)}
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר סוג תחמושת" />
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="text-right" dir="rtl">
                                             <SelectItem value="false">קליעית</SelectItem>
                                             <SelectItem value="true">נפיצה</SelectItem>
                                         </SelectContent>
@@ -927,7 +952,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                             <SelectTrigger className="text-right">
                                                 <SelectValue placeholder="בחר פריט" />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent className="text-right" dir="rtl">
                                                 {(!(item.is_explosion ?? selectedTable) ? 
                                                     Array.from(new Set([...uniqueBallItems, ...uniqueBallItemsWarehouse])).sort((a, b) => a.localeCompare(b)) : 
                                                     Array.from(new Set([...uniqueExplosionItems, ...uniqueExplosionItemsWarehouse])).sort((a, b) => a.localeCompare(b)))
@@ -1011,10 +1036,10 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             <div>
                                 <Label className="text-right block mb-2">מ</Label>
                                 <Select value={transferFrom} onValueChange={setTransferFrom}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="text-right">
                                         <SelectValue placeholder="מיקום מקור" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="text-right" dir="rtl">
                                         <SelectItem value="גדוד">גדוד</SelectItem>
                                         <SelectItem value="מחסן">מחסן</SelectItem>
                                     </SelectContent>
@@ -1023,10 +1048,10 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             <div>
                                 <Label className="text-right block mb-2">אל</Label>
                                 <Select value={transferTo} onValueChange={setTransferTo}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="text-right">
                                         <SelectValue placeholder="מיקום יעד" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="text-right">
                                         <SelectItem value="גדוד" disabled={transferFrom === "גדוד"}>גדוד</SelectItem>
                                         <SelectItem value="מחסן" disabled={transferFrom === "מחסן"}>מחסן</SelectItem>
                                     </SelectContent>
@@ -1042,10 +1067,10 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                         value={String(item.is_explosion ?? selectedTable)}
                                         onValueChange={(val) => updateItem(index, 'is_explosion' as any, val === 'true', transferItems, setTransferItems)}
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger className="text-right">
                                             <SelectValue placeholder="בחר סוג תחמושת" />
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="text-right" dir="rtl">
                                             <SelectItem value="false">קליעית</SelectItem>
                                             <SelectItem value="true">נפיצה</SelectItem>
                                         </SelectContent>
@@ -1067,10 +1092,10 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                             <SelectTrigger className="text-right">
                                                 <SelectValue placeholder="בחר פריט" />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent className="text-right" dir="rtl">
                                                 {(!(item.is_explosion ?? selectedTable) ? 
-                                                    Array.from(new Set([...uniqueBallItems, ...uniqueBallItemsWarehouse])).sort((a, b) => a.localeCompare(b)) : 
-                                                    Array.from(new Set([...uniqueExplosionItems, ...uniqueExplosionItemsWarehouse])).sort((a, b) => a.localeCompare(b)))
+                                                    availableTransferBallItems : 
+                                                    availableTransferExplosionItems)
                                                     .map(name => (
                                                         <SelectItem key={name} value={name}>{name}</SelectItem>
                                                     ))
