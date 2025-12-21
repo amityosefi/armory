@@ -451,6 +451,13 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             הערה: row.הערה || '',
         }));
 
+        if (matchingRows.length > 0) {
+            setSignerName(matchingRows[0].משתמש);
+            setSignerPersonalId(matchingRows[0].מספר_אישי_מחתים ?? 0);
+            const signatureData = matchingRows[0].חתימת_מחתים ?? '';
+            setDataURL(signatureData);
+        }
+
         // Set the items state to populate the dialog
         setItems(itemsToShow);
 

@@ -556,7 +556,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             setSignerName(matchingRows[0].משתמש);
             setSignerPersonalId(matchingRows[0].מספר_אישי_החותם ?? 0);
             const signatureData = matchingRows[0].חתימה ?? '';
-            setDataURL(signatureData)
+            setDataURL(signatureData);
 
             // Set the items state to populate the dialog
             setItems(itemsToShow);
