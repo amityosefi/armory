@@ -253,7 +253,11 @@ const AmmoSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
                     if (params.data && params.data.פריט === 'סה״כ') {
                         return {fontWeight: 'bold', backgroundColor: '#f2f2f2'};
                     }
-                    return null;
+                    // Yellow background for גדוד column
+                    if (company === 'גדוד') {
+                        return {fontWeight: 'normal', backgroundColor: '#fef9c3'};
+                    }
+                    return {fontWeight: 'normal', backgroundColor: 'transparent'};
                 }
             });
         });
@@ -322,7 +326,11 @@ const AmmoSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
                     if (params.data && params.data.פריט === 'סה״כ') {
                         return {fontWeight: 'bold', backgroundColor: '#f2f2f2'};
                     }
-                    return null;
+                    // Yellow background for גדוד column
+                    if (company === 'גדוד') {
+                        return {fontWeight: 'normal', backgroundColor: '#fef9c3'};
+                    }
+                    return {fontWeight: 'normal', backgroundColor: 'transparent'};
                 }
             });
         });

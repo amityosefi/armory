@@ -303,15 +303,18 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         return Array.from(uniqueItems).sort();
     }, [dataByStatus, selectedSheet.range]);
 
-    // Get unique item names from החתמה items for dropdown (only גדוד items with כמות > 0)
+    // Get unique item names from החתמה items for dropdown (גדוד and selectedSheet.range items with כמות > 0)
     const uniqueItemNames = useMemo(() => {
         const items = dataByStatus['החתמה'] || [];
         
-        // Filter only גדוד items
-        const gadudItems = items.filter(item => item.פלוגה === 'גדוד');
+        // Filter items from גדוד and current selectedSheet.range
+        const relevantItems = items.filter(item => 
+            item.פלוגה === 'גדוד' || item.פלוגה === selectedSheet.range
+        );
+        
         // Calculate quantities for each item
         const itemQuantities = new Map<string, number>();
-        gadudItems.forEach(item => {
+        relevantItems.forEach(item => {
             const currentQty = itemQuantities.get(item.פריט) || 0;
             const quantityChange = item.צורך === 'זיכוי' ? -item.כמות : item.כמות;
             itemQuantities.set(item.פריט, currentQty + quantityChange);
@@ -326,7 +329,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         });
 
         return Array.from(uniqueItems).sort();
-    }, [dataByStatus]);
+    }, [dataByStatus, selectedSheet.range]);
 
     const summaryColumns = useMemo<ColDef<LogisticItem>[]>(() => {
         return [
@@ -360,11 +363,13 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         signatureData.forEach((row: LogisticItem) => {
             const item = row.פריט;
             const quantity = typeof row.כמות === 'number' ? row.כמות : parseInt(String(row.כמות), 10) || 0;
+            // If צורך is זיכוי, make quantity negative
+            const adjustedQuantity = row.צורך === 'זיכוי' ? -quantity : quantity;
 
             if (itemSummary.has(item)) {
                 // Item exists, update quantity
                 const existing = itemSummary.get(item)!;
-                existing.כמות = (existing.כמות || 0) + quantity;
+                existing.כמות = (existing.כמות || 0) + adjustedQuantity;
 
                 // Keep the latest date
                 const existingDate = new Date(existing.תאריך || '').getTime() || 0;
@@ -378,7 +383,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 // New item, add to map
                 itemSummary.set(item, {
                     פריט: item,
-                    כמות: quantity,
+                    כמות: adjustedQuantity,
                     תאריך: row.תאריך || '',
                     משתמש: row.משתמש || '',
                     שם_החותם: row.שם_החותם || '',
@@ -574,7 +579,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             // Refresh data after update
             await fetchData();
             setStatusMessage({
-                text: `סטטוס קריאה עודכן - תאריך: ${selectedCardItem.תאריך}, פריט: ${selectedCardItem.פריט}, כמות: ${selectedCardItem.כמות}, נקרא: ${newStatus} → ${currentStatus}`,
+                text: `סטטוס קריאה עודכן - תאריך: ${selectedCardItem.תאריך}, פריט: ${selectedCardItem.פריט}, כמות: ${selectedCardItem.כמות}, נקרא: ${currentStatus} -> ${newStatus}`,
                 type: "success"
             });
             setCardDetailModalOpen(false);
@@ -610,7 +615,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             // Refresh data after update
             await fetchData();
             setStatusMessage({
-                text: `סטטוס עודכן - תאריך: ${selectedCardItem.תאריך}, פריט: ${selectedCardItem.פריט}, כמות: ${selectedCardItem.כמות}, סטטוס: ${newStatus} → ${currentStatus}`,
+                text: `סטטוס עודכן - תאריך: ${selectedCardItem.תאריך}, פריט: ${selectedCardItem.פריט}, כמות: ${selectedCardItem.כמות}, סטטוס: ${currentStatus} -> ${newStatus}`,
                 type: "success"
             });
             setCardDetailModalOpen(false);
@@ -711,7 +716,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             setLoading(false);
             return;
         }
-        
+
         // Validate personal ID for החתמה mode
         if (dialogMode === 'החתמה' && !signerPersonalId) {
             setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
@@ -720,7 +725,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             setSignatureDialogOpen(false);
             return;
         }
-        
+
         // Validate צורך for החתמה mode - only allow ניפוק or זיכוי
         if (dialogMode === 'החתמה') {
             const invalidItems = items.filter(item => item.צורך !== 'ניפוק' && item.צורך !== 'זיכוי');
@@ -732,19 +737,19 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 return;
             }
         }
-        
+
         // Validate that זיכוי won't result in negative quantities in הזמנה (דרישות) mode
         if (dialogMode === 'הזמנה') {
             const signatureData = dataByStatus['החתמה'] || [];
-            
+
             for (const item of items) {
                 if (item.צורך === 'זיכוי') {
                     // Calculate current quantity for this item in החתמה status for current פלוגה
                     const itemData = signatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
                     const currentQty = itemData.reduce((sum, i) => sum + (i.כמות || 0), 0);
-                    
+
                     const itemQty = item.כמות || 0;
-                    
+
                     // Check if זיכוי would lead to negative total quantity
                     if (currentQty - itemQty < 0) {
                         setStatusMessage({
@@ -759,19 +764,18 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 }
             }
         }
-        
+
         // Validate that זיכוי won't result in negative quantities in החתמה
         if (dialogMode === 'החתמה') {
             const signatureData = dataByStatus['החתמה'] || [];
-            
+
             for (const item of items) {
                 // Calculate current quantity for this item in החתמה status
                 // Note: כמות in database already has correct sign (negative for זיכוי)
                 const itemData = signatureData.filter(i => i.פריט === item.פריט && i.פלוגה === selectedSheet.range);
-                const currentQty = itemData.reduce((sum, i) => sum + (i.כמות || 0), 0);
-                
+                const currentQty = itemData.reduce((sum, i) => sum + ( i.צורך=== 'ניפוק' ? i.כמות : -i.כמות || 0), 0);
                 const itemQty = item.כמות || 0;
-                
+
                 // Check if זיכוי would lead to negative total quantity
                 if (item.צורך === 'זיכוי' && currentQty - itemQty < 0) {
                     setStatusMessage({
@@ -783,7 +787,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                     setSignatureDialogOpen(false);
                     return;
                 }
-                
+
                 // Validate inventory based on צורך type
                 // For ניפוק (issue): check גדוד inventory
                 // For זיכוי (credit): check current location inventory (already checked above)
@@ -792,10 +796,10 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                     const allSignatureData = dataByStatus['החתמה'] || [];
                     const battalionData = allSignatureData.filter(i => i.פריט === item.פריט && i.פלוגה === 'גדוד');
                     const battalionQty = battalionData.reduce((sum, i) => sum + ((i.צורך === 'זיכוי') ? -i.כמות : i.כמות), 0);
-                    
+
                     // When issuing (ניפוק), גדוד loses items
                     const newBattalionQty = battalionQty - itemQty;
-                    
+
                     if (newBattalionQty < 0) {
                         setStatusMessage({
                             text: `לא ניתן להחתים - מלאי גדוד יהיה שלילי:\n${item.פריט} (מלאי נוכחי בגדוד: ${battalionQty}, מנסה לנפק: ${itemQty}, מלאי חדש: ${newBattalionQty})`,
@@ -845,7 +849,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 משתמש: permissions['name'] || '',
                 פלוגה: 'גדוד', // Battalion inventory
             }));
-            
+
             // Combine original items with battalion entries
             formattedItems = [...formattedItems, ...battalionEntries];
         }
@@ -864,8 +868,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 setStatusMessage({text: `שגיאה בהוספת פריטים: ${error.message}`, type: "error"});
             } else {
                 // Reset form and close dialog
-                const itemsList = formattedItems.filter(item => item.פלוגה===selectedSheet.range).map(item => `${item.פריט} (${item.כמות})`).join(', ');
-                const action = dialogMode === 'הזמנה' ? 'דווחו' : 'הוחתמו';
+                const itemsList = formattedItems.filter(item => item.פלוגה===selectedSheet.range).map(item => `${item.פריט} (${item.צורך==='ניפוק' ? item.כמות : item.כמות}-)`).join(', ');
+                const action = dialogMode === 'הזמנה' ? 'דווחו' : 'הוחתמו/ זוכו';
                 setItems([{...defaultItem}]);
                 await fetchData();
                 setOpen(false);
@@ -906,10 +910,10 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 setStatusMessage({text: `שגיאה במחיקת פריטים: ${error.message}`, type: "error"});
             } else {
                 // Create detailed message with deleted items info
-                const deletedItemsDetails = selectedRows.map(row => 
+                const deletedItemsDetails = selectedRows.map(row =>
                     `${row.פריט} (כמות: ${row.כמות}, תאריך: ${row.תאריך})`
                 ).join(', ');
-                
+
                 await fetchData();
                 setSelectedRows([]);
                 setStatusMessage({text: `${selectedRows.length} פריטים נמחקו בהצלחה: ${deletedItemsDetails}`, type: "success"});
@@ -1025,7 +1029,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 const col1X = pageWidth - margin - 10; // פריט
                 const col2X = pageWidth - margin - 80; // כמות
                 const col3X = pageWidth - margin - 130; // צורך
-                
+
                 doc.text(mirrorHebrewSmart('פריט'), col1X, y + 7, {align: 'right'});
                 doc.text(mirrorHebrewSmart('כמות'), col2X, y + 7, {align: 'right'});
                 doc.text(mirrorHebrewSmart('צורך'), col3X, y + 7, {align: 'right'});
@@ -1238,7 +1242,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                     ))}
                 </div>
             </div>
-            
+
             {/* View toggle for הזמנה and התעצמות tabs */}
             {(activeTab === 'הזמנה' || activeTab === 'התעצמות') && (
                 <div className="flex justify-center gap-2 mb-4">
@@ -1298,7 +1302,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                         groupedByDate.map(([date, items]) => (
                             <div key={date} className="border rounded-lg shadow-sm bg-white overflow-hidden">
                                 {/* Date header */}
-                                <div 
+                                <div
                                     className="bg-blue-50 border-b px-4 py-3 flex justify-between items-center cursor-pointer hover:bg-blue-100 transition-colors"
                                     onClick={() => {
                                         if (permissions['logistic']) {
@@ -1309,12 +1313,12 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     <h3 className="font-bold text-lg text-blue-900">{date}</h3>
                                     <span className="text-sm text-blue-700">דורש: {items[0].משתמש}</span>
                                 </div>
-                                
+
                                 {/* Items list */}
                                 <div className="divide-y">
                                     {items.map((item, idx) => (
-                                        <div 
-                                            key={item.id || idx} 
+                                        <div
+                                            key={item.id || idx}
                                             className={`p-4 hover:bg-gray-100 cursor-pointer transition-colors ${item.נקרא === 'כן' ? 'bg-red-50 hover:bg-red-100' : ''}`}
                                             onClick={() => handleCardClick(item)}
                                         >
@@ -1401,7 +1405,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
                     <div className="space-y-4 py-4 text-right">
                         {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                                 <div className="md:col-span-2">
                                     <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
@@ -1418,7 +1422,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                                 setItems(newItems);
                                                 return;
                                             }
-                                            
+
                                             // Use the value directly
                                             newItems[index].פריט = selectedOption.value;
                                             setItems(newItems);
@@ -1473,7 +1477,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     />
                                 </div>
 
-                                <div>
+                                <div className="w-20">
                                     <Label htmlFor={`qty-${index}`} className="text-right block mb-2">כמות</Label>
                                     <Input
                                         id={`qty-${index}`}
@@ -1489,7 +1493,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     />
                                 </div>
 
-                                <div className="col-span-2">
+                                <div>
                                     <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
                                     <Select
                                         value={item.צורך || 'ניפוק'}
@@ -1557,7 +1561,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             ביטול
                         </Button>
                         <Button type="button" onClick={handleAddItem}>
-                            {dialogMode === 'הזמנה' ? 'שלח דרישות' : 'החתם על פריטים'}
+                            {dialogMode === 'הזמנה' ? 'שלח דרישות' : 'שלח טופס'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1567,7 +1571,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             <Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
                 <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
                     <DialogHeader>
-                        <DialogTitle className="text-right">החתם על פריטים</DialogTitle>
+                        <DialogTitle className="text-right">טופס החתמה</DialogTitle>
                         <DialogDescription className="text-right">
                             {currentItem && `החתמה על ${currentItem.פריט}`}
                         </DialogDescription>
@@ -1593,7 +1597,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                                 setItems(newItems);
                                                 return;
                                             }
-                                            
+
                                             // Use the value directly
                                             newItems[index].פריט = selectedOption.value;
                                             setItems(newItems);
@@ -1648,7 +1652,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     />
                                 </div>
 
-                                <div>
+                                <div className="w-20">
                                     <Label htmlFor={`qty-${index}`} className="text-right block mb-2">כמות</Label>
                                     <Input
                                         id={`qty-${index}`}
@@ -1786,7 +1790,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             ביטול
                         </Button>
                         <Button type="button" onClick={handleAddItem}>
-                            {dialogMode === 'הזמנה' ? 'שלח דרישות' : 'החתם על פריטים'}
+                            {dialogMode === 'הזמנה' ? 'שלח דרישות' : 'שלח טופס'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

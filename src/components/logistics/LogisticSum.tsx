@@ -233,6 +233,10 @@ const LogisticSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
                     if (params.data?.פריט === 'סה״כ') {
                         return {fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'center'};
                     }
+                    // Yellow background for גדוד column
+                    if (company === 'גדוד') {
+                        return {textAlign: 'center', fontWeight: 'normal', backgroundColor: '#fef9c3'};
+                    }
                     return {textAlign: 'center', fontWeight: 'normal', backgroundColor: 'transparent'};
                 }
             });

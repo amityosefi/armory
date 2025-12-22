@@ -18,6 +18,7 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/c
 import {Trash, Plus} from "lucide-react";
 import {ColDef} from "ag-grid-community";
 import CreatableSelect from 'react-select/creatable';
+import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
 
 // Add CSS for zebra striping
 const zebra_styles = `
@@ -69,7 +70,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [rawDataWarehouse, setRawDataWarehouse] = useState<LogisticItem[]>([]);
     const [aggregatedDataWarehouse, setAggregatedDataWarehouse] = useState<AggregatedItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
+    const [statusMessage, setStatusMessage] = useState({text: "", isSuccess: false});
     const [uniqueItems, setUniqueItems] = useState<string[]>([]);
     const [uniqueItemsWarehouse, setUniqueItemsWarehouse] = useState<string[]>([]);
 
@@ -136,7 +137,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         console.error("Error fetching gadud data:", gadudError);
                         setStatusMessage({
                             text: `שגיאה בטעינת נתונים: ${gadudError.message}`,
-                            type: "error"
+                            isSuccess: false
                         });
                         break;
                     }
@@ -167,7 +168,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         console.error("Error fetching warehouse data:", warehouseError);
                         setStatusMessage({
                             text: `שגיאה בטעינת נתוני מחסן: ${warehouseError.message}`,
-                            type: "error"
+                            isSuccess: false
                         });
                         break;
                     }
@@ -197,7 +198,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 console.error("Unexpected error:", err);
                 setStatusMessage({
                     text: `שגיאה לא צפויה: ${err.message}`,
-                    type: "error"
+                    isSuccess: false
                 });
             } finally {
                 setLoading(false);
@@ -286,7 +287,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (validItems.length === 0) {
                 setStatusMessage({
                     text: "אין פריטים תקינים להוספה",
-                    type: "error"
+                    isSuccess: false
                 });
                 return;
             }
@@ -311,13 +312,13 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 console.error("Error inserting items:", error);
                 setStatusMessage({
                     text: `שגיאה בהוספת פריטים: ${error.message}`,
-                    type: "error"
+                    isSuccess: false
                 });
             } else {
                 const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
                     text: `הוספו ${validItems.length} פריטים בהצלחה למלאי ${addLocation}: ${itemsList}`,
-                    type: "success"
+                    isSuccess: true
                 });
                 setAddDialogOpen(false);
                 setAddItems([{פריט: "", כמות: undefined}]);
@@ -327,7 +328,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             console.error("Unexpected error:", err);
             setStatusMessage({
                 text: `שגיאה לא צפויה: ${err.message}`,
-                type: "error"
+                isSuccess: false
             });
         } finally {
             setLoading(false);
@@ -345,7 +346,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (validItems.length === 0) {
                 setStatusMessage({
                     text: "אין פריטים תקינים לזיכוי",
-                    type: "error"
+                    isSuccess: false
                 });
                 return;
             }
@@ -366,7 +367,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (invalidItems.length > 0) {
                 setStatusMessage({
                     text: `לא ניתן לזכות פריטים:\n${invalidItems.join('\n')}`,
-                    type: "error"
+                    isSuccess: false
                 });
                 setLoading(false);
                 setCreditDialogOpen(false);
@@ -393,13 +394,13 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 console.error("Error crediting items:", error);
                 setStatusMessage({
                     text: `שגיאה בזיכוי פריטים: ${error.message}`,
-                    type: "error"
+                    isSuccess: false
                 });
             } else {
                 const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
                     text: `זוכו ${validItems.length} פריטים בהצלחה מ${creditLocation}: ${itemsList}`,
-                    type: "success"
+                    isSuccess: true
                 });
                 setCreditDialogOpen(false);
                 setCreditItems([{פריט: "", כמות: undefined}]);
@@ -409,7 +410,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             console.error("Unexpected error:", err);
             setStatusMessage({
                 text: `שגיאה לא צפויה: ${err.message}`,
-                type: "error"
+                isSuccess: false
             });
         } finally {
             setLoading(false);
@@ -425,7 +426,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (transferFrom === transferTo) {
                 setStatusMessage({
                     text: "לא ניתן להעביר פריטים לאותו מיקום",
-                    type: "error"
+                    isSuccess: false
                 });
                 setLoading(false);
                 return;
@@ -437,7 +438,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (validItems.length === 0) {
                 setStatusMessage({
                     text: "אין פריטים תקינים להעברה",
-                    type: "error"
+                    isSuccess: false
                 });
                 return;
             }
@@ -458,7 +459,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (invalidTransfers.length > 0) {
                 setStatusMessage({
                     text: `לא ניתן להעביר פריטים:\n${invalidTransfers.join('\n')}`,
-                    type: "error"
+                    isSuccess: false
                 });
                 setLoading(false);
                 setTransferDialogOpen(false);
@@ -503,13 +504,13 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 console.error("Error transferring items:", error);
                 setStatusMessage({
                     text: `שגיאה בהעברת פריטים: ${error.message}`,
-                    type: "error"
+                    isSuccess: false
                 });
             } else {
                 const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
                     text: `הועברו ${validItems.length} פריטים בהצלחה מ${transferFrom} ל${transferTo}: ${itemsList}`,
-                    type: "success"
+                    isSuccess: true
                 });
                 setTransferDialogOpen(false);
                 setTransferItems([{פריט: "", כמות: undefined}]);
@@ -519,7 +520,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             console.error("Unexpected error:", err);
             setStatusMessage({
                 text: `שגיאה לא צפויה: ${err.message}`,
-                type: "error"
+                isSuccess: false
             });
         } finally {
             setLoading(false);
@@ -583,10 +584,11 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     return (
         <div className="p-4">
             {statusMessage.text && (
-                <div
-                    className={`p-4 mb-4 rounded-md ${statusMessage.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                    {statusMessage.text}
-                </div>
+                <StatusMessage
+                    isSuccess={statusMessage.isSuccess}
+                    message={statusMessage.text}
+                    onClose={() => setStatusMessage({text: "", isSuccess: false})}
+                />
             )}
 
             {/* Buttons row */}
@@ -817,7 +819,12 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                 <div className="flex-1">
                                     <Label className="text-right block mb-2">פריט</Label>
                                     <CreatableSelect
-                                        options={Array.from(new Set([...uniqueItems, ...uniqueItemsWarehouse])).sort((a, b) => a.localeCompare(b)).map(name => ({value: name, label: name}))}
+                                        options={
+                                            (creditLocation === 'גדוד' 
+                                                ? aggregatedData.filter(item => item.כמות > 0).map(item => item.פריט)
+                                                : aggregatedDataWarehouse.filter(item => item.כמות > 0).map(item => item.פריט)
+                                            ).sort((a, b) => a.localeCompare(b)).map(name => ({value: name, label: name}))
+                                        }
                                         value={item.פריט ? {value: item.פריט, label: item.פריט} : null}
                                         onChange={(selectedOption) => {
                                             updateItem(

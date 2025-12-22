@@ -169,8 +169,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
 
                 // Update last_login in background
                 const loginDate = new Date().toLocaleDateString('he-IL');
-                console.log('Attempting to update last_login to:', loginDate, 'for email:', email);
-                
                 const { data: updateData, error: updateError } = await supabase
                     .from('users')
                     .update({ "last_login": loginDate })
@@ -178,8 +176,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                 
                 if (updateError) {
                     console.error('Failed to update last_login:', updateError);
-                } else {
-                    console.log('Last login updated successfully:', updateData);
                 }
 
             } catch (err) {
