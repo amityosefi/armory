@@ -898,7 +898,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             setSignerName('');
             setSignerPersonalId(0);
             setDataURL('');
-            setStatusMessage({text: `${actionType} ${items.length} פריטים בהצלחה ל${selectedSheet.range}: ${itemsList}`, type: "success"});
+            setStatusMessage({text: `${actionType} ${items.length} פריטים בהצלחה ל${selectedSheet.name}: ${itemsList}`, type: "success"});
         } catch (err: any) {
             console.error("Unexpected error:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});

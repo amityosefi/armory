@@ -17,6 +17,7 @@ import {Label} from '@/components/ui/label';
 import {Trash, Plus} from "lucide-react";
 import {ColDef} from "ag-grid-community";
 import CreatableSelect from 'react-select/creatable';
+import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
 import {
     Select,
     SelectContent,
@@ -86,7 +87,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     const [aggregatedBallDataWarehouse, setAggregatedBallDataWarehouse] = useState<AggregatedItem[]>([]);
     const [aggregatedExplosionDataWarehouse, setAggregatedExplosionDataWarehouse] = useState<AggregatedItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
+    const [statusMessage, setStatusMessage] = useState({text: "", isSuccess: false});
     const [uniqueBallItems, setUniqueBallItems] = useState<string[]>([]);
     const [uniqueExplosionItems, setUniqueExplosionItems] = useState<string[]>([]);
     const [uniqueBallItemsWarehouse, setUniqueBallItemsWarehouse] = useState<string[]>([]);
@@ -158,7 +159,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         console.error("Error fetching ammo data:", ammoResponse.error);
                         setStatusMessage({
                             text: `שגיאה בטעינת נתוני תחמושת: ${ammoResponse.error.message}`,
-                            type: "error"
+                            isSuccess: false
                         });
                         break;
                     }
@@ -228,7 +229,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 console.error("Unexpected error:", err);
                 setStatusMessage({
                     text: `שגיאה לא צפויה: ${err.message}`,
-                    type: "error"
+                    isSuccess: false
                 });
             } finally {
                 setLoading(false);
@@ -287,7 +288,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (validItems.length === 0) {
                 setStatusMessage({
                     text: "אין פריטים תקינים להוספה",
-                    type: "error"
+                    isSuccess: false
                 });
                 return;
             }
@@ -314,13 +315,13 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 console.error("Error inserting items:", errorMsg);
                 setStatusMessage({
                     text: `שגיאה בהוספת פריטים: ${errorMsg}`,
-                    type: "error"
+                    isSuccess: false
                 });
             } else {
                 const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
                     text: `הוספו ${validItems.length} פריטים בהצלחה למלאי ${addLocation}: ${itemsList}`,
-                    type: "success"
+                    isSuccess: true
                 });
                 setAddDialogOpen(false);
                 setAddItems([{פריט: "", כמות: undefined, is_explosion: selectedTable}]);
@@ -330,7 +331,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             console.error("Unexpected error:", err);
             setStatusMessage({
                 text: `שגיאה לא צפויה: ${err.message}`,
-                type: "error"
+                isSuccess: false
             });
         } finally {
             setLoading(false);
@@ -348,7 +349,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (validItems.length === 0) {
                 setStatusMessage({
                     text: "אין פריטים תקינים לזיכוי",
-                    type: "error"
+                    isSuccess: false
                 });
                 return;
             }
@@ -378,7 +379,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (invalidItems.length > 0) {
                 setStatusMessage({
                     text: `לא ניתן לזכות פריטים:\n${invalidItems.join('\n')}`,
-                    type: "error"
+                    isSuccess: false
                 });
                 setLoading(false);
                 setCreditDialogOpen(false);
@@ -407,13 +408,13 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 console.error("Error crediting items:", errorMsg);
                 setStatusMessage({
                     text: `שגיאה בזיכוי פריטים: ${errorMsg}`,
-                    type: "error"
+                    isSuccess: false
                 });
             } else {
                 const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
                     text: `זוכו ${validItems.length} פריטים בהצלחה מ${creditLocation}: ${itemsList}`,
-                    type: "success"
+                    isSuccess: true
                 });
                 setCreditDialogOpen(false);
                 setCreditItems([{פריט: "", כמות: undefined, is_explosion: selectedTable}]);
@@ -423,7 +424,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             console.error("Unexpected error:", err);
             setStatusMessage({
                 text: `שגיאה לא צפויה: ${err.message}`,
-                type: "error"
+                isSuccess: false
             });
         } finally {
             setLoading(false);
@@ -439,7 +440,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (transferFrom === transferTo) {
                 setStatusMessage({
                     text: "לא ניתן להעביר פריטים לאותו מיקום",
-                    type: "error"
+                    isSuccess: false
                 });
                 setLoading(false);
                 return;
@@ -451,7 +452,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (validItems.length === 0) {
                 setStatusMessage({
                     text: "אין פריטים תקינים להעברה",
-                    type: "error"
+                    isSuccess: false
                 });
                 return;
             }
@@ -480,7 +481,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             if (invalidTransfers.length > 0) {
                 setStatusMessage({
                     text: `לא ניתן להעביר פריטים:\n${invalidTransfers.join('\n')}`,
-                    type: "error"
+                    isSuccess: false
                 });
                 setLoading(false);
                 setTransferDialogOpen(false);
@@ -528,13 +529,13 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 console.error("Error transferring items:", errorMsg);
                 setStatusMessage({
                     text: `שגיאה בהעברת פריטים: ${errorMsg}`,
-                    type: "error"
+                    isSuccess: false
                 });
             } else {
                 const itemsList = validItems.map(item => `${item.פריט} (${item.כמות})`).join(', ');
                 setStatusMessage({
                     text: `הועברו ${validItems.length} פריטים בהצלחה מ${transferFrom} ל${transferTo}: ${itemsList}`,
-                    type: "success"
+                    isSuccess: true
                 });
                 setTransferDialogOpen(false);
                 setTransferItems([{פריט: "", כמות: undefined, is_explosion: selectedTable}]);
@@ -544,7 +545,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             console.error("Unexpected error:", err);
             setStatusMessage({
                 text: `שגיאה לא צפויה: ${err.message}`,
-                type: "error"
+                isSuccess: false
             });
         } finally {
             setLoading(false);
@@ -618,10 +619,11 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
     return (
         <div className="p-9">
             {statusMessage.text && (
-                <div
-                    className={`p-4 mb-4 rounded-md ${statusMessage.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                    {statusMessage.text}
-                </div>
+                <StatusMessage
+                    isSuccess={statusMessage.isSuccess}
+                    message={statusMessage.text}
+                    onClose={() => setStatusMessage({text: "", isSuccess: false})}
+                />
             )}
 
             {/* Buttons row */}
@@ -954,8 +956,15 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                             </SelectTrigger>
                                             <SelectContent className="text-right" dir="rtl">
                                                 {(!(item.is_explosion ?? selectedTable) ? 
-                                                    Array.from(new Set([...uniqueBallItems, ...uniqueBallItemsWarehouse])).sort((a, b) => a.localeCompare(b)) : 
-                                                    Array.from(new Set([...uniqueExplosionItems, ...uniqueExplosionItemsWarehouse])).sort((a, b) => a.localeCompare(b)))
+                                                    (creditLocation === 'גדוד' 
+                                                        ? aggregatedBallData.filter(i => i.כמות > 0).map(i => i.פריט)
+                                                        : aggregatedBallDataWarehouse.filter(i => i.כמות > 0).map(i => i.פריט)
+                                                    ).sort((a, b) => a.localeCompare(b))
+                                                    : 
+                                                    (creditLocation === 'גדוד' 
+                                                        ? aggregatedExplosionData.filter(i => i.כמות > 0).map(i => i.פריט)
+                                                        : aggregatedExplosionDataWarehouse.filter(i => i.כמות > 0).map(i => i.פריט)
+                                                    ).sort((a, b) => a.localeCompare(b)))
                                                     .map(name => (
                                                         <SelectItem key={name} value={name}>{name}</SelectItem>
                                                     ))
