@@ -1499,7 +1499,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             setItems(newItems);
                                         }}
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger className="text-right" dir="rtl">
                                             <SelectValue placeholder="בחר צורך"/>
                                         </SelectTrigger>
                                         <SelectContent className="text-right">
@@ -1674,7 +1674,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             setItems(newItems);
                                         }}
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger className="text-right" dir="rtl">
                                             <SelectValue placeholder="בחר צורך"/>
                                         </SelectTrigger>
                                         <SelectContent className="text-right">

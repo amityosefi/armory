@@ -681,7 +681,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         <div className="mb-4">
                             <Label className="text-right block mb-2">מיקום</Label>
                             <Select value={addLocation} onValueChange={setAddLocation}>
-                                <SelectTrigger className="text-right">
+                                <SelectTrigger className="text-right" dir="rtl">
                                     <SelectValue placeholder="בחר מיקום" />
                                 </SelectTrigger>
                                 <SelectContent className="text-right">
@@ -802,7 +802,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         <div className="mb-4">
                             <Label className="text-right block mb-2">מיקום</Label>
                             <Select value={creditLocation} onValueChange={setCreditLocation}>
-                                <SelectTrigger className="text-right">
+                                <SelectTrigger className="text-right" dir="rtl">
                                     <SelectValue placeholder="בחר מיקום" />
                                 </SelectTrigger>
                                 <SelectContent className="text-right">
@@ -921,7 +921,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             <div>
                                 <Label className="text-right block mb-2">מ</Label>
                                 <Select value={transferFrom} onValueChange={setTransferFrom}>
-                                    <SelectTrigger className="text-right">
+                                    <SelectTrigger className="text-right" dir="rtl">
                                         <SelectValue placeholder="בחר מקור" />
                                     </SelectTrigger>
                                     <SelectContent className="text-right">
@@ -933,7 +933,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             <div>
                                 <Label className="text-right block mb-2">אל</Label>
                                 <Select value={transferTo} onValueChange={setTransferTo}>
-                                    <SelectTrigger className="text-right">
+                                    <SelectTrigger className="text-right" dir="rtl">
                                         <SelectValue placeholder="בחר יעד" />
                                     </SelectTrigger>
                                     <SelectContent className="text-right">

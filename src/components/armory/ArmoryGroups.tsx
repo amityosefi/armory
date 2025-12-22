@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import AddSoldierModal from "./AddSoldierModal";
 import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
-import { Download } from "lucide-react";
+import { Download, LayoutGrid, Table, List } from "lucide-react";
 import { exportMultipleSoldiersPDF } from "./SoldierPDFExport";
 
 interface ArmoryGroupsProps {
@@ -298,6 +298,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                 defaultOption: 'contains',
             },
             width: key === "id" ? 130 : key === "name" ? 150 : key === "phone" ? 130 : 100,
+            cellStyle: key === "name" ? { textAlign: 'right' } : undefined,
         }));
 
         // Add items column at the end
@@ -314,6 +315,8 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
             minWidth: 200,
             wrapText: true,
             autoHeight: true,
+            cellStyle: { textAlign: 'right' },
+            headerClass: 'ag-right-aligned-header',
         };
 
         return [numberColumn, ...personColumns, itemsColumn];
@@ -387,26 +390,29 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                     <Button
                         onClick={() => setViewMode("cards")}
                         variant={viewMode === "cards" ? "default" : "outline"}
+                        size="icon"
                     >
-                        תצוגת כרטיסים
+                        <LayoutGrid className="h-4 w-4" />
                     </Button>
                     <Button
                         onClick={() => setViewMode("table")}
                         variant={viewMode === "table" ? "default" : "outline"}
+                        size="icon"
                     >
-                        תצוגת טבלה
+                        <Table className="h-4 w-4" />
                     </Button>
                     <Button
                         onClick={() => setViewMode("summary")}
                         variant={viewMode === "summary" ? "default" : "outline"}
+                        size="icon"
                     >
-                        סיכום
+                        <List className="h-4 w-4" />
                     </Button>
                 </div>
             </div>
 
-            {/* Search bar - only show for cards and table views */}
-            {(viewMode === "cards" || viewMode === "table") && (
+            {/* Search bar - only show for cards view */}
+            {viewMode === "cards" && (
                 <div className="mb-4">
                     <Input
                         type="text"
@@ -488,14 +494,15 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                                         {kindGroup.items.map((item, itemIndex) => (
                                             <div
                                                 key={itemIndex}
-                                                className="border border-blue-300 rounded-lg p-2 bg-white shadow-sm"
+                                                className="border border-blue-300 rounded-lg p-2 bg-white shadow-sm text-right"
+                                                dir="rtl"
                                             >
-                                                <div className="flex items-center justify-end gap-2 text-right">
-                                                    <span className="text-base font-bold text-blue-600">({item.count})</span>
+                                                <div className="flex items-center gap-2">
                                                     <span className="text-sm font-semibold text-gray-800">{item.name}</span>
+                                                    <span className="text-base font-bold text-blue-600">({item.count})</span>
                                                 </div>
                                                 {kindGroup.kind === 'נשק' && (
-                                                    <div className="flex items-center justify-end gap-1 text-right mt-1">
+                                                    <div className="flex items-center gap-1 mt-1">
                                                         <span className="text-xs font-semibold text-green-600">מאופסנים: {item.isSaveCount}</span>
                                                     </div>
                                                 )}

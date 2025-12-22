@@ -771,7 +771,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         <div className="mb-4">
                             <Label className="text-right block mb-2">מיקום</Label>
                             <Select value={addLocation} onValueChange={setAddLocation}>
-                                <SelectTrigger className="text-right">
+                                <SelectTrigger className="text-right" dir="rtl">
                                     <SelectValue placeholder="בחר מיקום" />
                                 </SelectTrigger>
                                 <SelectContent className="text-right" dir="rtl">
@@ -789,7 +789,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                         value={String(item.is_explosion ?? selectedTable)}
                                         onValueChange={(val) => updateItem(index, 'is_explosion' as any, val === 'true', addItems, setAddItems)}
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger className="text-right" dir="rtl">
                                             <SelectValue placeholder="בחר סוג תחמושת" />
                                         </SelectTrigger>
                                         <SelectContent className="text-right" dir="rtl">
@@ -909,7 +909,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                         <div className="mb-4">
                             <Label className="text-right block mb-2">מיקום</Label>
                             <Select value={creditLocation} onValueChange={setCreditLocation}>
-                                <SelectTrigger className="text-right">
+                                <SelectTrigger className="text-right" dir="rtl">
                                     <SelectValue placeholder="בחר מיקום" />
                                 </SelectTrigger>
                                 <SelectContent className="text-right" dir="rtl">
@@ -927,7 +927,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                         value={String(item.is_explosion ?? selectedTable)}
                                         onValueChange={(val) => updateItem(index, 'is_explosion' as any, val === 'true', creditItems, setCreditItems)}
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger className="text-right" dir="rtl">
                                             <SelectValue placeholder="בחר סוג תחמושת" />
                                         </SelectTrigger>
                                         <SelectContent className="text-right" dir="rtl">
@@ -949,7 +949,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                                 setCreditItems
                                             )}
                                         >
-                                            <SelectTrigger className="text-right">
+                                            <SelectTrigger className="text-right" dir="rtl">
                                                 <SelectValue placeholder="בחר פריט" />
                                             </SelectTrigger>
                                             <SelectContent className="text-right" dir="rtl">
@@ -1036,7 +1036,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             <div>
                                 <Label className="text-right block mb-2">מ</Label>
                                 <Select value={transferFrom} onValueChange={setTransferFrom}>
-                                    <SelectTrigger className="text-right">
+                                    <SelectTrigger className="text-right" dir="rtl">
                                         <SelectValue placeholder="מיקום מקור" />
                                     </SelectTrigger>
                                     <SelectContent className="text-right" dir="rtl">
@@ -1048,7 +1048,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             <div>
                                 <Label className="text-right block mb-2">אל</Label>
                                 <Select value={transferTo} onValueChange={setTransferTo}>
-                                    <SelectTrigger className="text-right">
+                                    <SelectTrigger className="text-right" dir="rtl">
                                         <SelectValue placeholder="מיקום יעד" />
                                     </SelectTrigger>
                                     <SelectContent className="text-right">
@@ -1067,7 +1067,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                         value={String(item.is_explosion ?? selectedTable)}
                                         onValueChange={(val) => updateItem(index, 'is_explosion' as any, val === 'true', transferItems, setTransferItems)}
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger className="text-right" dir="rtl">
                                             <SelectValue placeholder="בחר סוג תחמושת" />
                                         </SelectTrigger>
                                         <SelectContent className="text-right" dir="rtl">
@@ -1089,7 +1089,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                                                 setTransferItems
                                             )}
                                         >
-                                            <SelectTrigger className="text-right">
+                                            <SelectTrigger className="text-right" dir="rtl">
                                                 <SelectValue placeholder="בחר פריט" />
                                             </SelectTrigger>
                                             <SelectContent className="text-right" dir="rtl">

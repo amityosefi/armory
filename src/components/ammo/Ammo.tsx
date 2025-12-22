@@ -1607,7 +1607,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             setItems(newItems);
                                         }}
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger className="text-right" dir="rtl">
                                             <SelectValue placeholder="בחר סוג"/>
                                         </SelectTrigger>
                                         <SelectContent className="text-right" dir="rtl">
@@ -1627,7 +1627,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             setItems(newItems);
                                         }}
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger className="text-right" dir="rtl">
                                             <SelectValue placeholder="בחר פריט"/>
                                         </SelectTrigger>
                                         <SelectContent className="text-right" dir="rtl">
@@ -1673,7 +1673,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         }}
                                         disabled={!permissions['ammo']} // Disable for non-munitions users
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger className="text-right" dir="rtl">
                                             <SelectValue placeholder="בחר צורך"/>
                                         </SelectTrigger>
                                         <SelectContent className="text-right" dir="rtl">
@@ -1748,7 +1748,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             setItems(newItems);
                                         }}
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger className="text-right" dir="rtl">
                                             <SelectValue placeholder="בחר סוג"/>
                                         </SelectTrigger>
                                         <SelectContent className="text-right" dir="rtl">
@@ -1768,7 +1768,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             setItems(newItems);
                                         }}
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger className="text-right" dir="rtl">
                                             <SelectValue placeholder="בחר פריט"/>
                                         </SelectTrigger>
                                         <SelectContent className="text-right" dir="rtl">
@@ -1813,7 +1813,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             setItems(newItems);
                                         }}
                                     >
-                                        <SelectTrigger className="text-right">
+                                        <SelectTrigger className="text-right" dir="rtl">
                                             <SelectValue placeholder="בחר צורך"/>
                                         </SelectTrigger>
                                         <SelectContent className="text-right" dir="rtl">
