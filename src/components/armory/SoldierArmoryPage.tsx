@@ -218,7 +218,7 @@ const SoldierArmoryPage: React.FC = () => {
 
       if (error) throw error;
       
-      const message = `${item.name} (מסד: ${item.id}) הוחזר ל-${newLocation} - חייל ${soldier?.name}`;
+      const message = `${item.name} (מסד: ${item.id}) הועבר ל-${newLocation} מהחייל ${soldier?.name}`;
       
       setArmoryItems(armoryItems.filter(i => i.id !== item.id));
       setStatusMessage({ text: message, isSuccess: true });
@@ -335,7 +335,20 @@ const SoldierArmoryPage: React.FC = () => {
             <span className="font-semibold">פלאפון:</span>
             {editMode.phone ? (
               <div className="flex gap-2">
-                <input type="text" value={editValues.phone || ''} onChange={(e) => setEditValues({ ...editValues, phone: e.target.value })} className="border rounded px-2 py-1 flex-1" />
+                <input 
+                  type="text" 
+                  inputMode="numeric"
+                  pattern="\d*"
+                  value={editValues.phone || ''} 
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Only allow digits
+                    if (value === '' || /^\d+$/.test(value)) {
+                      setEditValues({ ...editValues, phone: value });
+                    }
+                  }} 
+                  className="border rounded px-2 py-1 flex-1" 
+                />
                 <Button size="sm" onClick={() => handleSaveField('phone')}>שמור</Button>
               </div>
             ) : (
@@ -453,7 +466,9 @@ const SoldierArmoryPage: React.FC = () => {
       {transferModalOpen && selectedItemForTransfer && (
         <TransferItemModal 
           item={selectedItemForTransfer} 
-          currentLocation={soldier.location} 
+          currentLocation={soldier.location}
+          currentPersonName={soldier.name}
+          currentPersonId={soldier.id}
           onClose={() => { setTransferModalOpen(false); setSelectedItemForTransfer(null); }} 
           onTransferComplete={(message, isSuccess) => { 
             setStatusMessage({ text: message, isSuccess });

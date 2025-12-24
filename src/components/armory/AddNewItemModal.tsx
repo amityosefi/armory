@@ -108,7 +108,15 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({
             onClose();
         } catch (err: any) {
             console.error("Error adding item:", err);
-            onError(`שגיאה בהוספת פריט: ${err.message}`);
+            
+            // Check for duplicate key error
+            if (err.code === '23505') {
+                onError(`שגיאה: מסד ${formData.id} כבר קיים במערכת | שם: ${formData.name} | סוג: ${formData.kind}`);
+            } else {
+                onError(`שגיאה בהוספת פריט: ${err.message}`);
+            }
+            
+            onClose();
         } finally {
             setLoading(false);
         }

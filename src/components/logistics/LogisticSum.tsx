@@ -113,7 +113,14 @@ const LogisticSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
                     companiesSet.add(item.פלוגה);
                 }
             });
-            const companies = Array.from(companiesSet).sort();
+            // Sort companies with גדוד and מחסן at the end (before סה״כ)
+            const companies = Array.from(companiesSet).sort((a, b) => {
+                if (a === 'גדוד') return 1;
+                if (b === 'גדוד') return -1;
+                if (a === 'מחסן') return 1;
+                if (b === 'מחסן') return -1;
+                return a.localeCompare(b);
+            });
             setUniqueCompanies(companies);
 
             // Get unique items (פריט)

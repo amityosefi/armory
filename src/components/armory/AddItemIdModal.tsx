@@ -235,11 +235,14 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
                     .from("armory_items")
                     .select("id")
                     .eq("id", parseInt(newId))
+                    .eq("name", selectedName)
+                    .eq("kind", selectedKind)
                     .single();
 
                 if (existingNewItem) {
-                    onError(`מסד ${newId} כבר קיים במערכת`);
+                    onError(`שגיאה: מספר ${newId} כבר קיים במערכת | שם: ${selectedName} | סוג: ${selectedKind}`);
                     setLoading(false);
+                    onClose();
                     return;
                 }
 

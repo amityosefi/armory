@@ -117,7 +117,7 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
     
     // Auto-add item when ID is selected
     useEffect(() => {
-        if (selectedId) {
+        if (selectedId && selectedKind && selectedName) {
             // Check if item already selected
             if (selectedItems.some(item => item.id === selectedId)) {
                 alert('פריט זה כבר נבחר');
@@ -125,27 +125,50 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                 return;
             }
             
-            const item = availableItems.find(i => i.id === selectedId);
+            // Find item matching ID, kind, and name
+            const item = availableItems.find(i => 
+                i.id === selectedId && 
+                i.kind === selectedKind && 
+                i.name === selectedName
+            );
+            
             if (item) {
                 setSelectedItems(prev => [...prev, item]);
                 // Reset the ID selection to allow adding more items of same kind/name
                 setSelectedId(null);
             }
         }
-    }, [selectedId, availableItems, selectedItems]);
+    }, [selectedId, selectedKind, selectedName, availableItems, selectedItems]);
 
     const fetchAvailableItems = async () => {
         setLoadingItems(true);
         try {
-            const { data, error } = await supabase
-                .from('armory_items')
-                .select('id, kind, name')
-                .eq('location', 'גדוד');
+            // Fetch all items in chunks
+            let allItems: ArmoryItem[] = [];
+            let offset = 0;
+            const chunkSize = 1000;
+            let hasMore = true;
 
-            if (error) throw error;
+            while (hasMore) {
+                const { data, error } = await supabase
+                    .from('armory_items')
+                    .select('id, kind, name')
+                    .eq('location', 'גדוד')
+                    .range(offset, offset + chunkSize - 1);
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    allItems = [...allItems, ...(data as ArmoryItem[])];
+                    offset += chunkSize;
+                    hasMore = data.length === chunkSize;
+                } else {
+                    hasMore = false;
+                }
+            }
             
-            setAvailableItems((data as ArmoryItem[]) || []);
-            const uniqueKinds = [...new Set((data as ArmoryItem[])?.map(item => item.kind) || [])];
+            setAvailableItems(allItems);
+            const uniqueKinds = [...new Set(allItems.map(item => item.kind))];
             setKinds(uniqueKinds);
         } catch (error) {
             console.error('Error fetching available items:', error);
@@ -398,25 +421,30 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                 const currentTime = new Date().toLocaleString('he-IL');
                 const soldierID = idStr;
                 
-                const { error: assignError } = await supabase
-                    .from('armory_items')
-                    .update({ 
-                        location: soldierID,
-                        logistic_name: permissions['name'] ? String(permissions['name']) : '',
-                        logistic_sign: permissions['signature'] ? String(permissions['signature']) : '',
-                        logistic_id: permissions['id'] ? String(permissions['id']) : '',
-                        people_sign: formData.signature || '',
-                        sign_time: currentTime
-                    })
-                    .in('id', selectedItems.map(item => item.id));
-                    
-                if (assignError) {
-                    console.error("Error assigning items:", assignError);
-                    const errorMsg = `חייל נוסף אך שגיאה בהקצאת ציוד: ${assignError.message}`;
-                    setError(errorMsg);
-                    setLoading(false);
-                    onSuccess(errorMsg, false);
-                    return;
+                // Update each item individually
+                for (const selectedItem of selectedItems) {
+                    const { error: assignError } = await supabase
+                        .from('armory_items')
+                        .update({ 
+                            location: soldierID,
+                            logistic_name: permissions['name'] ? String(permissions['name']) : '',
+                            logistic_sign: permissions['signature'] ? String(permissions['signature']) : '',
+                            logistic_id: permissions['id'] ? String(permissions['id']) : '',
+                            people_sign: formData.signature || '',
+                            sign_time: currentTime
+                        })
+                        .eq('id', selectedItem.id)
+                        .eq('name', selectedItem.name)
+                        .eq('kind', selectedItem.kind);
+
+                    if (assignError) {
+                        console.error("Error assigning items:", assignError);
+                        const errorMsg = `חייל נוסף אך שגיאה בהקצאת ציוד: ${assignError.message}`;
+                        setError(errorMsg);
+                        setLoading(false);
+                        onSuccess(errorMsg, false);
+                        return;
+                    }
                 }
             }
 

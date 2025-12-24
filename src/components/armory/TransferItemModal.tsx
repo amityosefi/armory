@@ -22,11 +22,13 @@ interface Person {
 interface TransferItemModalProps {
   item: ArmoryItem;
   currentLocation: string;
+  currentPersonName: string;
+  currentPersonId: number;
   onClose: () => void;
   onTransferComplete: (message: string, isSuccess: boolean) => void;
 }
 
-const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLocation, onClose, onTransferComplete }) => {
+const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLocation, currentPersonName, currentPersonId, onClose, onTransferComplete }) => {
   const { permissions } = usePermissions();
   const [people, setPeople] = useState<Person[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
@@ -105,7 +107,8 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
 
       if (updateError) throw updateError;
 
-      const message = `הועבר ${item.name} (מסד: ${item.id}) לחייל ${selectedPerson?.name} (מספר אישי ${selectedPersonId})`;
+      const prevPersonInfo = ` מהחייל ${currentPersonName} (מספר אישי ${currentPersonId})`;
+      const message = `הועבר ${item.name} (מסד: ${item.id}) לחייל ${selectedPerson?.name} (מספר אישי ${selectedPersonId})${prevPersonInfo}`;
       
       // Log to armory_document
       await supabase.from('armory_document').insert({

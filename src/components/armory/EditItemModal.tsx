@@ -18,6 +18,8 @@ interface EditItemModalProps {
     onClose: () => void;
     itemId: number;
     currentLocation: string;
+    itemName: string;
+    itemKind: string;
     onSuccess: (message: string) => void;
     onError: (message: string) => void;
 }
@@ -26,6 +28,9 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
     isOpen,
     onClose,
     itemId,
+    currentLocation,
+    itemName,
+    itemKind,
     onSuccess,
     onError,
 }) => {
@@ -38,56 +43,42 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         id: itemId,
-        name: "",
-        kind: "",
-        location: "",
+        name: itemName,
+        kind: itemKind,
+        location: currentLocation,
     });
 
-    // Fetch item data when modal opens
+    // Update formData when props change (when clicking different IDs)
     useEffect(() => {
-        if (isOpen && itemId) {
-            fetchItemData();
-        }
-    }, [isOpen, itemId]);
-
-    const fetchItemData = async () => {
-        try {
-            setLoading(true);
-            const { data, error } = await supabase
-                .from("armory_items")
-                .select("id, name, kind, location")
-                .eq("id", itemId)
-                .single();
-
-            if (error) throw error;
-
-            if (data) {
-                const typedData = data as { id: number; name: string; kind: string; location: string; };
-                setItemData(typedData);
-                setFormData({
-                    id: typedData.id,
-                    name: typedData.name || "",
-                    kind: typedData.kind || "",
-                    location: typedData.location || "",
-                });
-            }
-        } catch (err: any) {
-            console.error("Error fetching item:", err);
-            onError(`שגיאה בטעינת פריט: ${err.message}`);
-        } finally {
-            setLoading(false);
-        }
-    };
+        setFormData({
+            id: itemId,
+            name: itemName,
+            kind: itemKind,
+            location: currentLocation,
+        });
+        setItemData({
+            id: itemId,
+            name: itemName,
+            kind: itemKind,
+            location: currentLocation,
+        });
+    }, [itemId, itemName, itemKind, currentLocation]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
+        const originalData = {
+            id: itemId,
+            name: itemName,
+            kind: itemKind,
+            location: currentLocation
+        };
+
         // Check if any field has changed
-        if (itemData && 
-            formData.name === itemData.name && 
-            formData.id === itemData.id && 
-            formData.kind === itemData.kind && 
-            formData.location === itemData.location) {
+        if (formData.name === originalData.name && 
+            formData.id === originalData.id && 
+            formData.kind === originalData.kind && 
+            formData.location === originalData.location) {
             onError("לא בוצעו שינויים");
             return;
         }
@@ -95,41 +86,71 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
         try {
             setLoading(true);
 
-            const { error } = await supabase
-                .from("armory_items")
-                .update({
-                    id: formData.id,
-                    name: formData.name,
-                    kind: formData.kind,
-                    location: formData.location,
-                })
-                .eq("id", itemId);
+            // If ID has changed, we need to delete the old record and insert a new one
+            if (Number(formData.id) !== Number(itemId)) {
+                // Check if new ID already exists
+                const { data: existingItem } = await supabase
+                    .from("armory_items")
+                    .select("id")
+                    .eq("id", formData.id)
+                    .single();
+                
+                if (existingItem) {
+                    throw new Error(`מסד ${formData.id} כבר קיים במערכת`);
+                }
+                
+                // Delete old record
+                const { error: deleteError } = await supabase
+                    .from("armory_items")
+                    .delete()
+                    .eq("id", itemId);
+                
+                if (deleteError) throw deleteError;
+                
+                // Insert new record with new ID
+                const { error: insertError } = await supabase
+                    .from("armory_items")
+                    .insert({
+                        id: formData.id,
+                        name: formData.name,
+                        kind: formData.kind,
+                        location: formData.location,
+                    });
+                
+                if (insertError) throw insertError;
+            } else {
+                // If ID hasn't changed, just update the other fields
+                const { error } = await supabase
+                    .from("armory_items")
+                    .update({
+                        location: formData.location,
+                    })
+                    .eq("id", itemId)
+                    .eq("kind", formData.kind)
+                    .eq("name", formData.name);
 
-            if (error) throw error;
+                if (error) throw error;
+            }
 
             // Build detailed success message
             let changes = [];
-            if (itemData) {
-                if (formData.id !== itemData.id) changes.push(`מסד: ${formData.id} ← ${itemData.id}`);
-                if (formData.name !== itemData.name) changes.push(`שם: ${formData.name} ← ${itemData.name}`);
-                if (formData.kind !== itemData.kind) changes.push(`סוג: ${formData.kind} ← ${itemData.kind}`);
-                if (formData.location !== itemData.location) changes.push(`מיקום: ${formData.location} ← ${itemData.location}`);
-            }
+            if (formData.id !== originalData.id) changes.push(`מסד: ${originalData.id} ← ${formData.id}`);
+            if (formData.name !== originalData.name) changes.push(`שם: ${originalData.name} ← ${formData.name}`);
+            if (formData.kind !== originalData.kind) changes.push(`סוג: ${originalData.kind} ← ${formData.kind}`);
+            if (formData.location !== originalData.location) changes.push(`מיקום: ${originalData.location} ← ${formData.location}`);
             
             const changeDetails = changes.length > 0 ? ` | שינויים: ${changes.join(', ')}` : '';
-            onSuccess(`פריט ${formData.id} - ${formData.name} עודכן בהצלחה${changeDetails}`);
+            onSuccess(`צ  ${formData.id} - ${formData.name} עודכן בהצלחה | סוג: ${formData.kind}${changeDetails}`);
             onClose();
         } catch (err: any) {
             console.error("Error updating item:", err);
-            onError(`שגיאה בעדכון פריט: ${err.message}`);
+            onError(`שגיאה בעדכון צ: ${err.message}`);
         } finally {
             setLoading(false);
         }
     };
 
     const handleDelete = async () => {
-        const itemName = itemData?.name || '';
-        const itemLocation = itemData?.location || '';
         try {
             setLoading(true);
 
@@ -140,7 +161,7 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
 
             if (error) throw error;
 
-            onSuccess(`פריט ${itemId} - ${itemName} נמחק בהצלחה | מיקום קודם: ${itemLocation}`);
+            onSuccess(`צ  ${itemId} - ${itemName} נמחק בהצלחה | סוג: ${itemKind} | מיקום קודם: ${currentLocation}`);
             onClose();
         } catch (err: any) {
             console.error("Error deleting item:", err);
@@ -158,14 +179,12 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                     <div className="flex items-center gap-3 justify-end">
                         <div className="text-right">
                             <DialogTitle className="text-2xl font-bold flex items-center gap-2 justify-end">
-                                <span>{itemData?.name || "טוען..."}</span>
+                                <span>{itemName || "טוען..."}</span>
                                 <Edit3 className="w-6 h-6 text-blue-600" />
                             </DialogTitle>
-                            {itemData && (
-                                <DialogDescription className="text-right mt-1 text-gray-600">
-                                    מספר פריט: {itemId}
-                                </DialogDescription>
-                            )}
+                            <DialogDescription className="text-right mt-1 text-gray-600">
+                                מסד: {itemId} | סוג: {itemKind}
+                            </DialogDescription>
                         </div>
                     </div>
                 </DialogHeader>
@@ -180,7 +199,7 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                         {/* ID Field with Icon */}
                         <div className="space-y-2">
                             <Label htmlFor="id" className="text-right flex items-center gap-2 justify-end font-semibold text-base">
-                                <span>מספר פריט</span>
+                                <span>מסד</span>
                                 <Hash className="w-4 h-4 text-blue-600" />
                             </Label>
                             <div className="relative">
@@ -199,7 +218,7 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                             </div>
                             {itemData && formData.id !== itemData.id && (
                                 <p className="text-xs text-orange-600 text-right">
-                                    ⚠️ שימו לב: שינוי מספר הפריט מ-{itemData.id} ל-{formData.id}
+                                    ⚠️ שימו לב: שינוי מספר המסד מ-{itemData.id} ל-{formData.id}
                                 </p>
                             )}
                         </div>

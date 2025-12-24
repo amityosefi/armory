@@ -142,8 +142,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             try {
                 setLoading(true);
                 
-                // Fetch גדוד data in chunks
-                let allGdudData: LogisticItem[] = [];
+                // Fetch all data in chunks (both גדוד and מחסן)
+                let allData: LogisticItem[] = [];
                 let offset = 0;
                 const chunkSize = 1000;
                 let hasMore = true;
@@ -152,7 +152,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     const ammoResponse = await supabase
                         .from("ammo")
                         .select("*")
-                        .eq("פלוגה", selectedSheet.range)
+                        .in("פלוגה", [selectedSheet.range, "מחסן"])
                         .range(offset, offset + chunkSize - 1);
 
                     if (ammoResponse.error) {
@@ -166,7 +166,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
                     if (ammoResponse.data && ammoResponse.data.length > 0) {
                         // @ts-ignore
-                        allGdudData = [...allGdudData, ...(ammoResponse.data as LogisticItem[])];
+                        allData = [...allData, ...(ammoResponse.data as LogisticItem[])];
                         offset += chunkSize;
                         hasMore = ammoResponse.data.length === chunkSize;
                     } else {
@@ -174,32 +174,9 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                     }
                 }
 
-                // Fetch מחסן data in chunks
-                let allWarehouseData: LogisticItem[] = [];
-                offset = 0;
-                hasMore = true;
-
-                while (hasMore) {
-                    const warehouseResponse = await supabase
-                        .from("ammo")
-                        .select("*")
-                        .eq("פלוגה", "מחסן")
-                        .range(offset, offset + chunkSize - 1);
-
-                    if (warehouseResponse.error) {
-                        console.error("Error fetching warehouse data:", warehouseResponse.error);
-                        break;
-                    }
-
-                    if (warehouseResponse.data && warehouseResponse.data.length > 0) {
-                        // @ts-ignore
-                        allWarehouseData = [...allWarehouseData, ...(warehouseResponse.data as LogisticItem[])];
-                        offset += chunkSize;
-                        hasMore = warehouseResponse.data.length === chunkSize;
-                    } else {
-                        hasMore = false;
-                    }
-                }
+                // Separate data by location
+                const allGdudData = allData.filter(item => item.פלוגה === selectedSheet.range);
+                const allWarehouseData = allData.filter(item => item.פלוגה === "מחסן");
 
                 // Process גדוד data
                 const ballData = allGdudData.filter((item: LogisticItem) => !item.is_explosion);
@@ -214,9 +191,8 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 
                 // Process מחסן data
                 if (allWarehouseData.length > 0) {
-                    const warehouseData = allWarehouseData;
-                    const ballDataWarehouse = warehouseData.filter((item: LogisticItem) => !item.is_explosion);
-                    const explosionDataWarehouse = warehouseData.filter((item: LogisticItem) => item.is_explosion);
+                    const ballDataWarehouse = allWarehouseData.filter((item: LogisticItem) => !item.is_explosion);
+                    const explosionDataWarehouse = allWarehouseData.filter((item: LogisticItem) => item.is_explosion);
                     
                     setRawBallDataWarehouse(ballDataWarehouse as LogisticItem[]);
                     setRawExplosionDataWarehouse(explosionDataWarehouse as LogisticItem[]);

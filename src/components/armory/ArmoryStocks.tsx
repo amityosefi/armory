@@ -11,6 +11,7 @@ import AddItemIdModal from "./AddItemIdModal";
 import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
 import jsPDF from "jspdf";
 import "@/fonts/NotoSansHebrew-normal.js";
+import logoImage from "@/assets/logo.jpeg";
 
 interface ArmoryStocksProps {
     selectedSheet: {
@@ -39,6 +40,8 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
     const [selectedItemLocation, setSelectedItemLocation] = useState<string>("");
+    const [selectedItemName, setSelectedItemName] = useState<string>("");
+    const [selectedItemKind, setSelectedItemKind] = useState<string>("");
     const [addNewItemModalOpen, setAddNewItemModalOpen] = useState(false);
     const [addItemIdModalOpen, setAddItemIdModalOpen] = useState(false);
     
@@ -150,9 +153,11 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
     const sadnaPivotData = useMemo(() => createPivotData(sadnaData), [sadnaData]);
 
     // Handle ID click
-    const handleIdClick = (id: number, location: string) => {
+    const handleIdClick = (id: number, location: string, name: string, kind: string) => {
         setSelectedItemId(id);
         setSelectedItemLocation(location);
+        setSelectedItemName(name);
+        setSelectedItemKind(kind);
         setEditModalOpen(true);
     };
     
@@ -185,7 +190,7 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
                                 key={id}
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    handleIdClick(id, location);
+                                    handleIdClick(id, location, rowData.name, rowData.kind);
                                 }}
                                 className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded whitespace-nowrap hover:bg-blue-200 cursor-pointer"
                             >
@@ -325,14 +330,23 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
 
             let y = margin;
 
+            // Add logo to top left
+            const logoWidth = 30;
+            const logoHeight = 30;
+            doc.addImage(logoImage, 'JPEG', margin, y, logoWidth, logoHeight);
+
             // Add header
             doc.setFontSize(18);
-            doc.text(mirrorHebrewSmart('דוח סדנא'), pageWidth - margin, y, {align: 'right'});
+            doc.text(mirrorHebrewSmart('דוח סדנא 1018'), pageWidth/2, y, {align: 'center'});
 
-            // Add date
+            // Add date label
             y += 10;
             doc.setFontSize(12);
-            doc.text(mirrorHebrewSmart(`תאריך: ${today}`), pageWidth - margin, y, {align: 'right'});
+            doc.text(mirrorHebrewSmart('תאריך:'), pageWidth - margin, y, {align: 'right'});
+            
+            // Add date value on next line
+            y += 7;
+            doc.text(today, pageWidth - margin, y, {align: 'right'});
 
             // Add table header
             y += 15;
@@ -697,6 +711,8 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
                 onClose={() => setEditModalOpen(false)}
                 itemId={selectedItemId || 0}
                 currentLocation={selectedItemLocation}
+                itemName={selectedItemName}
+                itemKind={selectedItemKind}
                 onSuccess={(message: string) => {
                     logAction(message);
                     fetchData();

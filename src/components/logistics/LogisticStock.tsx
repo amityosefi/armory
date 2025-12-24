@@ -120,68 +120,41 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             try {
                 setLoading(true);
                 
-                // Fetch גדוד data in chunks
-                let allGadudData: LogisticItem[] = [];
+                // Fetch all data in chunks (both גדוד and מחסן)
+                let allData: LogisticItem[] = [];
                 let offset = 0;
                 const chunkSize = 1000;
                 let hasMore = true;
 
                 while (hasMore) {
-                    const {data: gadudData, error: gadudError} = await supabase
+                    const {data, error} = await supabase
                         .from("logistic")
                         .select("*")
-                        .eq("פלוגה", selectedSheet.range)
+                        .in("פלוגה", [selectedSheet.range, "מחסן"])
                         .range(offset, offset + chunkSize - 1);
 
-                    if (gadudError) {
-                        console.error("Error fetching gadud data:", gadudError);
+                    if (error) {
+                        console.error("Error fetching data:", error);
                         setStatusMessage({
-                            text: `שגיאה בטעינת נתונים: ${gadudError.message}`,
+                            text: `שגיאה בטעינת נתונים: ${error.message}`,
                             isSuccess: false
                         });
                         break;
                     }
 
-                    if (gadudData && gadudData.length > 0) {
+                    if (data && data.length > 0) {
                         // @ts-ignore
-                        allGadudData = [...allGadudData, ...(gadudData as LogisticItem[])];
+                        allData = [...allData, ...(data as LogisticItem[])];
                         offset += chunkSize;
-                        hasMore = gadudData.length === chunkSize;
+                        hasMore = data.length === chunkSize;
                     } else {
                         hasMore = false;
                     }
                 }
 
-                // Fetch מחסן data in chunks
-                let allWarehouseData: LogisticItem[] = [];
-                offset = 0;
-                hasMore = true;
-
-                while (hasMore) {
-                    const {data: warehouseData, error: warehouseError} = await supabase
-                        .from("logistic")
-                        .select("*")
-                        .eq("פלוגה", "מחסן")
-                        .range(offset, offset + chunkSize - 1);
-
-                    if (warehouseError) {
-                        console.error("Error fetching warehouse data:", warehouseError);
-                        setStatusMessage({
-                            text: `שגיאה בטעינת נתוני מחסן: ${warehouseError.message}`,
-                            isSuccess: false
-                        });
-                        break;
-                    }
-
-                    if (warehouseData && warehouseData.length > 0) {
-                        // @ts-ignore
-                        allWarehouseData = [...allWarehouseData, ...(warehouseData as LogisticItem[])];
-                        offset += chunkSize;
-                        hasMore = warehouseData.length === chunkSize;
-                    } else {
-                        hasMore = false;
-                    }
-                }
+                // Separate data by location
+                const allGadudData = allData.filter(item => item.פלוגה === selectedSheet.range);
+                const allWarehouseData = allData.filter(item => item.פלוגה === "מחסן");
 
                 // Process all data
                 // @ts-ignore
