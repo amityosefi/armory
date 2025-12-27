@@ -81,10 +81,12 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({
                 .from("armory_items")
                 .select("id")
                 .eq("id", parseInt(formData.id))
+                .eq("kind", parseInt(formData.kind))
+                .eq("name", parseInt(formData.kind))
                 .single();
 
             if (existingItem) {
-                onError(`מסד ${formData.id} כבר קיים במערכת`);
+                onError(`מסד ${formData.id} כבר קיים במערכת  עבור ${formData.kind} | ${formData.name}`);
                 setLoading(false);
                 return;
             }
@@ -113,7 +115,8 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({
             if (err.code === '23505') {
                 onError(`שגיאה: מסד ${formData.id} כבר קיים במערכת | שם: ${formData.name} | סוג: ${formData.kind}`);
             } else {
-                onError(`שגיאה בהוספת פריט: ${err.message}`);
+                onError(`שגיאה בהוספת פריט: ${formData.name}`);
+                console.log(`שגיאה בהוספת פריט: ${err.message}`);
             }
             
             onClose();
@@ -144,9 +147,6 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({
                                 <span>הוספת פריט חדש למערכת</span>
                                 <PackagePlus className="w-6 h-6 text-green-600" />
                             </DialogTitle>
-                            <DialogDescription className="text-right mt-1">
-                                צור פריט חדש עם כל הפרטים הנדרשים
-                            </DialogDescription>
                         </div>
                     </div>
                 </DialogHeader>

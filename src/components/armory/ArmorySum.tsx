@@ -146,17 +146,15 @@ const ArmorySum: React.FC<ArmorySumProps> = ({selectedSheet}) => {
 
         // First priority: Check if location is one of the direct location values
         const directLocations = ['גדוד', 'מחסן', 'סדנא'];
-        if (locationValue && directLocations.includes(locationValue)) {
-            return locationValue;
+        if (locationValue && directLocations.includes(locationValue.toString())) {
+            return locationValue.toString();
         }
 
+        // Try to find person by ID (location might be a person ID)
         if (locationValue) {
-
             const person = peopleData.find(p => {
-                const match = p.id === locationValue || p.id.toString() === locationValue.toString();
-                if (match) {
-                }
-                return match;
+                // Convert both to string for comparison to handle type mismatches
+                return String(p.id) === String(locationValue);
             });
             
             if (person && person.location) {
@@ -200,15 +198,17 @@ const ArmorySum: React.FC<ArmorySumProps> = ({selectedSheet}) => {
                 });
             }
             
-            // Check if item is saved (מאופסן)
+            // Resolve the location (person ID -> person's location, or direct location)
+            const location = resolveLocation(item);
+            
+            // Count in מאופסן if is_save is true
             if (item.is_save === true) {
                 grouped[kind][name]['מאופסן'] = (grouped[kind][name]['מאופסן'] || 0) + 1;
-            } else {
-                // Only count in location columns if not saved
-                const location = resolveLocation(item);
-                if (locationColumns.includes(location)) {
-                    grouped[kind][name][location] = (grouped[kind][name][location] || 0) + 1;
-                }
+            }
+            
+            // Count in location columns (including פלוגות) regardless of is_save flag
+            if (locationColumns.includes(location)) {
+                grouped[kind][name][location] = (grouped[kind][name][location] || 0) + 1;
             }
         });
         
@@ -226,7 +226,7 @@ const ArmorySum: React.FC<ArmorySumProps> = ({selectedSheet}) => {
                              (locationCounts['גדוד'] || 0) + 
                              (locationCounts['מחסן'] || 0) + 
                              (locationCounts['סדנא'] || 0) + 
-                             (locationCounts['מאופסן'] || 0);
+                             (locationCounts['מנופק'] || 0);
                 
                 return {
                     name,

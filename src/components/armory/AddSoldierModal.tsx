@@ -450,7 +450,7 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
 
             // Success - reset form and notify parent
             const itemsList = selectedItems.map(item => `${item.kind} ${item.name} (#${item.id})`).join(', ');
-            const successMsg = `חייל ${nameStr} (מספר אישי: ${idStr}) נוסף בהצלחה${selectedItems.length > 0 ? ` עם ${selectedItems.length} פריטי ציוד: ${itemsList}` : ''}`;
+            const successMsg = `חייל ${nameStr} (מספר אישי: ${idStr}) נוסף בהצלחה ל${locationRange} ${selectedItems.length > 0 ? ` עם ${selectedItems.length} פריטי ציוד: ${itemsList}` : ''}`;
             
             // Log to armory_document
             await supabase.from('armory_document').insert({

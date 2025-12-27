@@ -47,6 +47,8 @@ const SoldierArmoryPage: React.FC = () => {
   const [weaponReturnModalOpen, setWeaponReturnModalOpen] = useState(false);
   const [selectedWeaponForReturn, setSelectedWeaponForReturn] = useState<ArmoryItem | null>(null);
   const [statusMessage, setStatusMessage] = useState({ text: '', isSuccess: false });
+  const [editingItemId, setEditingItemId] = useState<{ name: string; kind: string } | null>(null);
+  const [newItemId, setNewItemId] = useState<string>('');
   const isMobile = useIsMobile();
   const { permissions } = usePermissions();
 
@@ -127,6 +129,50 @@ const SoldierArmoryPage: React.FC = () => {
     }
   };
 
+  const handleIdClick = (item: ArmoryItem) => {
+    if (item.kind === 'כוונת' && permissions['armory']) {
+      setEditingItemId({ name: item.name, kind: item.kind });
+      setNewItemId(String(item.id));
+    }
+  };
+
+  const handleIdUpdate = async (item: ArmoryItem) => {
+    if (!newItemId.trim()) {
+      setStatusMessage({ text: 'מספר מסד לא יכול להיות ריק', isSuccess: false });
+      return;
+    }
+
+    const newIdNum = parseInt(newItemId.trim());
+    if (isNaN(newIdNum)) {
+      setStatusMessage({ text: 'מספר מסד חייב להיות מספר', isSuccess: false });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('armory_items')
+        .update({ id: newIdNum })
+        .eq('name', item.name)
+        .eq('kind', item.kind)
+        .eq('id', item.id);
+
+      if (error) throw error;
+
+      const message = `עודכן מסד של ${item.name} (${item.kind}) מ-${item.id} ל-${newIdNum} - חייל ${soldier?.name}`;
+      setStatusMessage({ text: message, isSuccess: true });
+      await logToArmoryDocument(message);
+
+      setArmoryItems(armoryItems.map(i => 
+        i.id === item.id && i.name === item.name && i.kind === item.kind ? { ...i, id: newIdNum } : i
+      ));
+      setEditingItemId(null);
+      setNewItemId('');
+    } catch (error) {
+      console.error('Error updating item ID:', error);
+      setStatusMessage({ text: `שגיאה בעדכון מסד ${item.name}`, isSuccess: false });
+    }
+  };
+
   const handleToggleSave = async (item: ArmoryItem) => {
     // Only show modal if changing from כן (true) to לא (false) for weapons
     if (item.is_save && item.kind === 'נשק') {
@@ -140,15 +186,18 @@ const SoldierArmoryPage: React.FC = () => {
       const { error } = await supabase
         .from('armory_items')
         .update({ is_save: !item.is_save })
-        .eq('id', item.id);
+        .eq('id', item.id)
+        .eq('name', item.name)
+        .eq('kind', item.kind);
 
       if (error) throw error;
       
-      const newStatus = !item.is_save ? 'מאופסן' : 'לא מאופסן';
-      const message = `${item.name} (מסד: ${item.id}) עודכן ל-${newStatus} - חייל ${soldier?.name}`;
+      const message = !item.is_save 
+        ? `החייל ${soldier?.name} מספר אישי ${soldier?.id} איפסן את ${item.name} מסד ${item.id}`
+        : `החייל ${soldier?.name} מספר אישי ${soldier?.id} לקח את ${item.name} מסד ${item.id} מאיפסון`;
       
       setArmoryItems(armoryItems.map(i => 
-        i.id === item.id ? { ...i, is_save: !i.is_save } : i
+        i.id === item.id && i.name === item.name && i.kind === item.kind ? { ...i, is_save: !i.is_save } : i
       ));
       setStatusMessage({ text: message, isSuccess: true });
       await logToArmoryDocument(message);
@@ -211,14 +260,14 @@ const SoldierArmoryPage: React.FC = () => {
     try {
       const { error } = await supabase
         .from('armory_items')
-        .update({ location: newLocation })
+        .update({ location: newLocation , is_save: false, people_sign: '', sign_time: '', logistic_sign: '', logistic_name: '', logistic_id: 0})
         .eq('id', item.id)
         .eq('kind', item.kind)
           .eq('name', item.name);
 
       if (error) throw error;
       
-      const message = `${item.name} (מסד: ${item.id}) הועבר ל-${newLocation} מהחייל ${soldier?.name}`;
+      const message = `החייל ${soldier?.name} זיכה ${item.kind} ${item.name} מסד ${item.id} ל${newLocation}`;
       
       setArmoryItems(armoryItems.filter(i => i.id !== item.id));
       setStatusMessage({ text: message, isSuccess: true });
@@ -249,7 +298,7 @@ const SoldierArmoryPage: React.FC = () => {
 
       if (deleteError) throw deleteError;
 
-      const message = `זוכה חייל ${soldier?.name} (מספר אישי: ${soldier?.id}). הוחזרו ${itemCount} פריטים: ${itemsList}`;
+      const message = `זוכה ונמחק חייל ${soldier?.name} (מספר אישי: ${soldier?.id}). הוחזרו ${itemCount} פריטים: ${itemsList}`;
       setStatusMessage({ text: message, isSuccess: true });
       await logToArmoryDocument(message);
       setTimeout(() => navigate(-1), 1500);
@@ -301,12 +350,6 @@ const SoldierArmoryPage: React.FC = () => {
           <h1 className="text-2xl font-bold">דף חייל - {soldier.name}</h1>
           <Button onClick={() => navigate(-1)} variant="outline">חזור</Button>
         </div>
-
-        <StatusMessage 
-          isSuccess={statusMessage.isSuccess} 
-          message={statusMessage.text} 
-          onClose={() => setStatusMessage({ text: '', isSuccess: false })} 
-        />
 
         <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
           <div className={`flex ${isMobile ? 'flex-col' : 'items-center justify-between'} gap-2`}>
@@ -388,6 +431,14 @@ const SoldierArmoryPage: React.FC = () => {
         </div>
       </div>
 
+      <StatusMessage
+          isSuccess={statusMessage.isSuccess}
+          message={statusMessage.text}
+          onClose={() => setStatusMessage({ text: '', isSuccess: false })}
+      />
+
+      <br/>
+
       <div className="flex gap-3 mb-4 justify-center flex-wrap">
         <Button onClick={handleExportPDF} className="bg-blue-500 hover:bg-blue-600 text-white flex items-center gap-2">
           <Download className="w-4 h-4" />
@@ -428,7 +479,42 @@ const SoldierArmoryPage: React.FC = () => {
                   <tr key={item.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                     <td className="p-2 w-8">{index + 1}</td>
                     <td className="p-2 w-24 truncate">{item.name}</td>
-                    <td className="p-2 w-12">{item.id}</td>
+                    <td className="p-2 w-12">
+                      {editingItemId?.name === item.name && editingItemId?.kind === item.kind ? (
+                        <div className="flex gap-1">
+                          <input
+                            type="text"
+                            value={newItemId}
+                            onChange={(e) => setNewItemId(e.target.value)}
+                            className="w-16 px-1 py-0.5 border rounded text-xs"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleIdUpdate(item);
+                              if (e.key === 'Escape') { setEditingItemId(null); setNewItemId(''); }
+                            }}
+                          />
+                          <button
+                            onClick={() => handleIdUpdate(item)}
+                            className="text-green-600 hover:text-green-800 text-xs"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => { setEditingItemId(null); setNewItemId(''); }}
+                            className="text-red-600 hover:text-red-800 text-xs"
+                          >
+                            ✗
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          className={kind === 'כוונת' && permissions['armory'] ? 'cursor-pointer hover:text-blue-600' : ''}
+                          onClick={() => handleIdClick(item)}
+                        >
+                          {item.id}
+                        </span>
+                      )}
+                    </td>
                     <td className="p-2 w-16">
                       <span 
                         className={`px-2 py-1 text-xs rounded-full ${permissions['armory'] ? 'cursor-pointer' : ''} ${item.is_save ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`} 
@@ -480,7 +566,8 @@ const SoldierArmoryPage: React.FC = () => {
       )}
 
       {assignModalOpen && (
-        <AssignEquipmentModal 
+        <AssignEquipmentModal
+            soldierName={soldier?.name}
           soldierID={parseInt(soldierID!)} 
           onClose={() => setAssignModalOpen(false)} 
           onAssignComplete={(message, isSuccess) => { 

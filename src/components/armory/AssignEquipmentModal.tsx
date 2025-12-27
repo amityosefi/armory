@@ -5,6 +5,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { X } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import addSoldierModal from "@/components/armory/AddSoldierModal";
 
 interface ArmoryItem {
   id: number;
@@ -13,12 +14,13 @@ interface ArmoryItem {
 }
 
 interface AssignEquipmentModalProps {
+  soldierName: string;
   soldierID: number;
   onClose: () => void;
   onAssignComplete: (message: string, isSuccess: boolean) => void;
 }
 
-const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, onClose, onAssignComplete }) => {
+const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierName, soldierID, onClose, onAssignComplete }) => {
   const { permissions } = usePermissions();
   const [availableItems, setAvailableItems] = useState<ArmoryItem[]>([]);
   const [kinds, setKinds] = useState<string[]>([]);
@@ -56,15 +58,32 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, 
 
   const fetchAvailableItems = async () => {
     try {
-      const { data, error } = await supabase
-        .from('armory_items')
-        .select('*')
-        .eq('location', 'גדוד');
+      // Fetch all items in chunks
+      let allItems: any[] = [];
+      let offset = 0;
+      const chunkSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('armory_items')
+          .select('*')
+          .eq('location', 'גדוד')
+          .range(offset, offset + chunkSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allItems = [...allItems, ...data];
+          offset += chunkSize;
+          hasMore = data.length === chunkSize;
+        } else {
+          hasMore = false;
+        }
+      }
       
-      setAvailableItems((data as any[]) || []);
-      const uniqueKinds = [...new Set((data as any[])?.map(item => item.kind as string) || [])];
+      setAvailableItems(allItems);
+      const uniqueKinds = [...new Set(allItems.map(item => item.kind as string))];
       setKinds(uniqueKinds);
     } catch (error) {
       console.error('Error fetching available items:', error);
@@ -124,7 +143,7 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, 
 
       if (error) throw error;
 
-      const message = `הוקצה ${selectedName} (מסד: ${selectedId}) לחייל מספר אישי ${soldierID}`;
+      const message = `החייל ${soldierName} מספר אישי ${soldierID} חתם על ${selectedName} מסד ${selectedId}`;
       
       // Log to armory_document
       await supabase.from('armory_document').insert({
@@ -144,7 +163,7 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierID, 
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" dir="rtl">
       <div className="bg-white rounded-lg p-6 max-w-md w-full">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">התממת אמצעי</h2>
+          <h2 className="text-xl font-bold">החתמת אמצעי</h2>
           <X className="w-6 h-6 cursor-pointer" onClick={onClose} />
         </div>
 
