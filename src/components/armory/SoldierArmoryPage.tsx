@@ -286,7 +286,7 @@ const SoldierArmoryPage: React.FC = () => {
       
       const { error: itemsError } = await supabase
         .from('armory_items')
-        .update({ location: 'גדוד' })
+        .update({ location: 'גדוד' , is_save: false, people_sign: '', sign_time: '', logistic_sign: '', logistic_name: '', logistic_id: 0})
         .eq('location', soldierID!);
 
       if (itemsError) throw itemsError;
