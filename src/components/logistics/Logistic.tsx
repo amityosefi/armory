@@ -6,7 +6,7 @@ import {supabase} from "@/lib/supabaseClient"
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
-import {Check, ChevronsUpDown, Trash, LayoutGrid, Table} from "lucide-react";
+import {Check, ChevronsUpDown, Trash, LayoutGrid, Table, Info} from "lucide-react";
 import {ColDef} from "ag-grid-community";
 import CreatableSelect from 'react-select/creatable';
 
@@ -18,6 +18,11 @@ import {
     DialogDescription,
     DialogFooter,
 } from '@/components/ui/dialog';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import {usePermissions} from "@/contexts/PermissionsContext";
 import SignatureCanvas from "react-signature-canvas";
 import {Label} from "@/components/ui/label";
@@ -93,7 +98,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards'); // Toggle between table and card view
     const [cardDetailModalOpen, setCardDetailModalOpen] = useState(false);
     const [selectedCardItem, setSelectedCardItem] = useState<LogisticItem | null>(null);
-    const [showInfoText, setShowInfoText] = useState(true);
 
     // Import logo image for PDF
     const [logoBase64, setLogoBase64] = useState<string>('');
@@ -1262,31 +1266,33 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                     >
                         <Table className="h-4 w-4" />
                     </Button>
-                </div>
-            )}
-
-            {/* Info text for card operations */}
-            {viewMode === 'cards' && showInfoText && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-right relative">
-                    <button
-                        onClick={() => setShowInfoText(false)}
-                        className="absolute left-2 top-2 text-blue-600 hover:text-blue-800 font-bold text-xl"
-                        aria-label="Close"
-                    >
-                        ×
-                    </button>
-                    <h4 className="font-bold text-blue-900 mb-2">הפעולות שניתן לבצע הן:</h4>
-                    <ul className="list-disc list-inside space-y-1 text-blue-800 text-sm">
-                        {permissions['logistic'] && (
-                            <>
-                                <li>העברת דרישות להחתמה על ידי לחיצה על התאריך והשלמת פרטים.</li>
-                                <li>לחיצה על כרטיסיה פנימית (פריט אחד) וסימון שנקרא (כלומר דיווח טופל), והפוך.</li>
-                            </>
-                        )}
-                        <li>כרטיסיה עם רקע אדום נחשבת ככרטיסיה שנקראה וטופלה.</li>
-                        <li>לחיצה על כרטיסיה פנימית (פריט אחד) ומחיקת הפריט במידה ולא נקראה. (במידה וישנו טעות בדרישה).</li>
-                        <li>מעבר לטבלה על מנת לסנן ולהגיע לתוצאה רצויה.</li>
-                    </ul>
+                    {viewMode === 'cards' && (
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex items-center gap-1"
+                                >
+                                    <Info className="h-4 w-4" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 text-right" align="center" side="bottom" alignOffset={0}>
+                                <h4 className="font-bold text-blue-900 mb-2">הפעולות שניתן לבצע הן:</h4>
+                                <ul className="list-disc list-inside space-y-1 text-blue-800 text-sm">
+                                    {permissions['logistic'] && (
+                                        <>
+                                            <li>העברת דרישות להחתמה על ידי לחיצה על התאריך והשלמת פרטים.</li>
+                                            <li>לחיצה על כרטיסיה פנימית (פריט אחד) וסימון שנקרא (כלומר דיווח טופל), והפוך.</li>
+                                        </>
+                                    )}
+                                    <li>כרטיסיה עם רקע אדום נחשבת ככרטיסיה שנקראה וטופלה.</li>
+                                    <li>לחיצה על כרטיסיה פנימית (פריט אחד) ומחיקת הפריט במידה ולא נקראה. (במידה וישנו טעות בדרישה).</li>
+                                    <li>מעבר לטבלה על מנת לסנן ולהגיע לתוצאה רצויה.</li>
+                                </ul>
+                            </PopoverContent>
+                        </Popover>
+                    )}
                 </div>
             )}
 
