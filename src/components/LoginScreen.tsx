@@ -5,6 +5,7 @@ import {usePermissions} from '@/contexts/PermissionsContext'
 import {supabase} from '@/lib/supabaseClient' // <-- your supabase client
 import logo from '@/assets/logo.jpeg' // Import the logo
 import {Navigate} from "react-router-dom";
+import RegistrationForm from '@/components/RegistrationForm';
 
 interface LoginScreenProps {
     onLoginSuccess: (response: TokenResponse) => void
@@ -16,6 +17,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
     const [isLoading, setIsLoading] = useState(true)
     const [isAuthenticated, setIsAuthenticated] = useState(false)
     const [authChecked, setAuthChecked] = useState(false)
+    const [showRegistration, setShowRegistration] = useState(false)
 
     const setAuth = useAuthStore((state) => state.setAuth)
     const {setPermissions, permissions, setIsPermissionsLoaded} = usePermissions()
@@ -208,29 +210,30 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
     }
 
     return (
-        <div className="fixed inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-green-200 via-yellow-100 to-yellow-200">
-            <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-md mx-4">
-                <div className="flex flex-col items-center">
-                    {/* Logo */}
-                    <div className="mb-6">
-                        <img src={logo} alt="Logo" className="h-24 w-auto"/>
-                    </div>
-                    
-                    {/* Title */}
-                    <h1 className="text-3xl font-bold text-gray-900 mb-3 text-center">
-                        גדוד 8101
-                    </h1>
-                    
-                    {/* Subtitle */}
-                    <p className="text-gray-600 text-sm mb-6 text-center">
-                        אנא התחבר עם חשבון Google כדי להיכנס
-                    </p>
-                    
-                    {/* Google Sign-in Button */}
-                    <button
-                        onClick={() => login()}
-                        className="flex items-center justify-center bg-white border border-gray-300 rounded-md shadow-sm px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                    >
+        <div className="fixed inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-green-200 via-yellow-100 to-yellow-200 overflow-y-auto py-8">
+            <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-2xl mx-4">
+                {!showRegistration ? (
+                    <div className="flex flex-col items-center">
+                        {/* Logo */}
+                        <div className="mb-6">
+                            <img src={logo} alt="Logo" className="h-24 w-auto"/>
+                        </div>
+                        
+                        {/* Title */}
+                        <h1 className="text-3xl font-bold text-gray-900 mb-3 text-center">
+                            גדוד 8101
+                        </h1>
+                        
+                        {/* Subtitle */}
+                        <p className="text-gray-600 text-sm mb-6 text-center">
+                            אנא התחבר עם חשבון Google כדי להיכנס
+                        </p>
+                        
+                        {/* Google Sign-in Button */}
+                        <button
+                            onClick={() => login()}
+                            className="flex items-center justify-center bg-white border border-gray-300 rounded-md shadow-sm px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                        >
                         <svg
                             className="h-5 w-5 ml-2"
                             xmlns="http://www.w3.org/2000/svg"
@@ -255,7 +258,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                         </svg>
                         לחץ להתחברות עם גוגל
                     </button>
+                    
+                    {/* Registration Link */}
+                    <div className="mt-6">
+                        <button
+                            onClick={() => setShowRegistration(true)}
+                            className="text-blue-600 hover:text-blue-800 text-sm underline"
+                        >
+                            אין לך חשבון? הירשם כאן
+                        </button>
+                    </div>
                 </div>
+                ) : (
+                    <RegistrationForm onBackToLogin={() => setShowRegistration(false)} />
+                )}
             </div>
         </div>
     )
