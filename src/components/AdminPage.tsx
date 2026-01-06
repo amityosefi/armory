@@ -18,9 +18,12 @@ const AdminPage = () => {
     const navigate = useNavigate();
     const sigPadRef = useRef<SignaturePad>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
+    const registrationTableRef = useRef<HTMLDivElement>(null);
     const {permissions} = usePermissions();
     const [rowData, setRowData] = useState<any[]>([]);
+    const [registrationData, setRegistrationData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [registrationLoading, setRegistrationLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
     const [showDeleteForm, setShowDeleteForm] = useState(false);
     const [emailToDelete, setEmailToDelete] = useState("");
@@ -168,8 +171,24 @@ const AdminPage = () => {
         }
     };
 
+    const fetchRegistrations = async () => {
+        if (permissions['admin']) {
+            const {data, error} = await supabase.from("registration").select("*");
+
+            if (error) {
+                console.error("Supabase fetch error:", error);
+                setStatusMessage({text: `Error fetching registrations: ${error.message}`, type: "error"});
+            } else {
+                setRegistrationData(data || []);
+            }
+
+            setRegistrationLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchUsers();
+        fetchRegistrations();
     }, []);
 
     // Scroll table to the right on mount and when data changes
@@ -430,6 +449,96 @@ const AdminPage = () => {
             setStatusMessage({text: `Error: ${err.message}`, type: "error"});
         } finally {
             setLoading(false);
+        }
+    };
+
+    const approveRegistration = async (registration: any) => {
+        if (!window.confirm(`האם לאשר את הבקשה של ${registration.name}?`)) {
+            return;
+        }
+
+        setRegistrationLoading(true);
+        setStatusMessage({text: "", type: ""});
+
+        try {
+            // Add to users table
+            const {data: userData, error: userError} = await supabase
+                .from("users")
+                .insert([registration])
+                .select();
+
+            if (userError) {
+                setStatusMessage({text: `שגיאה בהוספת משתמש: ${userError.message}`, type: "error"});
+                setRegistrationLoading(false);
+                return;
+            }
+
+            // Delete from registration table
+            const {error: deleteError} = await supabase
+                .from("registration")
+                .delete()
+                .eq("id", registration.id);
+
+            if (deleteError) {
+                setStatusMessage({text: `שגיאה במחיקת בקשה: ${deleteError.message}`, type: "error"});
+                setRegistrationLoading(false);
+                return;
+            }
+
+            const successMsg = `בקשת ההרשמה של ${registration.name} (${registration.email}) אושרה `;
+            setStatusMessage({text: successMsg, type: "success"});
+
+            // Log to armory_document
+            await supabase.from('armory_document').insert({
+                'משתמש': permissions['name'] ? String(permissions['name']) : 'Admin',
+                'תאריך': new Date().toLocaleString('he-IL'),
+                'הודעה': successMsg
+            });
+
+            // Remove from UI immediately
+            setRegistrationData(prev => prev.filter(r => r.id !== registration.id));
+            await fetchUsers();
+        } catch (err: any) {
+            setStatusMessage({text: `Error: ${err.message}`, type: "error"});
+        } finally {
+            setRegistrationLoading(false);
+        }
+    };
+
+    const rejectRegistration = async (registration: any) => {
+        if (!window.confirm(`האם לדחות את הבקשה של ${registration.name}?`)) {
+            return;
+        }
+
+        setRegistrationLoading(true);
+        setStatusMessage({text: "", type: ""});
+
+        try {
+            const {error} = await supabase
+                .from("registration")
+                .delete()
+                .eq("id", registration.id);
+
+            if (error) {
+                setStatusMessage({text: `שגיאה במחיקת בקשה: ${error.message}`, type: "error"});
+            } else {
+                const successMsg = `בקשת ההרשמה של ${registration.name} (${registration.email}) נדחתה ונמחקה`;
+                setStatusMessage({text: successMsg, type: "success"});
+
+                // Log to armory_document
+                await supabase.from('armory_document').insert({
+                    'משתמש': permissions['name'] ? String(permissions['name']) : 'Admin',
+                    'תאריך': new Date().toLocaleString('he-IL'),
+                    'הודעה': successMsg
+                });
+
+                // Remove from UI immediately
+                setRegistrationData(prev => prev.filter(r => r.id !== registration.id));
+            }
+        } catch (err: any) {
+            setStatusMessage({text: `Error: ${err.message}`, type: "error"});
+        } finally {
+            setRegistrationLoading(false);
         }
     };
 
@@ -961,6 +1070,87 @@ const AdminPage = () => {
                     }}
                 />
             </div>
+
+            {/* Registration Requests Section */}
+            {permissions['admin'] && (
+                <div className="mt-12">
+                    <h2 className="text-2xl font-bold mb-4 text-right">בקשות הרשמה ממתינות</h2>
+                    
+                    {registrationLoading ? (
+                        <div className="flex flex-col items-center justify-center h-[20vh]">
+                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                            <p className="text-center p-4">טוען בקשות...</p>
+                        </div>
+                    ) : registrationData.length === 0 ? (
+                        <div className="bg-gray-100 rounded-lg p-8 text-center">
+                            <p className="text-gray-600 text-lg">אין בקשות הרשמה ממתינות</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {registrationData.map((registration) => (
+                                <div key={registration.id} className="bg-white border-2 border-gray-200 rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                                        <div className="text-right">
+                                            <span className="font-semibold text-gray-700">שם:</span>
+                                            <p className="text-lg">{registration.name}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="font-semibold text-gray-700">אימייל:</span>
+                                            <p className="text-lg">{registration.email}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="font-semibold text-gray-700">מספר אישי:</span>
+                                            <p className="text-lg">{registration.id || 'לא צוין'}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="font-semibold text-gray-700">הרשאות מבוקשות:</span>
+                                            <p className="text-lg">
+                                                {[
+                                                    registration.admin && 'מנהל',
+                                                    registration.armory && 'נשקיה',
+                                                    registration.logistic && 'לוגיסטיקה',
+                                                    registration.ammo && 'תחמושת',
+                                                    registration.א && 'א',
+                                                    registration.ב && 'ב',
+                                                    registration.ג && 'ג',
+                                                    registration.מסייעת && 'מסייעת',
+                                                    registration.אלון && 'אלון',
+                                                    registration.מכלול && 'מכלול',
+                                                    registration.פלסם && 'פלסם'
+                                                ].filter(Boolean).join(', ') || 'אין'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    {registration.signature && (
+                                        <div className="mb-4 text-right">
+                                            <span className="font-semibold text-gray-700">חתימה:</span>
+                                            <div className="mt-2 border border-gray-300 rounded p-2 inline-block">
+                                                <img src={registration.signature} alt="חתימה" className="h-20" />
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="flex justify-end gap-3 mt-4">
+                                        <button
+                                            onClick={() => rejectRegistration(registration)}
+                                            className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded transition-colors"
+                                        >
+                                            דחה
+                                        </button>
+                                        <button
+                                            onClick={() => approveRegistration(registration)}
+                                            className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded transition-colors"
+                                        >
+                                            אשר והוסף למשתמשים
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
         </div>
     );
