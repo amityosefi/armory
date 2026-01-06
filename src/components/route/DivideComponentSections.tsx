@@ -14,6 +14,8 @@ import ArmoryGroups from "@/components/armory/ArmoryGroups";
 import ArmoryStocks from "@/components/armory/ArmoryStocks";
 import ArmorySum from "@/components/armory/ArmorySum";
 import ArmoryDocumentation from "@/components/armory/ArmoryDocumentation";
+import LogisticDocumentation from "@/components/logistics/LogisticDocumentation";
+import AmmoDocumentation from "@/components/ammo/AmmoDocumentation";
 
 
 const DivideComponents: React.FC = () => {
@@ -76,6 +78,8 @@ const DivideComponents: React.FC = () => {
             ) : (groupIndex === 1 && selectedSheet.range === 'סיכום') ? (
                 <LogisticSum selectedSheet={selectedSheet}
                 />
+            ) : (groupIndex === 1 && selectedSheet.range === 'תיעוד') ? (
+                <LogisticDocumentation/>
             ) : (groupIndex === 1) && (
                 <Logistic selectedSheet={selectedSheet}
                 />
@@ -91,6 +95,8 @@ const DivideComponents: React.FC = () => {
             ) : (groupIndex === 2 && selectedSheet.range === 'שצל') ? (
                 <AmmoOrders selectedSheet={selectedSheet}
                 />
+            ) : (groupIndex === 2 && selectedSheet.range === 'תיעוד') ? (
+                <AmmoDocumentation/>
             ) : (groupIndex === 2) && (
                 <Ammo selectedSheet={selectedSheet}
                 />
