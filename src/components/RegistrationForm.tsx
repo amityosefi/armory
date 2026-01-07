@@ -204,7 +204,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-right">דוא&quot;ל</label>
+                        <label className="block text-sm font-medium text-right">דוא&quot;ל (gmail בלבד) </label>
                         <input
                             type="email"
                             name="email"
