@@ -229,7 +229,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
 
                 <div className="mt-4">
                     <label className="block text-sm font-medium text-right mb-2">חתימה</label>
-                    <div className="border border-gray-00 rounded p-2 bg-white w-fit mx-auto">
+                    <div className="border border-gray-300 rounded p-2 bg-white">
                         <SignatureCanvas
                             ref={sigPadRef}
                             penColor="black"
