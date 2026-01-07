@@ -252,8 +252,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
                     </div>
                 </div>
 
-                <h3 className="font-medium mt-4 text-right">הרשאות מבוקשות:</h3>
-                
+                <h3 className="font-medium mt-4 text-right">הרשאות (מיועד למחלקת הלוגיסטיקה):</h3>
                 <div className="mb-4">
                     <label className="flex items-center space-x-2 text-right">
                         <input
@@ -301,7 +300,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
                 </div>
 
                 <div className="mb-4">
-                    <label className="block text-sm font-medium text-right mb-2">פלוגה</label>
+                    <label className="block text-sm font-medium text-right mb-2">בחר פלוגה (מיועד לחיילי הפלוגות):</label>
                     <select
                         name="companyPermission"
                         value={companyPermission}
