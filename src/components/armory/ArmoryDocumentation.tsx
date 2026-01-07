@@ -121,7 +121,7 @@ const ArmoryDocumentation: React.FC = () => {
                 .insert([{
                     תאריך: new Date().toLocaleString('he-IL'),
                     משתמש: permissions['name'],
-                    הודעה: 'הודעה מהאפליקציה: ' + newMessage
+                    הודעה: 'הודעה מאפליקציה: ' + newMessage
                 }]);
 
             if (error) {
@@ -202,12 +202,12 @@ const ArmoryDocumentation: React.FC = () => {
         <div className="container mx-auto p-4">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-right">תיעוד</h2>
-                {permissions['armory'] || permissions['admin'] && (
+                {(permissions['armory'] || permissions['admin']) && (
                     <Button
                         onClick={() => setIsModalOpen(true)}
                         className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-2 px-4 rounded-lg shadow-lg"
                     >
-                        ➕ הוסף רשומה
+                        ➕ הוסף הודעה
                     </Button>
                 )}
             </div>
@@ -273,7 +273,7 @@ const ArmoryDocumentation: React.FC = () => {
                         <div className="p-6">
                             <div className="mb-4">
                                 <label className="block text-right font-semibold text-gray-700 mb-2">
-                                    הודעה
+                                    נא לציין פלוגה/ שם חייל/ מסד/ שם אמצעי/ ולפרט ככל הניתן
                                 </label>
                                 <textarea
                                     value={newMessage}
@@ -305,7 +305,7 @@ const ArmoryDocumentation: React.FC = () => {
                                 onClick={handleInsertRow}
                                 className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg transition-colors"
                             >
-                                הוסף רשומה
+                                הוסף הודעה
                             </button>
                         </div>
                     </div>

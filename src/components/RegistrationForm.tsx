@@ -129,7 +129,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
         try {
             const {data, error} = await supabase
                 .from("registration")
-                .insert([registrationData])
+                .insert([{...registrationData, email: registrationData.email.toLowerCase()}])
                 .select();
 
             if (error) {
@@ -229,13 +229,13 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
 
                 <div className="mt-4">
                     <label className="block text-sm font-medium text-right mb-2">חתימה</label>
-                    <div className="border border-gray-300 rounded p-2 bg-white">
+                    <div className="border border-gray-00 rounded p-2 bg-white w-fit mx-auto">
                         <SignatureCanvas
                             ref={sigPadRef}
                             penColor="black"
                             onEnd={handleSignatureEnd}
                             canvasProps={{
-                                width: 600,
+                                width: 350,
                                 height: 150,
                                 className: "signature-canvas border border-gray-100"
                             }}

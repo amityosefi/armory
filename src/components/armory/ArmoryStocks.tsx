@@ -184,7 +184,7 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
 
             return (
                 <div className="text-right">
-                    <div className="flex flex-wrap gap-1 justify-end overflow-y-auto p-1">
+                    <div className="flex flex-wrap gap-1 justify-end overflow-y-auto p-1 max-h-16">
                         {filteredIds.map((id: number) => (
                             <button
                                 key={id}
