@@ -555,25 +555,14 @@ const AdminPage = () => {
     return (
         <div className="container mx-auto p-4">
             {permissions['admin'] && (
-                <div className="flex justify-between mb-4">
+                <div className="mb-4">
                     <button
                         onClick={() => navigate(-1)}
-                        className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-6 rounded"
+                        className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-6 rounded w-full"
                     >
                         חזור
                     </button>
-                    <div className="space-x-2">
-                        <button
-                            onClick={() => {
-                                setShowAddForm(!showAddForm);
-                                if (!showAddForm) {
-                                    setShowDeleteForm(false);
-                                }
-                            }}
-                            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded mx-2"
-                        >
-                            {showAddForm ? 'ביטול' : 'הוסף משתמש'}
-                        </button>
+                    <div className="space-x-2 mt-4">
                         <button
                             onClick={() => {
                                 setShowDeleteForm(!showDeleteForm);
