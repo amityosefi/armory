@@ -51,6 +51,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
     const navigate = useNavigate();
     const [peopleData, setPeopleData] = useState<PersonData[]>([]);
     const [loading, setLoading] = useState(true);
+    const [itemsLoading, setItemsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState({ text: "", isSuccess: false });
     const [viewMode, setViewMode] = useState<"cards" | "table" | "summary">("cards");
     const [searchQuery, setSearchQuery] = useState("");
@@ -94,49 +95,72 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                 return;
             }
 
-            // 2. Fetch all armory_items in chunks
+            // Show people cards immediately with empty items
+            const initialPeopleList: PersonData[] = (people || []).map((person: any) => ({
+                name: person.name,
+                id: person.id,
+                phone: person.phone || '',
+                location: person.location,
+                items: []
+            }));
+            
+            setPeopleData(initialPeopleList);
+            setLoading(false);
+            setItemsLoading(true);
+
+            // 2. Fetch only armory_items that belong to these people (with pagination)
             let allItems: ArmoryItem[] = [];
-            const CHUNK_SIZE = 1000;
-            let offset = 0;
-            let hasMore = true;
+            
+            if (people && people.length > 0) {
+                const peopleIds = people.map((person: any) => person.id.toString());
+                
+                const CHUNK_SIZE = 1000;
+                let offset = 0;
+                let hasMore = true;
 
-            while (hasMore) {
-                const { data: items, error: itemsError } = await supabase
-                    .from("armory_items")
-                    .select("*")
-                    .range(offset, offset + CHUNK_SIZE - 1);
+                while (hasMore) {
+                    const { data: items, error: itemsError } = await supabase
+                        .from("armory_items")
+                        .select("*")
+                        .in("location", peopleIds)
+                        .range(offset, offset + CHUNK_SIZE - 1);
 
-                if (itemsError) {
-                    console.error("Error fetching armory items:", itemsError);
-                    setStatusMessage({
-                        text: `שגיאה בטעינת נתוני אמצעים: ${itemsError.message}`,
-                        isSuccess: false
-                    });
-                    break;
+                    if (itemsError) {
+                        console.error("Error fetching armory items:", itemsError);
+                        setStatusMessage({
+                            text: `שגיאה בטעינת נתוני אמצעים: ${itemsError.message}`,
+                            isSuccess: false
+                        });
+                        return;
+                    }
+
+                    if (items && items.length > 0) {
+                        allItems = [...allItems, ...(items as ArmoryItem[])];
+                        offset += CHUNK_SIZE;
+                        hasMore = items.length === CHUNK_SIZE;
+                    } else {
+                        hasMore = false;
+                    }
                 }
 
-                if (items && items.length > 0) {
-                    allItems = [...allItems, ...(items as ArmoryItem[])];
-                    offset += CHUNK_SIZE;
-                    hasMore = items.length === CHUNK_SIZE;
-                } else {
-                    hasMore = false;
-                }
+                console.log("Items length:", allItems.length);
+                console.log("people length:", people.length);
+
+                // 3. Update people with their items after fetching all items
+                const peopleWithItemsList: PersonData[] = (people || []).map((person: any) => {
+                    const personItems = allItems.filter(item => item.location.toString() === person.id.toString());
+                    return {
+                        name: person.name,
+                        id: person.id,
+                        phone: person.phone || '',
+                        location: person.location,
+                        items: personItems
+                    };
+                });
+
+                setPeopleData(peopleWithItemsList);
+                setItemsLoading(false);
             }
-
-            // 3. Match people with their items (people.id = armory_items.location)
-            const peopleWithItemsList: PersonData[] = (people || []).map((person: any) => {
-                const personItems = allItems.filter(item => item.location.toString() === person.id.toString());
-                return {
-                    name: person.name,
-                    id: person.id,
-                    phone: person.phone || '',
-                    location: person.location,
-                    items: personItems
-                };
-            });
-
-            setPeopleData(peopleWithItemsList);
 
             // Don't clear statusMessage here - let it be cleared by user action or timeout
         } catch (err: any) {
@@ -145,8 +169,8 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                 text: `שגיאה לא צפויה: ${err.message}`,
                 isSuccess: false
             });
-        } finally {
             setLoading(false);
+            setItemsLoading(false);
         }
     };
 
@@ -215,7 +239,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
 
             return {
                 ...person,
-                אמצעים: itemsString || ''
+                אמצעים: itemsLoading && !itemsString ? 'אמצעים בטעינה...' : (itemsString || '')
             };
         });
     }, [peopleData]);

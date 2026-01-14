@@ -11,7 +11,7 @@ interface LoginScreenProps {
     onLoginSuccess: (response: TokenResponse) => void
 }
 
-const SESSION_TIMEOUT = 60000; // 1 minute in milliseconds
+const SESSION_TIMEOUT = 600000; // 10 minutes in milliseconds
 
 const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
     const [isLoading, setIsLoading] = useState(true)
