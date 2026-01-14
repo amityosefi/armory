@@ -157,7 +157,10 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
             const { error } = await supabase
                 .from("armory_items")
                 .delete()
-                .eq("id", itemId);
+                .eq("id", itemId)
+                .eq("kind", itemKind)
+                .eq("name", itemName)
+
 
             if (error) throw error;
 
