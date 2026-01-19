@@ -133,8 +133,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
     // Form items state (dynamic rows)
     const [items, setItems] = useState<Partial<LogisticItem>[]>([{...defaultItem}]);
-    const [editedItems, setEditedItems] = useState<Partial<LogisticItem>[]>([getEmptyItem()]);
-    const [originalItem, setOriginalItem] = useState<any>(null);
+    const [showSuggestions, setShowSuggestions] = useState<{[key: string]: boolean}>({});
 
     // Helper function to create an empty item
     function getEmptyItem(): Partial<LogisticItem> {
@@ -302,12 +301,14 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
     // Get unique item names from החתמה status only for דיווח mode
     const uniqueBallItemNames = useMemo(() => {
-        // Filter items from גדוד only
-        const ballGadudItems = ballRowData.filter(item => item.פלוגה === 'גדוד');
+        // Filter items with status החתמה from גדוד and selectedSheet.range
+        const ballItems = ballRowData.filter(item => 
+            item.סטטוס === 'החתמה' && (item.פלוגה === 'גדוד' || item.פלוגה === selectedSheet.range)
+        );
 
         // Calculate quantities for each item
         const itemQuantities = new Map<string, number>();
-        ballGadudItems.forEach(item => {
+        ballItems.forEach(item => {
             const currentQty = itemQuantities.get(item.פריט) || 0;
             const quantityChange = item.צורך === 'זיכוי' ? -item.כמות : item.כמות;
             itemQuantities.set(item.פריט, currentQty + quantityChange);
@@ -322,15 +323,17 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         });
 
         return Array.from(uniqueItems).sort();
-    }, [ballRowData]);
+    }, [ballRowData, selectedSheet.range]);
 
     const uniqueExplosionItemNames = useMemo(() => {
-        // Filter items from גדוד only
-        const explosionGadudItems = explosionRowData.filter(item => item.פלוגה === 'גדוד');
+        // Filter items with status החתמה from גדוד and selectedSheet.range
+        const explosionItems = explosionRowData.filter(item => 
+            item.סטטוס === 'החתמה' && (item.פלוגה === 'גדוד' || item.פלוגה === selectedSheet.range)
+        );
 
         // Calculate quantities for each item
         const itemQuantities = new Map<string, number>();
-        explosionGadudItems.forEach(item => {
+        explosionItems.forEach(item => {
             const currentQty = itemQuantities.get(item.פריט) || 0;
             const quantityChange = item.צורך === 'זיכוי' ? -item.כמות : item.כמות;
             itemQuantities.set(item.פריט, currentQty + quantityChange);
@@ -345,7 +348,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         });
 
         return Array.from(uniqueItems).sort();
-    }, [explosionRowData]);
+    }, [explosionRowData, selectedSheet.range]);
 
     // Get unique item names from החתמה status only for דיווח mode
     const uniqueBallItemNamesFromHahatama = useMemo(() => {
@@ -541,19 +544,18 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
     const handleDateClicked = async (data: any) => {
         const date = data.תאריך;
-        // Infer which table this row belongs to by id (preferred) or by তুলন of fields
-        const isBall = ballRowData.some(r => r.id === data.id);
-        const rowData = isBall ? ballRowData : explosionRowData;
-
-        // Find all rows with the same date in rowData
-        const matchingRows = rowData.filter(item => item.תאריך === date && item.סטטוס === 'דיווח');
+        
+        // Find all rows with the same date from BOTH ball and explosion data
+        const matchingBallRows = ballRowData.filter(item => item.תאריך === date && item.סטטוס === 'דיווח');
+        const matchingExplosionRows = explosionRowData.filter(item => item.תאריך === date && item.סטטוס === 'דיווח');
+        const matchingRows = [...matchingBallRows, ...matchingExplosionRows];
 
         // Create items array from matching rows
         const itemsToShow = matchingRows.map(row => ({
             פריט: row.פריט || '',
             כמות: row.כמות || 1,
             צורך: row.צורך || 'ניפוק',
-            סוג_תחמושת: row.סוג_תחמושת || (isBall ? 'קליעית' : 'נפיצה'),
+            סוג_תחמושת: row.is_explosion ? 'נפיצה' : 'קליעית',
         }));
 
         if (matchingRows.length > 0) {
@@ -1466,7 +1468,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                                             <div className="grid grid-cols-3 gap-3 text-sm">
                                                 <div>
                                                     <span className="font-semibold text-gray-600">סוג:</span>
-                                                    <span className="mr-2 text-gray-900">{item.סוג_תחמושת || 'קליעית'}</span>
+                                                    <span className="mr-2 text-gray-900">{item.is_explosion ? 'נפיצה' : 'קליעית'}</span>
                                                 </div>
                                                 <div>
                                                     <span className="font-semibold text-gray-600">פריט:</span>
@@ -1623,26 +1625,62 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
                                 <div className="md:col-span-2">
                                     <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
-                                    <Select
-                                        value={item.פריט || ''}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].פריט = value;
-                                            setItems(newItems);
-                                        }}
-                                    >
-                                        <SelectTrigger className="text-right" dir="rtl">
-                                            <SelectValue placeholder="בחר פריט"/>
-                                        </SelectTrigger>
-                                        <SelectContent className="text-right" dir="rtl">
-                                            {(dialogMode === 'דיווח' 
-                                                ? (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNamesFromHahatama : uniqueBallItemNamesFromHahatama)
-                                                : (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames)
-                                            ).map((name, i) => (
-                                                <SelectItem key={i} value={name}>{name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <div className="relative">
+                                        <Input
+                                            id={`item-${index}`}
+                                            type="text"
+                                            value={item.פריט || ''}
+                                            onChange={(e) => {
+                                                const newItems = [...items];
+                                                newItems[index].פריט = e.target.value;
+                                                setItems(newItems);
+                                            }}
+                                            onFocus={() => {
+                                                setShowSuggestions(prev => ({...prev, [index]: true}));
+                                            }}
+                                            onClick={() => {
+                                                setShowSuggestions(prev => ({...prev, [index]: true}));
+                                            }}
+                                            onBlur={() => {
+                                                setTimeout(() => {
+                                                    setShowSuggestions(prev => ({...prev, [index]: false}));
+                                                }, 200);
+                                            }}
+                                            placeholder="הקלד או בחר פריט"
+                                            className="text-right pr-8"
+                                            dir="rtl"
+                                        />
+                                        <svg 
+                                            className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                        {showSuggestions[index] && (
+                                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                                {(dialogMode === 'דיווח' 
+                                                    ? (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNamesFromHahatama : uniqueBallItemNamesFromHahatama)
+                                                    : (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames)
+                                                ).filter(name => name.toLowerCase().includes((item.פריט || '').toLowerCase()))
+                                                .map((name, i) => (
+                                                    <div
+                                                        key={i}
+                                                        onClick={() => {
+                                                            const newItems = [...items];
+                                                            newItems[index].פריט = name;
+                                                            setItems(newItems);
+                                                            setShowSuggestions(prev => ({...prev, [index]: false}));
+                                                        }}
+                                                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-right"
+                                                    >
+                                                        {name}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div>
@@ -1764,26 +1802,62 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
                                 <div className="md:col-span-2">
                                     <Label htmlFor={`sig-item-${index}`} className="text-right block mb-2">פריט</Label>
-                                    <Select
-                                        value={item.פריט || ''}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].פריט = value;
-                                            setItems(newItems);
-                                        }}
-                                    >
-                                        <SelectTrigger className="text-right" dir="rtl">
-                                            <SelectValue placeholder="בחר פריט"/>
-                                        </SelectTrigger>
-                                        <SelectContent className="text-right" dir="rtl">
-                                            {(dialogMode === 'דיווח' 
-                                                ? (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNamesFromHahatama : uniqueBallItemNamesFromHahatama)
-                                                : (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames)
-                                            ).map((name, i) => (
-                                                <SelectItem key={i} value={name}>{name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <div className="relative">
+                                        <Input
+                                            id={`sig-item-${index}`}
+                                            type="text"
+                                            value={item.פריט || ''}
+                                            onChange={(e) => {
+                                                const newItems = [...items];
+                                                newItems[index].פריט = e.target.value;
+                                                setItems(newItems);
+                                            }}
+                                            onFocus={() => {
+                                                setShowSuggestions(prev => ({...prev, [`sig-${index}`]: true}));
+                                            }}
+                                            onClick={() => {
+                                                setShowSuggestions(prev => ({...prev, [`sig-${index}`]: true}));
+                                            }}
+                                            onBlur={() => {
+                                                setTimeout(() => {
+                                                    setShowSuggestions(prev => ({...prev, [`sig-${index}`]: false}));
+                                                }, 200);
+                                            }}
+                                            placeholder="הקלד או בחר פריט"
+                                            className="text-right pr-8"
+                                            dir="rtl"
+                                        />
+                                        <svg 
+                                            className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                        {showSuggestions[`sig-${index}`] && (
+                                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                                {(dialogMode === 'דיווח' 
+                                                    ? (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNamesFromHahatama : uniqueBallItemNamesFromHahatama)
+                                                    : (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames)
+                                                ).filter(name => name.toLowerCase().includes((item.פריט || '').toLowerCase()))
+                                                .map((name, i) => (
+                                                    <div
+                                                        key={i}
+                                                        onClick={() => {
+                                                            const newItems = [...items];
+                                                            newItems[index].פריט = name;
+                                                            setItems(newItems);
+                                                            setShowSuggestions(prev => ({...prev, [`sig-${index}`]: false}));
+                                                        }}
+                                                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-right"
+                                                    >
+                                                        {name}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div>

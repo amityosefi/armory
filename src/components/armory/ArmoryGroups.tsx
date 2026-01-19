@@ -143,9 +143,6 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                     }
                 }
 
-                console.log("Items length:", allItems.length);
-                console.log("people length:", people.length);
-
                 // 3. Update people with their items after fetching all items
                 const peopleWithItemsList: PersonData[] = (people || []).map((person: any) => {
                     const personItems = allItems.filter(item => item.location.toString() === person.id.toString());

@@ -47,6 +47,21 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
     
     // Global search state
     const [globalSearch, setGlobalSearch] = useState("");
+    
+    // Validation states
+    const [validationItemName, setValidationItemName] = useState("");
+    const [validationNumber, setValidationNumber] = useState("");
+    const [validationMessage, setValidationMessage] = useState({ text: "", type: "" });
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [filteredNames, setFilteredNames] = useState<string[]>([]);
+    
+    // Item search modal states
+    const [itemSearchModalOpen, setItemSearchModalOpen] = useState(false);
+    const [searchItemName, setSearchItemName] = useState("");
+    const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+    const [filteredSearchNames, setFilteredSearchNames] = useState<string[]>([]);
+    const [searchedItems, setSearchedItems] = useState<ArmoryItem[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
 
     // Helper function to log actions to armory_document
     const logAction = async (message: string) => {
@@ -298,6 +313,162 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
         setGlobalSearch(value);
     }, []);
 
+    // Get unique sorted item names from gedudData
+    const uniqueGedudNames = useMemo(() => {
+        const names = new Set(gedudData.map(item => item.name));
+        return Array.from(names).sort((a, b) => a.localeCompare(b, 'he'));
+    }, [gedudData]);
+    
+    // Get unique sorted item names from all locations
+    const uniqueAllItemNames = useMemo(() => {
+        const allData = [...gedudData, ...mahsanData, ...sadnaData];
+        const names = new Set(allData.map(item => item.name));
+        return Array.from(names).sort((a, b) => a.localeCompare(b, 'he'));
+    }, [gedudData, mahsanData, sadnaData]);
+
+    // Handle validation item name input change with filtering
+    const handleValidationNameChange = (value: string) => {
+        setValidationItemName(value);
+        setValidationMessage({ text: "", type: "" });
+        
+        if (value.trim() === "") {
+            setFilteredNames(uniqueGedudNames);
+            setShowSuggestions(true);
+        } else {
+            const filtered = uniqueGedudNames.filter(name => 
+                name.toLowerCase().includes(value.toLowerCase())
+            );
+            setFilteredNames(filtered);
+            setShowSuggestions(filtered.length > 0);
+        }
+    };
+
+    // Handle selecting a suggestion
+    const handleSelectSuggestion = (name: string) => {
+        setValidationItemName(name);
+        setShowSuggestions(false);
+        setFilteredNames([]);
+    };
+
+    // Handle search item name input change with filtering
+    const handleSearchItemNameChange = (value: string) => {
+        setSearchItemName(value);
+        
+        if (value.trim() === "") {
+            setFilteredSearchNames(uniqueAllItemNames);
+            setShowSearchSuggestions(true);
+        } else {
+            const filtered = uniqueAllItemNames.filter(name => 
+                name.toLowerCase().includes(value.toLowerCase())
+            );
+            setFilteredSearchNames(filtered);
+            setShowSearchSuggestions(filtered.length > 0);
+        }
+    };
+    
+    // Handle selecting a search suggestion
+    const handleSelectSearchSuggestion = (name: string) => {
+        setSearchItemName(name);
+        setShowSearchSuggestions(false);
+        setFilteredSearchNames([]);
+    };
+    
+    // Fetch all items with the selected name from the API
+    const fetchItemsByName = async (itemName: string) => {
+        setSearchLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from("armory_items")
+                .select("id, name, kind, location")
+                .eq("name", itemName)
+                .order("id", { ascending: true });
+
+            if (error) {
+                console.error("Error fetching items:", error);
+                setStatusMessage({
+                    text: `שגיאה בטעינת נתונים: ${error.message}`,
+                    type: "error"
+                });
+                setSearchedItems([]);
+                return;
+            }
+
+            if (data) {
+                console.log(data.length);
+                // Sort by ID ascending
+                const sortedData = (data as ArmoryItem[]).sort((a, b) => a.id - b.id);
+                setSearchedItems(sortedData);
+            }
+        } catch (err: any) {
+            console.error("Unexpected error:", err);
+            setStatusMessage({
+                text: `שגיאה לא צפויה: ${err.message}`,
+                type: "error"
+            });
+            setSearchedItems([]);
+        } finally {
+            setSearchLoading(false);
+        }
+    };
+    
+    // Open item search modal with selected item
+    const handleOpenItemSearchModal = async () => {
+        if (!searchItemName) {
+            setStatusMessage({
+                text: "נא לבחור שם פריט",
+                type: "error"
+            });
+            return;
+        }
+        await fetchItemsByName(searchItemName);
+        setItemSearchModalOpen(true);
+    };
+    
+    // Calculate total count for the searched item
+    const totalItemCount = useMemo(() => {
+        return searchedItems.length;
+    }, [searchedItems]);
+    
+    // Validate item name and number
+    const handleValidation = () => {
+        if (!validationItemName || !validationNumber) {
+            setValidationMessage({
+                text: "נא לבחור שם ולהזין מספר",
+                type: "error"
+            });
+            return;
+        }
+
+        const numberToCheck = parseInt(validationNumber);
+        if (isNaN(numberToCheck)) {
+            setValidationMessage({
+                text: "נא להזין מספר תקין",
+                type: "error"
+            });
+            return;
+        }
+
+        // Count how many items with this name exist in gedudData
+        const itemsWithName = gedudData.filter(item => item.name === validationItemName);
+        const actualCount = itemsWithName.length;
+
+        if (actualCount === 0) {
+            setValidationMessage({
+                text: `השם "${validationItemName}" לא נמצא בגדוד`,
+                type: "error"
+            });
+        } else if (actualCount === numberToCheck) {
+            setValidationMessage({
+                text: `✓`,
+                type: "success"
+            });
+        } else {
+            setValidationMessage({
+                text: `"${validationItemName}" - קיימים ${actualCount}`,
+                type: "error"
+            });
+        }
+    };
     // Helper function to mirror Hebrew text for PDF
     const mirrorHebrewSmart = (str: string) => {
         if (str === null || str === undefined || str === '') return '';
@@ -456,6 +627,144 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
 
     return (
         <div className="container mx-auto p-4 space-y-6">
+            {/* Validation Section */}
+            <div className="bg-blue-100 border border-blue-300 rounded p-2">
+                <div className="flex flex-row gap-2 items-center flex-wrap">
+                    <div className="relative w-32">
+                        <input
+                            type="text"
+                            value={validationItemName}
+                            onChange={(e) => handleValidationNameChange(e.target.value)}
+                            onFocus={() => {
+                                if (validationItemName === "") {
+                                    setFilteredNames(uniqueGedudNames);
+                                }
+                                setShowSuggestions(true);
+                            }}
+                            onClick={() => {
+                                if (validationItemName === "") {
+                                    setFilteredNames(uniqueGedudNames);
+                                }
+                                setShowSuggestions(true);
+                            }}
+                            onBlur={() => {
+                                // Delay to allow click on suggestion
+                                setTimeout(() => setShowSuggestions(false), 200);
+                            }}
+                            placeholder="חפש אמצעי"
+                            className="w-full pl-5 pr-1 py-1 text-xs border border-blue-300 rounded text-right"
+                            dir="rtl"
+                        />
+                        <svg 
+                            className="absolute left-1 top-1/2 transform -translate-y-1/2 w-3 h-3 text-blue-600 pointer-events-none"
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                        {showSuggestions && filteredNames.length > 0 && (
+                            <div className="absolute z-50 w-auto min-w-full mt-1 bg-white border border-blue-300 rounded shadow-lg max-h-40 overflow-y-auto">
+                                {filteredNames.map((name) => (
+                                    <div
+                                        key={name}
+                                        onClick={() => handleSelectSuggestion(name)}
+                                        className="px-2 py-1 text-xs hover:bg-blue-100 cursor-pointer text-right whitespace-nowrap"
+                                    >
+                                        {name}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <input
+                        type="number"
+                        value={validationNumber}
+                        onChange={(e) => {
+                            setValidationNumber(e.target.value);
+                            setValidationMessage({ text: "", type: "" });
+                        }}
+                        placeholder="כמות"
+                        className="w-16 px-1 py-1 text-xs border border-blue-300 rounded text-right"
+                        dir="rtl"
+                    />
+                    <button
+                        onClick={handleValidation}
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold whitespace-nowrap"
+                    >
+                        בדוק
+                    </button>
+                    {validationMessage.text && (
+                        <div className={`flex-1 px-1 py-1 text-xs rounded text-right ${
+                            validationMessage.type === 'success' 
+                                ? 'bg-green-200 text-green-900' 
+                                : 'bg-red-200 text-red-900'
+                        }`}>
+                            {validationMessage.text}
+                        </div>
+                    )}
+                </div>
+            </div>
+            
+            {/* Item Search Section */}
+            <div className="bg-purple-100 border border-purple-300 rounded p-3">
+                <div className="flex flex-row gap-2 items-center flex-wrap">
+                    <span className="text-sm font-semibold text-purple-900">הזן אמצעי לכל המסדים:</span>
+                    <div className="relative w-48">
+                        <input
+                            type="text"
+                            value={searchItemName}
+                            onChange={(e) => handleSearchItemNameChange(e.target.value)}
+                            onFocus={() => {
+                                if (searchItemName === "") {
+                                    setFilteredSearchNames(uniqueAllItemNames);
+                                }
+                                setShowSearchSuggestions(true);
+                            }}
+                            onClick={() => {
+                                if (searchItemName === "") {
+                                    setFilteredSearchNames(uniqueAllItemNames);
+                                }
+                                setShowSearchSuggestions(true);
+                            }}
+                            onBlur={() => {
+                                setTimeout(() => setShowSearchSuggestions(false), 200);
+                            }}
+                            placeholder="בחר פריט"
+                            className="w-full pl-5 pr-2 py-1.5 text-sm border border-purple-300 rounded text-right"
+                            dir="rtl"
+                        />
+                        <svg 
+                            className="absolute left-1 top-1/2 transform -translate-y-1/2 w-4 h-4 text-purple-600 pointer-events-none"
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                        {showSearchSuggestions && filteredSearchNames.length > 0 && (
+                            <div className="absolute z-50 w-auto min-w-full mt-1 bg-white border border-purple-300 rounded shadow-lg max-h-60 overflow-y-auto">
+                                {filteredSearchNames.map((name) => (
+                                    <div
+                                        key={name}
+                                        onClick={() => handleSelectSearchSuggestion(name)}
+                                        className="px-3 py-2 text-sm hover:bg-purple-100 cursor-pointer text-right whitespace-nowrap"
+                                    >
+                                        {name}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <button
+                        onClick={handleOpenItemSearchModal}
+                        className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 font-semibold whitespace-nowrap"
+                    >
+                        הצג מיקומים
+                    </button>
+                </div>
+            </div>
+
             {/* Top Action Buttons and Search */}
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-gray-50 p-4 rounded-lg">
 
@@ -748,6 +1057,72 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
                     setStatusMessage({text: message, type: "error"});
                 }}
             />
+            
+            {/* Item Search Results Modal */}
+            {itemSearchModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="bg-purple-600 text-white p-4 flex justify-between items-center">
+                            <button
+                                onClick={() => setItemSearchModalOpen(false)}
+                                className="text-white hover:text-gray-200 text-2xl font-bold"
+                            >
+                                ×
+                            </button>
+                            <div className="text-right">
+                                <h2 className="text-xl font-bold">{searchItemName}</h2>
+                                <p className="text-sm">סה"כ: {totalItemCount}</p>
+                            </div>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto flex-1">
+                            {searchLoading ? (
+                                <div className="flex flex-col items-center justify-center py-8">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mb-4"></div>
+                                    <p className="text-center text-gray-500">טוען נתונים...</p>
+                                </div>
+                            ) : searchedItems.length === 0 ? (
+                                <p className="text-center text-gray-500 p-4">לא נמצאו פריטים</p>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full border-collapse">
+                                        <thead>
+                                            <tr className="bg-purple-600 text-white">
+                                                <th className="border border-purple-400 px-4 py-2 text-center font-semibold">מסד</th>
+                                                <th className="border border-purple-400 px-4 py-2 text-center font-semibold">מיקום</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {searchedItems.map((item, index) => (
+                                                <tr
+                                                    key={item.id}
+                                                    className={`${index % 2 === 0 ? 'bg-white' : 'bg-purple-50'} hover:bg-purple-100 cursor-pointer`}
+                                                    onClick={() => {
+                                                        handleIdClick(item.id, item.location, item.name, item.kind);
+                                                        setItemSearchModalOpen(false);
+                                                    }}
+                                                >
+                                                    <td className="border border-purple-200 px-4 py-2 text-center font-medium">{item.id}</td>
+                                                    <td className="border border-purple-200 px-4 py-2 text-center">{item.location}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="bg-gray-100 p-4 flex justify-center">
+                            <button
+                                onClick={() => setItemSearchModalOpen(false)}
+                                className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 font-semibold"
+                            >
+                                סגור
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
