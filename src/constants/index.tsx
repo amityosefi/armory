@@ -30,7 +30,8 @@ export const sheetGroups: SheetGroup[] = [
       { name: 'פלוגת פלסם', range: 'פלסם', id: 6 },
       { name: 'גדוד', range: 'גדוד', id: 7 },
       { name: 'סיכום', range: 'סיכום', id: 8 },
-      { name: 'תיעוד', range: 'תיעוד', id: 9 }
+      { name: 'דרישות', range: 'דרישות', id: 9 },
+      { name: 'תיעוד', range: 'תיעוד', id: 10 }
     ]
   },
   {

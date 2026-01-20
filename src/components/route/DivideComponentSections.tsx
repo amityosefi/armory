@@ -5,6 +5,7 @@ import {useNavigate} from "react-router-dom";
 import Logistic from "@/components/logistics/Logistic";
 import LogisticStock from "@/components/logistics/LogisticStock";
 import LogisticSum from "@/components/logistics/LogisticSum";
+import LogisticDemands from "@/components/logistics/LogisticDemands";
 import Ammo from "@/components/ammo/Ammo";
 import AmmoStock from "@/components/ammo/AmmoStock";
 import AmmoSum from "@/components/ammo/AmmoSum";
@@ -77,6 +78,9 @@ const DivideComponents: React.FC = () => {
                 />
             ) : (groupIndex === 1 && selectedSheet.range === 'סיכום') ? (
                 <LogisticSum selectedSheet={selectedSheet}
+                />
+            ) : (groupIndex === 1 && selectedSheet.range === 'דרישות') ? (
+                <LogisticDemands selectedSheet={selectedSheet}
                 />
             ) : (groupIndex === 1 && selectedSheet.range === 'תיעוד') ? (
                 <LogisticDocumentation/>
