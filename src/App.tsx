@@ -7,7 +7,8 @@ import './css/App.css'
 import AdminPage from './components/AdminPage'
 import { PermissionsProvider } from './contexts/PermissionsContext'
 import DivideComponents from "@/components/route/DivideComponentSections"
-import SoldierArmoryPage from './components/armory/SoldierArmoryPage';
+import SoldierArmoryPage from './components/armory/SoldierArmoryPage'
+import HR446Form from './components/HR446Form';
 
 function App() {
     const [user, setUser] = useState<TokenResponse | null>(null)
@@ -29,6 +30,11 @@ function App() {
                     <Route
                         path="/login"
                         element={<LoginScreen onLoginSuccess={handleLoginSuccess} />}
+                    />
+                    
+                    <Route
+                        path="/hr"
+                        element={<HR446Form />}
                     />
 
                     {user ? (

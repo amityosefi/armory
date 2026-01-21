@@ -4,7 +4,7 @@ import {useAuthStore} from '@/stores/useAuthStore'
 import {usePermissions} from '@/contexts/PermissionsContext'
 import {supabase} from '@/lib/supabaseClient' // <-- your supabase client
 import logo from '@/assets/logo.jpeg' // Import the logo
-import {Navigate} from "react-router-dom";
+import {Navigate, Link} from "react-router-dom";
 import RegistrationForm from '@/components/RegistrationForm';
 
 interface LoginScreenProps {
@@ -260,13 +260,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                     </button>
                     
                     {/* Registration Link */}
-                    <div className="mt-6">
+                    <div className="mt-6 flex flex-col gap-2 items-center">
                         <button
                             onClick={() => setShowRegistration(true)}
                             className="text-blue-600 hover:text-blue-800 text-sm underline"
                         >
                             אין לך חשבון? הירשם כאן
                         </button>
+                        <Link
+                            to="/hr"
+                            className="text-green-600 hover:text-green-800 text-sm underline"
+                        >
+                            הצהרת התנדבות (טופס 446)
+                        </Link>
                     </div>
                 </div>
                 ) : (
