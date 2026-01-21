@@ -245,7 +245,7 @@ const HR446Form: React.FC = () => {
             {/* Green Header */}
             <div className="bg-green-500 text-white py-4 md:py-6 px-4 relative">
                 <a
-                    href="/"
+                    href="/armory"
                     className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-200 text-xs md:text-sm underline"
                 >
                     ← חזור
@@ -377,7 +377,7 @@ const HR446Form: React.FC = () => {
 
                         {/* Back Button */}
                         <Button
-                            onClick={() => window.location.href = '/'}
+                            onClick={() => window.location.href = '/armory'}
                             variant="outline"
                             className="w-full mt-3 flex items-center justify-center gap-2"
                         >
