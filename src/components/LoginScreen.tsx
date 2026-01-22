@@ -50,6 +50,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
             return '/logistic/0';
         else if (permissions['ammo'])
             return '/ammo/0';
+        else if (permissions['hr'])
+            return '/hr/0';
         else if (permissions['admin'])
             return '/armory/8';
         else

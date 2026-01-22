@@ -50,5 +50,12 @@ export const sheetGroups: SheetGroup[] = [
       { name: 'שצל', range: 'שצל', id: 9 },
       { name: 'תיעוד', range: 'תיעוד', id: 10 }
     ]
+  },
+  {
+    pathName: 'hr',
+    name: 'שלישות',
+    sheets: [
+      { name: 'טופס 445', range: 'טופס445', id: 0 }
+    ]
   }
 ];
