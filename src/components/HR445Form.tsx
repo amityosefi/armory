@@ -8,7 +8,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
 import { Download, Trash2, ArrowLeft } from 'lucide-react';
 
-const HR446Form: React.FC = () => {
+const HR445Form: React.FC = () => {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [personalId, setPersonalId] = useState('');
@@ -393,4 +393,4 @@ const HR446Form: React.FC = () => {
     );
 };
 
-export default HR446Form;
+export default HR445Form;
