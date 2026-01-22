@@ -251,6 +251,29 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         return filtered;
     }, [dataByStatus, selectedSheet.range]);
 
+    // Get unique משתמש and מספר_אישי_מחתים combinations for הזמנה status (for permission['logistic'])
+    const hazmanaUserGroups = useMemo(() => {
+        if (!permissions['logistic']) return [];
+        
+        const hazmanaData = displayDataByStatus['הזמנה'] || [];
+        
+        const uniqueUsers = new Map<string, { משתמש: string; מספר_אישי_מחתים: number }>();
+        
+        hazmanaData.forEach(item => {
+            const key = `${item.משתמש}_${item.מספר_אישי_מחתים}`;
+            if (!uniqueUsers.has(key)) {
+                uniqueUsers.set(key, {
+                    משתמש: item.משתמש,
+                    מספר_אישי_מחתים: item.מספר_אישי_מחתים || 0
+                });
+            }
+        });
+
+        (console.log(hazmanaData))
+        
+        return Array.from(uniqueUsers.values()).sort((a, b) => a.משתמש.localeCompare(b.משתמש, 'he'));
+    }, [displayDataByStatus, permissions]);
+
     // Group data by תאריך for card view based on active tab
     const groupedByDate = useMemo(() => {
         const currentTabData = displayDataByStatus[activeTab] || [];
@@ -1293,6 +1316,19 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             </PopoverContent>
                         </Popover>
                     )}
+                </div>
+            )}
+
+            {/* Show grouped users for הזמנה - only for permission['logistic'] */}
+            { permissions['logistic'] && hazmanaUserGroups.length > 0 && (
+                <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded">
+                    <p className="text-sm text-green-900">
+                        {hazmanaUserGroups.map((user, idx) => (
+                            <span key={idx}>
+                                {user.משתמש} {user.מספר_אישי_מחתים}{idx < hazmanaUserGroups.length - 1 ? ', ' : ''}
+                            </span>
+                        ))}
+                    </p>
                 </div>
             )}
 

@@ -24,7 +24,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
 
     // Helper function to determine redirect path based on permissions
     const getRedirectPath = () => {
-        
+
         // Check for Plugot permissions (company-level access)
         // Map company names to their tab indices in the armory section
         const plugotMapping: { [key: string]: number } = {
@@ -36,7 +36,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
             'מכלול': 5,
             'פלסם': 6
         };
-        
+
         // Find the first company permission they have and navigate to that tab
         for (const [plugaName, tabIndex] of Object.entries(plugotMapping)) {
             if (permissions[plugaName]) {
@@ -89,7 +89,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                 }
 
                 const parsedToken = JSON.parse(savedToken) as TokenResponse
-                
+
                 // revalidate email in supabase
                 const {data, error} = await supabase
                     .from('users')
@@ -109,10 +109,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                 clearTimeout(absoluteTimeout)
                 setAuthChecked(true)
                 setIsLoading(false)
-                
+
                 // Update login time to extend session
                 localStorage.setItem('loginTime', Date.now().toString())
-                
+
                 onLoginSuccess(parsedToken)
                 setPermissions(data as Record<string, boolean>);
                 setIsPermissionsLoaded(true);
@@ -126,7 +126,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                 setIsLoading(false)
             }
         }
-        
+
         checkSavedToken()
 
         // Cleanup
@@ -171,11 +171,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
 
                 // Update last_login in background
                 const loginDate = new Date().toLocaleDateString('he-IL');
-                const { data: updateData, error: updateError } = await supabase
+                const {data: updateData, error: updateError} = await supabase
                     .from('users')
-                    .update({ "last_login": loginDate })
+                    .update({"last_login": loginDate})
                     .eq('email', email);
-                
+
                 if (updateError) {
                     console.error('Failed to update last_login:', updateError);
                 }
@@ -195,7 +195,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
 
     if (isLoading) {
         return (
-            <div className="fixed inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-green-200 via-yellow-100 to-yellow-200">
+            <div
+                className="fixed inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-green-200 via-yellow-100 to-yellow-200">
                 <div className="flex flex-col items-center justify-center">
                     <div
                         className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
@@ -210,7 +211,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
     }
 
     return (
-        <div className="fixed inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-green-200 via-yellow-100 to-yellow-200 overflow-y-auto py-8">
+        <div
+            className="fixed inset-0 w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-green-200 via-yellow-100 to-yellow-200 overflow-y-auto py-8 gap-4">
             <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-2xl mx-4">
                 {!showRegistration ? (
                     <div className="flex flex-col items-center">
@@ -218,67 +220,77 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                         <div className="mb-6">
                             <img src={logo} alt="Logo" className="h-24 w-auto"/>
                         </div>
-                        
+
                         {/* Title */}
                         <h1 className="text-3xl font-bold text-gray-900 mb-3 text-center">
                             גדוד 8101
                         </h1>
-                        
+
                         {/* Subtitle */}
                         <p className="text-gray-600 text-sm mb-6 text-center">
                             אנא התחבר עם חשבון Google כדי להיכנס
                         </p>
-                        
+
                         {/* Google Sign-in Button */}
                         <button
                             onClick={() => login()}
                             className="flex items-center justify-center bg-white border border-gray-300 rounded-md shadow-sm px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                         >
-                        <svg
-                            className="h-5 w-5 ml-2"
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 48 48"
-                        >
-                            <path
-                                fill="#EA4335"
-                                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.53 2.56 30.15 0 24 0 14.6 0 6.5 5.7 2.55 13.99l7.98 6.2C12.43 13.41 17.73 9.5 24 9.5z"
-                            />
-                            <path
-                                fill="#4285F4"
-                                d="M46.1 24.5c0-1.57-.14-3.09-.4-4.55H24v9.01h12.4c-.53 2.84-2.11 5.24-4.49 6.86l7.01 5.46C43.62 37.05 46.1 31.27 46.1 24.5z"
-                            />
-                            <path
-                                fill="#FBBC05"
-                                d="M10.53 28.2c-1.2-2.24-1.9-4.77-1.9-7.7s.7-5.46 1.9-7.7l-7.98-6.2C.93 11.11 0 17.35 0 24s.93 12.89 2.55 17.4l7.98-6.2z"
-                            />
-                            <path
-                                fill="#34A853"
-                                d="M24 48c6.15 0 11.31-2.03 15.08-5.52l-7.01-5.46C29.3 38.77 26.76 39.5 24 39.5c-6.27 0-11.57-3.91-13.47-9.7l-7.98 6.2C6.5 42.3 14.6 48 24 48z"
-                            />
-                        </svg>
-                        לחץ להתחברות עם גוגל
-                    </button>
-                    
-                    {/* Registration Link */}
-                    <div className="mt-6 flex flex-col gap-2 items-center">
-                        <button
-                            onClick={() => setShowRegistration(true)}
-                            className="text-blue-600 hover:text-blue-800 text-sm underline"
-                        >
-                            אין לך חשבון? הירשם כאן
+                            <svg
+                                className="h-5 w-5 ml-2"
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 48 48"
+                            >
+                                <path
+                                    fill="#EA4335"
+                                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.53 2.56 30.15 0 24 0 14.6 0 6.5 5.7 2.55 13.99l7.98 6.2C12.43 13.41 17.73 9.5 24 9.5z"
+                                />
+                                <path
+                                    fill="#4285F4"
+                                    d="M46.1 24.5c0-1.57-.14-3.09-.4-4.55H24v9.01h12.4c-.53 2.84-2.11 5.24-4.49 6.86l7.01 5.46C43.62 37.05 46.1 31.27 46.1 24.5z"
+                                />
+                                <path
+                                    fill="#FBBC05"
+                                    d="M10.53 28.2c-1.2-2.24-1.9-4.77-1.9-7.7s.7-5.46 1.9-7.7l-7.98-6.2C.93 11.11 0 17.35 0 24s.93 12.89 2.55 17.4l7.98-6.2z"
+                                />
+                                <path
+                                    fill="#34A853"
+                                    d="M24 48c6.15 0 11.31-2.03 15.08-5.52l-7.01-5.46C29.3 38.77 26.76 39.5 24 39.5c-6.27 0-11.57-3.91-13.47-9.7l-7.98 6.2C6.5 42.3 14.6 48 24 48z"
+                                />
+                            </svg>
+                            לחץ להתחברות עם גוגל
                         </button>
-                        <Link
-                            to="/hr"
-                            className="text-green-600 hover:text-green-800 text-sm underline"
-                        >
-                            הצהרת התנדבות (טופס 446)
-                        </Link>
+
+                        {/* Registration Link */}
+                        <div className="mt-6">
+                            <button
+                                onClick={() => setShowRegistration(true)}
+                                className="text-blue-600 hover:text-blue-800 text-sm underline"
+                            >
+                                אין לך חשבון? הירשם כאן
+                            </button>
+                        </div>
                     </div>
-                </div>
                 ) : (
-                    <RegistrationForm onBackToLogin={() => setShowRegistration(false)} />
+                    <RegistrationForm onBackToLogin={() => setShowRegistration(false)}/>
                 )}
             </div>
+
+            {/* טופס 445 Card - Outside main container */}
+            {!showRegistration && (
+                <Link
+                    to="/hr/"
+                    className="w-48 h-48 border-4 border-green-500 rounded-2xl p-4 bg-white hover:bg-green-50 transition-colors flex flex-col items-center justify-center gap-2 shadow-lg"
+                >
+                    <div className="text-4xl">🤝</div>
+                    <h2 className="text-xl font-bold text-green-800 text-center">
+                        טופס 445
+                    </h2>
+                    <p className="text-gray-600 text-center text-xs">
+                        טופס דיגיטלי למילוי טופס 445
+                    </p>
+                </Link>
+            )}
         </div>
     )
 }

@@ -261,6 +261,29 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         return grouped;
     }, [explosionRowData]);
 
+    // Get unique משתמש and מספר_אישי_מחתים combinations for דיווח status (for permission['ammo'])
+    const divuchUserGroups = useMemo(() => {
+        if (!permissions['ammo']) return [];
+        
+        const ballData = ballDataByStatus['דיווח'] || [];
+        const explosionData = explosionDataByStatus['דיווח'] || [];
+        const allData = [...ballData, ...explosionData];
+        
+        const uniqueUsers = new Map<string, { משתמש: string; מספר_אישי_מחתים: number }>();
+        
+        allData.forEach(item => {
+            const key = `${item.משתמש}_${item.מספר_אישי_מחתים}`;
+            if (!uniqueUsers.has(key)) {
+                uniqueUsers.set(key, {
+                    משתמש: item.משתמש,
+                    מספר_אישי_מחתים: item.מספר_אישי_מחתים || 0
+                });
+            }
+        });
+        
+        return Array.from(uniqueUsers.values()).sort((a, b) => a.משתמש.localeCompare(b.משתמש, 'he'));
+    }, [ballDataByStatus, explosionDataByStatus, permissions]);
+
     // Group דיווח data by תאריך for card view (combine ball and explosion data)
     const groupedByDate = useMemo(() => {
         const ballData = ballDataByStatus['דיווח'] || [];
@@ -1435,6 +1458,19 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             </PopoverContent>
                         </Popover>
                     )}
+                </div>
+            )}
+
+            {/* Show grouped users for דיווח - only for permission['ammo'] */}
+            { permissions['ammo'] && divuchUserGroups.length > 0 && (
+                <div className="mb-3 p-2 bg-purple-50 border border-purple-200 rounded">
+                    <p className="text-sm text-purple-900">
+                        {divuchUserGroups.map((user, idx) => (
+                            <span key={idx}>
+                                {user.משתמש} {user.מספר_אישי_מחתים}{idx < divuchUserGroups.length - 1 ? ', ' : ''}
+                            </span>
+                        ))}
+                    </p>
                 </div>
             )}
 

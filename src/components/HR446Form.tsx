@@ -169,17 +169,18 @@ const HR446Form: React.FC = () => {
                     lastPage.drawImage(signatureImage, {
                         x: 280,
                         y: 1200,
-                        width: sig1Dims.width,
-                        height: sig1Dims.height,
-                    });
-                    
+                        width: 170,
+                        height: 120,
+                    }
+                    );
+
                     // Signature 2 - bottom left (תאריך + חתימת החייל)
                     const sig2Dims = signatureImage.scale(0.6);
                     lastPage.drawImage(signatureImage, {
                         x: 710,
                         y: 990,
-                        width: sig2Dims.width,
-                        height: sig2Dims.height - 40,
+                        width: 133,
+                        height: 50,
                     });
                 } catch (err) {
                     console.error('Error embedding signature:', err);
@@ -195,7 +196,7 @@ const HR446Form: React.FC = () => {
             const link = document.createElement('a');
             link.href = url;
             const fullName = `${firstName}_${lastName}`;
-            link.download = `446_${fullName}.pdf`;
+            link.download = `445_${fullName}.pdf`;
             link.click();
             URL.revokeObjectURL(url);
 
@@ -229,7 +230,8 @@ const HR446Form: React.FC = () => {
                     last_name: lastName,
                     personal_id: parseInt(personalId, 10),
                     date: getTodayDate(),
-                    signature: signature
+                    signature: signature,
+                    date_filled: new Date().toLocaleString('he-IL')
                 }]);
 
             if (error) {
@@ -245,13 +247,13 @@ const HR446Form: React.FC = () => {
             {/* Green Header */}
             <div className="bg-green-500 text-white py-4 md:py-6 px-4 relative">
                 <a
-                    href="/armory"
+                    href="/armory/"
                     className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-200 text-xs md:text-sm underline"
                 >
                     ← חזור
                 </a>
                 <h1 className="text-xl md:text-3xl font-bold text-center">
-                    הצהרת התנדבות 📝
+                    טופס 445 📝
                 </h1>
             </div>
 
@@ -377,7 +379,7 @@ const HR446Form: React.FC = () => {
 
                         {/* Back Button */}
                         <Button
-                            onClick={() => window.location.href = '/armory'}
+                            onClick={() => window.location.href = '/armory/'}
                             variant="outline"
                             className="w-full mt-3 flex items-center justify-center gap-2"
                         >
