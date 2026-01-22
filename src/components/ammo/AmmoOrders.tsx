@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { usePermissions } from "@/contexts/PermissionsContext";
 import { AgGridReact } from "ag-grid-react";
@@ -7,6 +7,7 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 import { ColDef } from "ag-grid-community";
 import * as XLSX from 'xlsx';
 import { Button } from "@/components/ui/button";
+import { Download } from 'lucide-react';
 
 interface AmmoOrdersProps {
     selectedSheet: {
@@ -40,6 +41,7 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
     const [ballData, setBallData] = useState<AmmoItem[]>([]);
     const [explosionData, setExplosionData] = useState<AmmoItem[]>([]);
     const [missingCompanies, setMissingCompanies] = useState<string[]>([]);
+    const [historicalShatzalData, setHistoricalShatzalData] = useState<AmmoItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     const allCompanies = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'מכלול', 'פלסם'];
@@ -90,6 +92,19 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
             const missing = allCompanies.filter(company => !reportedCompanies.has(company));
             setMissingCompanies(missing);
 
+            // Fetch all historical שצל data (צורך=שצל)
+            const { data: shatzalData, error: shatzalError } = await supabase
+                .from('ammo')
+                .select("*")
+                .eq("צורך", "שצל")
+                .returns<AmmoItem[]>();
+
+            if (shatzalError) {
+                console.error("Error fetching שצל data:", shatzalError);
+            } else {
+                setHistoricalShatzalData(shatzalData || []);
+            }
+
         } catch (error) {
             console.error("Error fetching data:", error);
         } finally {
@@ -100,6 +115,50 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
     useEffect(() => {
         fetchData();
     }, [selectedSheet]);
+
+    // Calculate sum per item for all שצל history
+    const shatzalSummary = useMemo(() => {
+        const summary: { [key: string]: { כמות: number, is_explosion: boolean } } = {};
+        
+        historicalShatzalData.forEach(item => {
+            const itemName = item.פריט || 'לא מוגדר';
+            if (!summary[itemName]) {
+                summary[itemName] = { כמות: 0, is_explosion: item.is_explosion || false };
+            }
+            summary[itemName].כמות += item.כמות || 0;
+        });
+
+        // Convert to array and sort by item name
+        return Object.entries(summary)
+            .map(([פריט, data]) => ({ 
+                פריט, 
+                כמות: data.כמות,
+                סוג: data.is_explosion ? 'נפיץ' : 'קליעית'
+            }))
+            .sort((a, b) => a.פריט.localeCompare(b.פריט, 'he'));
+    }, [historicalShatzalData]);
+
+    // Export summary to Excel
+    const handleExportSummaryToExcel = () => {
+        const exportData = shatzalSummary.map(item => ({
+            'פריט': item.פריט,
+            'סוג תחמושת': item.סוג,
+            'סה"כ כמות': item.כמות
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        ws['!cols'] = [
+            {wch: 40}, // פריט
+            {wch: 15}, // סוג
+            {wch: 15}  // כמות
+        ];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'סיכום שצל');
+
+        const date = new Date().toLocaleDateString('he-IL').replace(/\./g, '_');
+        XLSX.writeFile(wb, `סיכום_שצל_היסטורי_${date}.xlsx`);
+    };
 
     // Export to Excel function
     const handleExportToExcel = () => {
@@ -236,6 +295,53 @@ const AmmoOrders: React.FC<AmmoOrdersProps> = ({ selectedSheet }) => {
                     </div>
                 ) : (
                     <div className="text-gray-500 p-4 border rounded">אין דיווחים על תחמושת נפיץ להיום</div>
+                )}
+            </div>
+
+            {/* Historical שצל Summary */}
+            <div className="space-y-2 border-t-4 border-blue-500 pt-6 mt-8">
+                <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-semibold">סיכום היסטורי - שצל (כל התאריכים)</h3>
+                    <Button
+                        onClick={handleExportSummaryToExcel}
+                        className="bg-blue-500 hover:bg-blue-600 text-white flex items-center gap-2"
+                        disabled={shatzalSummary.length === 0}
+                    >
+                        <Download className="w-4 h-4" />
+                        ייצוא סיכום ל-Excel
+                    </Button>
+                </div>
+                <p className="text-sm text-gray-600">סיכום כמויות לפי פריט מכל ההיסטוריה (צורך=שצל)</p>
+                
+                {shatzalSummary.length > 0 ? (
+                    <div className="bg-white rounded-lg shadow overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">פריט</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">סוג תחמושת</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">סה"כ כמות</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {shatzalSummary.map((item, idx) => (
+                                    <tr key={idx} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.פריט}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                                item.סוג === 'נפיץ' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                                            }`}>
+                                                {item.סוג}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{item.כמות}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="text-gray-500 p-4 border rounded">אין נתוני שצל היסטוריים</div>
                 )}
             </div>
         </div>

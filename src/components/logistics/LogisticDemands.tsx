@@ -21,7 +21,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import CreatableSelect from 'react-select/creatable';
-import {Trash} from 'lucide-react';
+import {Trash, LayoutGrid, Table as TableIcon, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download} from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface LogisticDemandsProps {
     selectedSheet: {
@@ -54,7 +55,20 @@ type LogisticItem = {
 const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
     const {permissions} = usePermissions();
     const [rowData, setRowData] = useState<LogisticItem[]>([]);
+    const [allData, setAllData] = useState<LogisticItem[]>([]);
+    const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
     const [loading, setLoading] = useState(true);
+    const [sortConfig, setSortConfig] = useState<{key: keyof LogisticItem | null, direction: 'asc' | 'desc' | null}>({key: null, direction: null});
+    const [columnFilters, setColumnFilters] = useState<{[key: string]: string}>({
+        תאריך: '',
+        פלוגה: '',
+        משתמש: '',
+        פריט: '',
+        צורך: '',
+        הערה: '',
+        נקרא: ''
+    });
+    const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
     const [selectedCardItem, setSelectedCardItem] = useState<LogisticItem | null>(null);
     const [cardDetailModalOpen, setCardDetailModalOpen] = useState(false);
@@ -125,14 +139,16 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
                     type: "error"
                 });
             } else {
-                // Filter items to only show those from the last 7 days
+                const fetchedData = (data || []) as LogisticItem[];
+                setAllData(fetchedData);
+                
+                // Filter items to only show those from the last 7 days for cards view
                 const now = new Date();
                 const sevenDaysAgo = new Date(now);
                 sevenDaysAgo.setDate(now.getDate() - 7);
-                sevenDaysAgo.setHours(0, 0, 0, 0); // Start of day 7 days ago
+                sevenDaysAgo.setHours(0, 0, 0, 0);
 
-                const allData = (data || []) as LogisticItem[];
-                const filteredData = allData.filter(item => {
+                const filteredData = fetchedData.filter(item => {
                     const itemDate = parseHebrewDate(item.תאריך || '');
                     if (!itemDate) return false;
                     return itemDate >= sevenDaysAgo;
@@ -165,6 +181,99 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
         if (sigPadRef.current) {
             sigPadRef.current.clear();
         }
+    };
+
+    // Handle sorting
+    const handleSort = (key: keyof LogisticItem) => {
+        let direction: 'asc' | 'desc' | null = 'asc';
+        if (sortConfig.key === key) {
+            if (sortConfig.direction === 'asc') direction = 'desc';
+            else if (sortConfig.direction === 'desc') direction = null;
+        }
+        setSortConfig({key: direction ? key : null, direction});
+    };
+
+    // Filter and sort table data
+    const filteredAndSortedTableData = useMemo(() => {
+        let filtered = allData.filter(item => {
+            return (
+                (!columnFilters.תאריך || item.תאריך?.toLowerCase().includes(columnFilters.תאריך.toLowerCase())) &&
+                (!columnFilters.פלוגה || item.פלוגה?.toLowerCase().includes(columnFilters.פלוגה.toLowerCase())) &&
+                (!columnFilters.משתמש || item.משתמש?.toLowerCase().includes(columnFilters.משתמש.toLowerCase())) &&
+                (!columnFilters.פריט || item.פריט?.toLowerCase().includes(columnFilters.פריט.toLowerCase())) &&
+                (!columnFilters.צורך || item.צורך?.toLowerCase().includes(columnFilters.צורך.toLowerCase())) &&
+                (!columnFilters.הערה || item.הערה?.toLowerCase().includes(columnFilters.הערה.toLowerCase())) &&
+                (!columnFilters.נקרא || item.נקרא?.toLowerCase().includes(columnFilters.נקרא.toLowerCase()))
+            );
+        });
+
+        // Apply sorting
+        if (sortConfig.key && sortConfig.direction) {
+            filtered.sort((a, b) => {
+                const aVal = a[sortConfig.key!];
+                const bVal = b[sortConfig.key!];
+                
+                if (aVal === undefined || aVal === null) return 1;
+                if (bVal === undefined || bVal === null) return -1;
+                
+                const aStr = String(aVal).toLowerCase();
+                const bStr = String(bVal).toLowerCase();
+                
+                if (sortConfig.direction === 'asc') {
+                    return aStr.localeCompare(bStr, 'he');
+                } else {
+                    return bStr.localeCompare(aStr, 'he');
+                }
+            });
+        }
+
+        return filtered;
+    }, [allData, columnFilters, sortConfig]);
+
+    // Check if any filter is active
+    const hasActiveFilters = Object.values(columnFilters).some(value => value !== '');
+
+    // Export to Excel
+    const handleExportToExcel = () => {
+        // Prepare data for export
+        const exportData = filteredAndSortedTableData.map(item => ({
+            'תאריך': item.תאריך || '',
+            'פלוגה': item.פלוגה || '',
+            'משתמש': item.משתמש || '',
+            'פריט': item.פריט || '',
+            'כמות': item.כמות || 0,
+            'צורך': item.צורך || '',
+            'הערה': item.הערה || '',
+            'נקרא': item.נקרא || 'לא'
+        }));
+
+        // Create worksheet
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        
+        // Set column widths
+        ws['!cols'] = [
+            {wch: 20}, // תאריך
+            {wch: 15}, // פלוגה
+            {wch: 15}, // משתמש
+            {wch: 30}, // פריט
+            {wch: 10}, // כמות
+            {wch: 15}, // צורך
+            {wch: 30}, // הערה
+            {wch: 10}  // נקרא
+        ];
+
+        // Create workbook
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'הזמנות');
+
+        // Generate filename with current date
+        const date = new Date().toLocaleDateString('he-IL').replace(/\./g, '-');
+        const filename = `דרישות_לוגיסטיקה_${date}.xlsx`;
+
+        // Save file
+        XLSX.writeFile(wb, filename);
+
+        setStatusMessage({text: 'הקובץ יוצא בהצלחה', type: 'success'});
     };
 
     // Group data by פלוגה (location) first, then by date
@@ -473,9 +582,45 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
 
     return (
         <div className="container mx-auto p-4">
-            <div className="mb-6">
-                <h2 className="text-2xl font-bold mb-2">דרישות לוגיסטיקה</h2>
-                <p className="text-gray-600">כל הדרישות מכל הפלוגות עד שבוע אחורה</p>
+            <div className="mb-6 flex justify-between items-center">
+                <div>
+                    <h2 className="text-2xl font-bold mb-2">דרישות לוגיסטיקה</h2>
+                    <p className="text-gray-600">{viewMode === 'cards' ? 'כל הדרישות מכל הפלוגות עד שבוע אחורה' : 'כל הדרישות מכל הפלוגות (כל התאריכים)'}</p>
+                </div>
+                <div className="flex gap-2">
+                    {viewMode === 'table' && (
+                        <button
+                            onClick={handleExportToExcel}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            title="ייצוא ל-Excel"
+                        >
+                            <Download className="w-4 h-4" />
+                            <span className="text-sm font-medium">ייצוא ל-Excel</span>
+                        </button>
+                    )}
+                    <button
+                        onClick={() => setViewMode('cards')}
+                        className={`p-2 rounded-lg transition-colors ${
+                            viewMode === 'cards'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                        }`}
+                        title="תצוגת כרטיסים"
+                    >
+                        <LayoutGrid className="w-5 h-5" />
+                    </button>
+                    <button
+                        onClick={() => setViewMode('table')}
+                        className={`p-2 rounded-lg transition-colors ${
+                            viewMode === 'table'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                        }`}
+                        title="תצוגת טבלה"
+                    >
+                        <TableIcon className="w-5 h-5" />
+                    </button>
+                </div>
             </div>
 
             {statusMessage.text && (
@@ -487,6 +632,7 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
             )}
 
             {/* Card view grouped by location, then by date */}
+            {viewMode === 'cards' && (
             <div className="space-y-6 mb-8">
                 {groupedByLocationAndDate.length === 0 ? (
                     <div className="text-center p-8 text-gray-500">
@@ -560,6 +706,136 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
                     ))
                 )}
             </div>
+            )}
+
+            {/* Table view - all data without date filter */}
+            {viewMode === 'table' && (
+                <div className="bg-white rounded-lg shadow">
+                    {/* Table header with row count */}
+                    <div className="px-6 py-4 border-b bg-gray-50">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900">טבלת דרישות</h3>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    מציג {filteredAndSortedTableData.length} דרישות
+                                    {hasActiveFilters && ` (מסונן מתוך ${allData.length} סה"כ)`}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        {filteredAndSortedTableData.length === 0 && !hasActiveFilters ? (
+                            <div className="text-center p-8 text-gray-500">
+                                אין דרישות להצגה
+                            </div>
+                        ) : (
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        {[
+                                            {key: 'תאריך', label: 'תאריך'},
+                                            {key: 'פלוגה', label: 'פלוגה'},
+                                            {key: 'משתמש', label: 'משתמש'},
+                                            {key: 'פריט', label: 'פריט'},
+                                            {key: 'כמות', label: 'כמות'},
+                                            {key: 'צורך', label: 'צורך'},
+                                            {key: 'הערה', label: 'הערה'},
+                                            {key: 'נקרא', label: 'נקרא'}
+                                        ].map(({key, label}) => (
+                                            <th key={key} className="px-3 py-2 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <div className="relative">
+                                                        <button
+                                                            onClick={() => setActiveFilterColumn(activeFilterColumn === key ? null : key)}
+                                                            className={`p-1 rounded hover:bg-gray-200 transition-colors ${
+                                                                columnFilters[key] ? 'text-blue-600' : 'text-gray-400'
+                                                            }`}
+                                                            title="סינון"
+                                                        >
+                                                            <Filter className="w-3 h-3" />
+                                                        </button>
+                                                        {activeFilterColumn === key && (
+                                                            <div className="absolute right-0 top-full mt-1 z-10 bg-white border rounded-lg shadow-lg p-2 min-w-[200px]">
+                                                                <Input
+                                                                    placeholder={`חפש ${label}...`}
+                                                                    value={columnFilters[key]}
+                                                                    onChange={(e) => setColumnFilters({...columnFilters, [key]: e.target.value})}
+                                                                    className="text-right text-sm"
+                                                                    autoFocus
+                                                                />
+                                                                {columnFilters[key] && (
+                                                                    <button
+                                                                        onClick={() => setColumnFilters({...columnFilters, [key]: ''})}
+                                                                        className="text-xs text-red-600 hover:text-red-800 mt-1 w-full text-right"
+                                                                    >
+                                                                        נקה
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {key !== 'כמות' && (
+                                                        <button
+                                                            onClick={() => handleSort(key as keyof LogisticItem)}
+                                                            className="p-1 rounded hover:bg-gray-200 transition-colors"
+                                                            title="מיון"
+                                                        >
+                                                            {sortConfig.key === key ? (
+                                                                sortConfig.direction === 'asc' ? (
+                                                                    <ArrowUp className="w-3 h-3 text-blue-600" />
+                                                                ) : (
+                                                                    <ArrowDown className="w-3 h-3 text-blue-600" />
+                                                                )
+                                                            ) : (
+                                                                <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</span>
+                                                </div>
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {filteredAndSortedTableData.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="text-center p-8 text-gray-500">
+                                                לא נמצאו תוצאות התואמות לסינון
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredAndSortedTableData.map((item, idx) => (
+                                            <tr
+                                                key={item.id || idx}
+                                                className={`hover:bg-gray-50 cursor-pointer transition-colors ${
+                                                    item.נקרא === 'כן' ? 'bg-red-50' : ''
+                                                }`}
+                                                onClick={() => handleCardClick(item)}
+                                            >
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.תאריך}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.פלוגה}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.משתמש}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.פריט}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.כמות}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.צורך}</td>
+                                                <td className="px-6 py-4 text-sm text-gray-900">{item.הערה || '-'}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                                        item.נקרא === 'כן' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                                                    }`}>
+                                                        {item.נקרא || 'לא'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Date items dialog (when clicking on date header) */}
             <Dialog open={open} onOpenChange={setOpen}>
