@@ -102,7 +102,8 @@ const AmmoDocumentation: React.FC = () => {
             Object.keys(row).forEach(key => keys.add(key));
         });
 
-        return Array.from(keys).map(key => {
+        const hiddenColumns = ['id', 'חתימה_נקרא','נקרא' , 'חתימה','חתימת_מחתים'];
+        return Array.from(keys).filter(key => !hiddenColumns.includes(key)).map(key => {
             const baseConfig: ColDef<DocumentItem> = {
                 field: key,
                 headerName: key,
@@ -129,6 +130,8 @@ const AmmoDocumentation: React.FC = () => {
                 return { ...baseConfig, width: 180 };
             } else if (key === 'הודעה') {
                 return { ...baseConfig, width: 1000, cellStyle: {textAlign: 'right'} };
+            } else if (key === 'פריט') {
+                return { ...baseConfig, width: 250 };
             } else {
                 return { ...baseConfig, width: 100 };
             }
