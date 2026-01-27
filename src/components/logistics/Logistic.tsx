@@ -1319,19 +1319,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 </div>
             )}
 
-            {/* Show grouped users for הזמנה - only for permission['logistic'] */}
-            { permissions['logistic'] && hazmanaUserGroups.length > 0 && (
-                <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded">
-                    <p className="text-sm text-green-900">
-                        {hazmanaUserGroups.map((user, idx) => (
-                            <span key={idx}>
-                                {user.משתמש} {user.מספר_אישי_מחתים}{idx < hazmanaUserGroups.length - 1 ? ', ' : ''}
-                            </span>
-                        ))}
-                    </p>
-                </div>
-            )}
-
             {/* Conditional rendering: Card view or Table view */}
             {(activeTab === 'הזמנה' || activeTab === 'התעצמות') && viewMode === 'cards' ? (
                 // Card view for הזמנה
@@ -1774,29 +1761,128 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
 
                         <div>
                             <Label htmlFor="signer-name" className="text-right block mb-2">שם החותם</Label>
-                            <Input
+                            <CreatableSelect
                                 id="signer-name"
-                                value={signerName}
-                                onChange={(e) => setSignerName(e.target.value)}
-                                className="text-right mb-4"
+                                options={hazmanaUserGroups.map(user => ({ value: user.משתמש, label: user.משתמש, personalId: user.מספר_אישי_מחתים }))}
+                                value={signerName ? { value: signerName, label: signerName } : null}
+                                onChange={(selectedOption: any) => {
+                                    if (!selectedOption) {
+                                        setSignerName('');
+                                        setSignerPersonalId(0);
+                                        return;
+                                    }
+                                    setSignerName(selectedOption.value);
+                                    if (selectedOption.personalId) {
+                                        setSignerPersonalId(selectedOption.personalId);
+                                    }
+                                }}
+                                onCreateOption={(inputValue) => {
+                                    setSignerName(inputValue);
+                                }}
+                                placeholder="בחר או הכנס שם"
+                                noOptionsMessage={() => "לא נמצאו משתמשים"}
+                                formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
+                                isClearable
+                                isSearchable
+                                styles={{
+                                    control: (provided) => ({
+                                        ...provided,
+                                        textAlign: 'right',
+                                        direction: 'rtl',
+                                        marginBottom: '1rem'
+                                    }),
+                                    menu: (provided) => ({
+                                        ...provided,
+                                        textAlign: 'right',
+                                        direction: 'rtl'
+                                    }),
+                                    option: (provided) => ({
+                                        ...provided,
+                                        textAlign: 'right',
+                                        direction: 'rtl'
+                                    }),
+                                    placeholder: (provided) => ({
+                                        ...provided,
+                                        textAlign: 'right'
+                                    }),
+                                    singleValue: (provided) => ({
+                                        ...provided,
+                                        textAlign: 'right'
+                                    })
+                                }}
+                                theme={(theme) => ({
+                                    ...theme,
+                                    colors: {
+                                        ...theme.colors,
+                                        primary: '#3b82f6',
+                                        primary25: '#eff6ff'
+                                    }
+                                })}
                             />
                         </div>
 
                         <div>
                             <Label htmlFor="signer-personal-id" className="text-right block mb-2">מספר אישי של החותם</Label>
-                            <Input
+                            <CreatableSelect
                                 id="signer-personal-id"
-                                type="text"
-                                inputMode="numeric"
-                                value={signerPersonalId === 0 ? '' : signerPersonalId}
-                                onChange={(e) => {
-                                    const value = e.target.value;
-                                    if (value === '' || /^[1-9]\d*$/.test(value)) {
-                                        setSignerPersonalId(value === '' ? 0 : parseInt(value, 10));
+                                options={hazmanaUserGroups.map(user => ({ value: user.מספר_אישי_מחתים, label: String(user.מספר_אישי_מחתים), name: user.משתמש }))}
+                                value={signerPersonalId ? { value: signerPersonalId, label: String(signerPersonalId) } : null}
+                                onChange={(selectedOption: any) => {
+                                    if (!selectedOption) {
+                                        setSignerPersonalId(0);
+                                        setSignerName('');
+                                        return;
+                                    }
+                                    setSignerPersonalId(selectedOption.value);
+                                    if (selectedOption.name) {
+                                        setSignerName(selectedOption.name);
                                     }
                                 }}
-                                className="text-right mb-4"
-                                placeholder="מספר אישי"
+                                onCreateOption={(inputValue) => {
+                                    const parsed = parseInt(inputValue, 10);
+                                    if (!isNaN(parsed)) {
+                                        setSignerPersonalId(parsed);
+                                    }
+                                }}
+                                placeholder="בחר או הכנס מספר אישי"
+                                noOptionsMessage={() => "לא נמצאו משתמשים"}
+                                formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
+                                isClearable
+                                isSearchable
+                                styles={{
+                                    control: (provided) => ({
+                                        ...provided,
+                                        textAlign: 'right',
+                                        direction: 'rtl',
+                                        marginBottom: '1rem'
+                                    }),
+                                    menu: (provided) => ({
+                                        ...provided,
+                                        textAlign: 'right',
+                                        direction: 'rtl'
+                                    }),
+                                    option: (provided) => ({
+                                        ...provided,
+                                        textAlign: 'right',
+                                        direction: 'rtl'
+                                    }),
+                                    placeholder: (provided) => ({
+                                        ...provided,
+                                        textAlign: 'right'
+                                    }),
+                                    singleValue: (provided) => ({
+                                        ...provided,
+                                        textAlign: 'right'
+                                    })
+                                }}
+                                theme={(theme) => ({
+                                    ...theme,
+                                    colors: {
+                                        ...theme.colors,
+                                        primary: '#3b82f6',
+                                        primary25: '#eff6ff'
+                                    }
+                                })}
                             />
                         </div>
 
