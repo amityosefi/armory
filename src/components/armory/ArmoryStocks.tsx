@@ -26,6 +26,7 @@ type ArmoryItem = {
     name: string;
     kind: string;
     location: string;
+    is_examine?: boolean;
 };
 
 const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
@@ -91,7 +92,7 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
             while (hasMore) {
                 const {data, error, count} = await supabase
                     .from("armory_items")
-                    .select("id, name, kind, location", { count: 'exact' })
+                    .select("id, name, kind, location, is_examine", { count: 'exact' })
                     .in("location", ["גדוד", "מחסן", "סדנא"])
                     .range(from, from + batchSize - 1);
 
@@ -141,7 +142,7 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
     const createPivotData = (data: ArmoryItem[]) => {
         if (data.length === 0) return {};
 
-        const pivotByKind: { [kind: string]: { [name: string]: { ids: number[], count: number } } } = {};
+        const pivotByKind: { [kind: string]: { [name: string]: { ids: number[], count: number, itemsMap: Map<number, ArmoryItem> } } } = {};
 
         data.forEach(item => {
             const kind = item.kind || "לא מסווג";
@@ -152,10 +153,11 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
             }
 
             if (!pivotByKind[kind][name]) {
-                pivotByKind[kind][name] = {ids: [], count: 0};
+                pivotByKind[kind][name] = {ids: [], count: 0, itemsMap: new Map()};
             }
 
             pivotByKind[kind][name].ids.push(item.id);
+            pivotByKind[kind][name].itemsMap.set(item.id, item);
             pivotByKind[kind][name].count += 1;
         });
 
@@ -181,6 +183,7 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
         return (props: ICellRendererParams) => {
             const ids = props.value || [];
             const rowData = props.data;
+            const itemsMap = rowData.itemsMap || new Map();
             
             // Show all IDs if the row matches by name or kind
             // Only filter IDs if searching specifically for an ID number
@@ -200,18 +203,24 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
             return (
                 <div className="text-right">
                     <div className="flex flex-wrap gap-1 justify-end overflow-y-auto p-1 max-h-16">
-                        {filteredIds.map((id: number) => (
-                            <button
-                                key={id}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleIdClick(id, location, rowData.name, rowData.kind);
-                                }}
-                                className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded whitespace-nowrap hover:bg-blue-200 cursor-pointer"
-                            >
-                                {id}
-                            </button>
-                        ))}
+                        {filteredIds.map((id: number) => {
+                            const item = itemsMap.get(id);
+                            const isExamined = item?.is_examine === true;
+                            return (
+                                <button
+                                    key={id}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleIdClick(id, location, rowData.name, rowData.kind);
+                                    }}
+                                    className={`bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded whitespace-nowrap hover:bg-blue-200 cursor-pointer ${
+                                        isExamined ? 'border-l-6 border-l-green-500' : ''
+                                    }`}
+                                >
+                                    {id}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             );
@@ -219,12 +228,13 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
     };
 
     // Create row data for each kind (generic for all locations)
-    const createRowData = (kind: string, items: { [name: string]: { ids: number[], count: number } }) => {
+    const createRowData = (kind: string, items: { [name: string]: { ids: number[], count: number, itemsMap: Map<number, ArmoryItem> } }) => {
         const names = Object.keys(items);
         return names.map(name => ({
             name,
             quantity: items[name].count,
             ids: items[name].ids,
+            itemsMap: items[name].itemsMap,
             kind
         }));
     };

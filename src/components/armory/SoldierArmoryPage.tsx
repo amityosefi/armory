@@ -468,7 +468,9 @@ const SoldierArmoryPage: React.FC = () => {
                   <th className="p-2 text-right w-8">#</th>
                   <th className="p-2 text-right w-24">שם</th>
                   <th className="p-2 text-right w-12">צ</th>
-                  <th className="p-2 text-right w-16">מאופסן</th>
+                  {kind === 'נשק' && (
+                    <th className="p-2 text-right w-16">מאופסן</th>
+                  )}
                   {permissions['armory'] && (
                     <th className="p-2 text-right w-32">פעולות</th>
                   )}
@@ -515,14 +517,16 @@ const SoldierArmoryPage: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td className="p-2 w-16">
-                      <span 
-                        className={`px-2 py-1 text-xs rounded-full ${permissions['armory'] ? 'cursor-pointer' : ''} ${item.is_save ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`} 
-                        onClick={permissions['armory'] ? () => handleToggleSave(item) : undefined}
-                      >
-                        {item.is_save ? 'כן' : 'לא'}
-                      </span>
-                    </td>
+                    {kind === 'נשק' && (
+                      <td className="p-2 w-16">
+                        <span 
+                          className={`px-2 py-1 text-xs rounded-full ${permissions['armory'] ? 'cursor-pointer' : ''} ${item.is_save ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`} 
+                          onClick={permissions['armory'] ? () => handleToggleSave(item) : undefined}
+                        >
+                          {item.is_save ? 'כן' : 'לא'}
+                        </span>
+                      </td>
+                    )}
                     {permissions['armory'] && (
                       <td className="p-2 w-32">
                         <div className="flex gap-1 flex-wrap">
