@@ -273,10 +273,17 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
         // Filter by search query
         if (examineSearchQuery.trim()) {
             const query = examineSearchQuery.trim().toLowerCase();
-            items = items.filter(item => 
-                item.name.toLowerCase().includes(query) ||
-                item.id.toString().includes(query)
-            );
+            items = items.filter(item => {
+                // Find the person for this item
+                const person = peopleData.find(p => p.id.toString() === item.location.toString());
+                
+                return (
+                    item.name.toLowerCase().includes(query) ||
+                    item.id.toString().includes(query) ||
+                    item.location.toString().includes(query) ||
+                    (person && person.name.toLowerCase().includes(query))
+                );
+            });
         }
         
         // Sort by name first, then by id
@@ -291,7 +298,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
         const אמרלItems = items.filter(item => item.kind === 'אמרל');
         
         return { נשק: נשקItems, אמרל: אמרלItems, all: items };
-    }, [allItems, examineSearchQuery]);
+    }, [allItems, examineSearchQuery, peopleData]);
 
     // Handle examine checkbox change
     const handleExamineChange = async (itemId: number, checked: boolean) => {
@@ -677,24 +684,30 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                                                 נשק ({examineItemsByKind.נשק.length})
                                             </h3>
                                             <div className="space-y-2">
-                                                {examineItemsByKind.נשק.map((item) => (
-                                                    <div
-                                                        key={item.id}
-                                                        className={`flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border-r-4 ${item.is_examine ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <Checkbox
-                                                                checked={item.is_examine || false}
-                                                                onCheckedChange={(checked) => handleExamineChange(item.id, checked as boolean)}
-                                                                className="h-6 w-6"
-                                                            />
-                                                            <div>
-                                                                <div className="font-semibold text-gray-800">{item.name}</div>
-                                                                <div className="text-sm text-gray-500">מסד: {item.id}</div>
+                                                {examineItemsByKind.נשק.map((item) => {
+                                                    const person = peopleData.find(p => p.id.toString() === item.location.toString());
+                                                    return (
+                                                        <div
+                                                            key={item.id}
+                                                            className={`flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border-r-4 ${item.is_examine ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                <Checkbox
+                                                                    checked={item.is_examine || false}
+                                                                    onCheckedChange={(checked) => handleExamineChange(item.id, checked as boolean)}
+                                                                    className="h-6 w-6"
+                                                                />
+                                                                <div>
+                                                                    <div className="font-semibold text-gray-800">{item.name}</div>
+                                                                    <div className="text-sm text-gray-500">מסד: {item.id}</div>
+                                                                    <div className="text-xs text-blue-600">
+                                                                        {person ? `${person.name} (${item.location})` : `מיקום: ${item.location}`}
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     )}
@@ -706,24 +719,30 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                                                 אמרל ({examineItemsByKind.אמרל.length})
                                             </h3>
                                             <div className="space-y-2">
-                                                {examineItemsByKind.אמרל.map((item) => (
-                                                    <div
-                                                        key={item.id}
-                                                        className={`flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border-r-4 ${item.is_examine ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <Checkbox
-                                                                checked={item.is_examine || false}
-                                                                onCheckedChange={(checked) => handleExamineChange(item.id, checked as boolean)}
-                                                                className="h-6 w-6"
-                                                            />
-                                                            <div>
-                                                                <div className="font-semibold text-gray-800">{item.name}</div>
-                                                                <div className="text-sm text-gray-500">מסד: {item.id}</div>
+                                                {examineItemsByKind.אמרל.map((item) => {
+                                                    const person = peopleData.find(p => p.id.toString() === item.location.toString());
+                                                    return (
+                                                        <div
+                                                            key={item.id}
+                                                            className={`flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border-r-4 ${item.is_examine ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                <Checkbox
+                                                                    checked={item.is_examine || false}
+                                                                    onCheckedChange={(checked) => handleExamineChange(item.id, checked as boolean)}
+                                                                    className="h-6 w-6"
+                                                                />
+                                                                <div>
+                                                                    <div className="font-semibold text-gray-800">{item.name}</div>
+                                                                    <div className="text-sm text-gray-500">מסד: {item.id}</div>
+                                                                    <div className="text-xs text-blue-600">
+                                                                        {person ? `${person.name} (${item.location})` : `מיקום: ${item.location}`}
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     )}

@@ -11,7 +11,9 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Trash2, Save, X, Edit3, Hash, MapPin } from "lucide-react";
+import { usePermissions } from "@/contexts/PermissionsContext";
 
 interface EditItemModalProps {
     isOpen: boolean;
@@ -34,11 +36,13 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
     onSuccess,
     onError,
 }) => {
+    const { permissions } = usePermissions();
     const [itemData, setItemData] = useState<{
         id: number;
         name: string;
         kind: string;
         location: string;
+        is_examine: boolean;
     } | null>(null);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -46,23 +50,48 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
         name: itemName,
         kind: itemKind,
         location: currentLocation,
+        is_examine: false,
     });
 
-    // Update formData when props change (when clicking different IDs)
+    // Fetch item data including is_examine
     useEffect(() => {
-        setFormData({
-            id: itemId,
-            name: itemName,
-            kind: itemKind,
-            location: currentLocation,
-        });
-        setItemData({
-            id: itemId,
-            name: itemName,
-            kind: itemKind,
-            location: currentLocation,
-        });
-    }, [itemId, itemName, itemKind, currentLocation]);
+        const fetchItemData = async () => {
+            if (!isOpen) return;
+            
+            try {
+                const { data, error } = await supabase
+                    .from('armory_items')
+                    .select('*')
+                    .eq('id', itemId)
+                    .eq('name', itemName)
+                    .eq('kind', itemKind)
+                    .single();
+                
+                if (error) throw error;
+                
+                if (data) {
+                    setFormData({
+                        id: data.id as number,
+                        name: data.name as string,
+                        kind: data.kind as string,
+                        location: data.location as string,
+                        is_examine: Boolean(data.is_examine),
+                    });
+                    setItemData({
+                        id: data.id as number,
+                        name: data.name as string,
+                        kind: data.kind as string,
+                        location: data.location as string,
+                        is_examine: Boolean(data.is_examine),
+                    });
+                }
+            } catch (err) {
+                console.error('Error fetching item data:', err);
+            }
+        };
+        
+        fetchItemData();
+    }, [itemId, itemName, itemKind, currentLocation, isOpen]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -71,14 +100,16 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
             id: itemId,
             name: itemName,
             kind: itemKind,
-            location: currentLocation
+            location: currentLocation,
+            is_examine: Boolean(itemData?.is_examine)
         };
 
         // Check if any field has changed
         if (formData.name === originalData.name && 
             formData.id === originalData.id && 
             formData.kind === originalData.kind && 
-            formData.location === originalData.location) {
+            formData.location === originalData.location &&
+            formData.is_examine === originalData.is_examine) {
             onError("לא בוצעו שינויים");
             return;
         }
@@ -115,6 +146,7 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                         name: formData.name,
                         kind: formData.kind,
                         location: formData.location,
+                        is_examine: formData.is_examine,
                     });
                 
                 if (insertError) throw insertError;
@@ -124,6 +156,7 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                     .from("armory_items")
                     .update({
                         location: formData.location,
+                        is_examine: formData.is_examine,
                     })
                     .eq("id", itemId)
                     .eq("kind", formData.kind)
@@ -248,6 +281,24 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                                 <option value="סדנא">סדנא</option>
                             </select>
                         </div>
+
+                        {/* is_examine Checkbox - only for armory and admin users, and only for נשק or אמרל */}
+                        {permissions['armory'] && permissions['admin'] && (itemKind === 'נשק' || itemKind === 'אמרל') && (
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-3 justify-end">
+                                    <Label htmlFor="is_examine" className="text-right font-semibold text-base cursor-pointer">
+                                        אמצעי נבדק?
+                                    </Label>
+                                    <Checkbox
+                                        id="is_examine"
+                                        checked={formData.is_examine}
+                                        onCheckedChange={(checked) => setFormData({ ...formData, is_examine: checked as boolean })}
+                                        disabled={loading}
+                                        className="h-5 w-5"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         <DialogFooter className="flex gap-3 justify-start pt-6 border-t">
                             <Button
