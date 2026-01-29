@@ -17,7 +17,7 @@ import ArmorySum from "@/components/armory/ArmorySum";
 import ArmoryDocumentation from "@/components/armory/ArmoryDocumentation";
 import LogisticDocumentation from "@/components/logistics/LogisticDocumentation";
 import AmmoDocumentation from "@/components/ammo/AmmoDocumentation";
-import HR445 from "@/components/HR445";
+import HrPermission from "@/components/hr/hrPermission";
 
 
 const DivideComponents: React.FC = () => {
@@ -108,8 +108,8 @@ const DivideComponents: React.FC = () => {
                 />
             ))}
 
-            {(groupIndex === 3 && selectedSheet.range === 'טופס445') && (
-                <HR445 selectedSheet={selectedSheet}
+            {(groupIndex === 3) && (
+                <HrPermission selectedSheet={selectedSheet}
                 />
             )}
 

@@ -278,20 +278,27 @@ const LoginScreen: React.FC<LoginScreenProps> = ({onLoginSuccess}) => {
                 )}
             </div>
 
-            {/* טופס 445 Card - Outside main container */}
+            {/* HR Forms Link - Outside main container */}
             {!showRegistration && (
-                <Link
-                    to="/hr/"
-                    className="w-48 h-48 border-4 border-green-500 rounded-2xl p-4 bg-white hover:bg-green-50 transition-colors flex flex-col items-center justify-center gap-2 shadow-lg"
-                >
-                    <div className="text-4xl">🤝</div>
-                    <h2 className="text-xl font-bold text-green-800 text-center">
-                        טופס 445
-                    </h2>
-                    <p className="text-gray-600 text-center text-xs">
-                        טופס דיגיטלי למילוי טופס 445
-                    </p>
-                </Link>
+                <div className="flex justify-center">
+                    <Link
+                        to="/hr"
+                        className="w-64 h-64 border-4 border-purple-500 rounded-2xl p-6 bg-white hover:bg-purple-50 transition-all duration-300 transform hover:scale-105 flex flex-col items-center justify-center gap-3 shadow-2xl"
+                    >
+                        <div className="text-5xl">📋</div>
+                        <h2 className="text-2xl font-bold text-purple-800 text-center">
+                            אתר השלישות
+                        </h2>
+                        <p className="text-gray-600 text-center text-sm">
+                            טפסים דיגיטליים
+                        </p>
+                        <div className="flex gap-2 text-2xl mt-2">
+                            <span>🤝</span>
+                            <span>📋</span>
+                            <span>🏥</span>
+                        </div>
+                    </Link>
+                </div>
             )}
         </div>
     )
