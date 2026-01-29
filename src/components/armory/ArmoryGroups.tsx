@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import AddSoldierModal from "./AddSoldierModal";
 import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
-import { Download, LayoutGrid, Table, List } from "lucide-react";
+import { Download, LayoutGrid, Table, List, ClipboardCheck } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { exportMultipleSoldiersPDF } from "./SoldierPDFExport";
 
 interface ArmoryGroupsProps {
@@ -27,6 +28,7 @@ type ArmoryItem = {
     kind: string;
     location: string;
     is_save: boolean;
+    is_examine: boolean;
     people_sign: string;
     sign_time: string;
     logistic_sign: string;
@@ -53,10 +55,12 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
     const [loading, setLoading] = useState(true);
     const [itemsLoading, setItemsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState({ text: "", isSuccess: false });
-    const [viewMode, setViewMode] = useState<"cards" | "table" | "summary">("cards");
+    const [viewMode, setViewMode] = useState<"cards" | "table" | "summary" | "examine">("cards");
     const [searchQuery, setSearchQuery] = useState("");
     const [isAddSoldierModalOpen, setIsAddSoldierModalOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [allItems, setAllItems] = useState<ArmoryItem[]>([]);
+    const [examineSearchQuery, setExamineSearchQuery] = useState("");
 
     // Check permissions
     const hasPermission = permissions[selectedSheet.range] || permissions['armory'];
@@ -78,6 +82,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
 
         try {
             setLoading(true);
+            setAllItems([]); // Clear previous items
 
             // 1. Fetch people data where location=selectedSheet.range
             const { data: people, error: peopleError } = await supabase
@@ -136,6 +141,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
 
                     if (items && items.length > 0) {
                         allItems = [...allItems, ...(items as ArmoryItem[])];
+                        setAllItems(prev => [...prev, ...(items as ArmoryItem[])]);
                         offset += CHUNK_SIZE;
                         hasMore = items.length === CHUNK_SIZE;
                     } else {
@@ -143,6 +149,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                     }
                 }
 
+                
                 // 3. Update people with their items after fetching all items
                 const peopleWithItemsList: PersonData[] = (people || []).map((person: any) => {
                     const personItems = allItems.filter(item => item.location.toString() === person.id.toString());
@@ -255,6 +262,74 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
             );
         });
     }, [peopleWithItems, searchQuery]);
+
+    // Sort and filter items for examine view - only נשק and אמרל
+    const examineItemsByKind = useMemo(() => {
+        let items = [...allItems];
+        
+        // Filter to only נשק and אמרל kinds
+        items = items.filter(item => item.kind === 'נשק' || item.kind === 'אמרל');
+        
+        // Filter by search query
+        if (examineSearchQuery.trim()) {
+            const query = examineSearchQuery.trim().toLowerCase();
+            items = items.filter(item => 
+                item.name.toLowerCase().includes(query) ||
+                item.id.toString().includes(query)
+            );
+        }
+        
+        // Sort by name first, then by id
+        items.sort((a, b) => {
+            const nameCompare = a.name.localeCompare(b.name, 'he');
+            if (nameCompare !== 0) return nameCompare;
+            return a.id - b.id;
+        });
+        
+        // Separate by kind
+        const נשקItems = items.filter(item => item.kind === 'נשק');
+        const אמרלItems = items.filter(item => item.kind === 'אמרל');
+        
+        return { נשק: נשקItems, אמרל: אמרלItems, all: items };
+    }, [allItems, examineSearchQuery]);
+
+    // Handle examine checkbox change
+    const handleExamineChange = async (itemId: number, checked: boolean) => {
+
+        if (!permissions['armory'] || !permissions['admin']) return;
+
+        try {
+            const { error } = await supabase
+                .from("armory_items")
+                .update({ is_examine: checked })
+                .eq("id", itemId);
+
+            if (error) {
+                console.error("Error updating is_examine:", error);
+                setStatusMessage({
+                    text: `שגיאה בעדכון סטטוס בדיקה: ${error.message}`,
+                    isSuccess: false
+                });
+                return;
+            }
+
+            // Update local state
+            setAllItems(prev => prev.map(item =>
+                item.id === itemId ? { ...item, is_examine: checked } : item
+            ));
+
+            setStatusMessage({
+                text: `פריט ${itemId} ${checked ? 'סומן כנבדק' : 'הוסר מנבדק'}`,
+                isSuccess: true
+            });
+        } catch (err: any) {
+            console.error("Unexpected error:", err);
+            setStatusMessage({
+                text: `שגיאה לא צפויה: ${err.message}`,
+                isSuccess: false
+            });
+        }
+    };
 
     // Create summary data - group items by kind, then by name and count
     const summaryData = useMemo(() => {
@@ -429,6 +504,16 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                     >
                         <List className="h-4 w-4" />
                     </Button>
+                    {(permissions['admin'] && permissions['armory']) && (
+                        <Button
+                            onClick={() => setViewMode("examine")}
+                            variant={viewMode === "examine" ? "default" : "outline"}
+                            size="icon"
+                            title="בדיקת אמצעים"
+                        >
+                            <ClipboardCheck className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -558,6 +643,94 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                             </div>
                         </div>
                     )}
+
+                    {/* Examine View */}
+                    {viewMode === "examine" && (
+                        <div className="space-y-4">
+                            <div className="mb-4">
+                                <Input
+                                    type="text"
+                                    placeholder="חיפוש לפי שם או מסד..."
+                                    value={examineSearchQuery}
+                                    onChange={(e) => setExamineSearchQuery(e.target.value)}
+                                    className="max-w-md text-right"
+                                    dir="rtl"
+                                />
+                            </div>
+
+                            <div className="p-3 bg-white rounded-lg shadow text-sm">
+                                <span className="font-semibold">סה״כ: </span>{examineItemsByKind.all.length} אמצעים
+                                <span className="mx-2">|</span>
+                                <span className="font-semibold text-green-600">נבדקו: </span>{examineItemsByKind.all.filter(i => i.is_examine).length}
+                            </div>
+
+                            {examineItemsByKind.all.length === 0 ? (
+                                <div className="text-center p-8 text-gray-500 bg-white rounded-lg">
+                                    לא נמצאו אמצעים
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {/* נשק Section */}
+                                    {examineItemsByKind.נשק.length > 0 && (
+                                        <div className="space-y-2">
+                                            <h3 className="text-xl font-bold text-right text-blue-800 bg-blue-100 p-3 rounded-lg">
+                                                נשק ({examineItemsByKind.נשק.length})
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {examineItemsByKind.נשק.map((item) => (
+                                                    <div
+                                                        key={item.id}
+                                                        className={`flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border-r-4 ${item.is_examine ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <Checkbox
+                                                                checked={item.is_examine || false}
+                                                                onCheckedChange={(checked) => handleExamineChange(item.id, checked as boolean)}
+                                                                className="h-6 w-6"
+                                                            />
+                                                            <div>
+                                                                <div className="font-semibold text-gray-800">{item.name}</div>
+                                                                <div className="text-sm text-gray-500">מסד: {item.id}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* אמרל Section */}
+                                    {examineItemsByKind.אמרל.length > 0 && (
+                                        <div className="space-y-2">
+                                            <h3 className="text-xl font-bold text-right text-purple-800 bg-purple-100 p-3 rounded-lg">
+                                                אמרל ({examineItemsByKind.אמרל.length})
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {examineItemsByKind.אמרל.map((item) => (
+                                                    <div
+                                                        key={item.id}
+                                                        className={`flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border-r-4 ${item.is_examine ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <Checkbox
+                                                                checked={item.is_examine || false}
+                                                                onCheckedChange={(checked) => handleExamineChange(item.id, checked as boolean)}
+                                                                className="h-6 w-6"
+                                                            />
+                                                            <div>
+                                                                <div className="font-semibold text-gray-800">{item.name}</div>
+                                                                <div className="text-sm text-gray-500">מסד: {item.id}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </>
             )}
 
@@ -575,7 +748,8 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                 }}
                 currentLocation={selectedSheet.range}
             />
-        </div>
+
+</div>
     );
 };
 

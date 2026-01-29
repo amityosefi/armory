@@ -8,7 +8,10 @@ import AdminPage from './components/AdminPage'
 import { PermissionsProvider } from './contexts/PermissionsContext'
 import DivideComponents from "@/components/route/DivideComponentSections"
 import SoldierArmoryPage from './components/armory/SoldierArmoryPage'
-import HR445Form from './components/HR445Form';
+import HR445Form from './components/hr/forms/HR445Form';
+import CommitteeRequestForm from '@/components/hr/forms/CommitteeRequestForm';
+import MedicalWaiverForm from '@/components/hr/forms/MedicalWaiverForm';
+import HRLandingPage from './components/hr/HRLandingPage';
 
 function App() {
     const [user, setUser] = useState<TokenResponse | null>(null)
@@ -34,7 +37,22 @@ function App() {
                     
                     <Route
                         path="/hr"
+                        element={<HRLandingPage />}
+                    />
+                    
+                    <Route
+                        path="/hr445"
                         element={<HR445Form />}
+                    />
+                    
+                    <Route
+                        path="/committee-request"
+                        element={<CommitteeRequestForm />}
+                    />
+                    
+                    <Route
+                        path="/medical-waiver"
+                        element={<MedicalWaiverForm />}
                     />
 
                     {user ? (
@@ -48,7 +66,7 @@ function App() {
                                     </div>
                                 }
                             />
-                            <Route
+                                                        <Route
                                 path="/admin"
                                 element={
                                     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4 w-full" dir="rtl">

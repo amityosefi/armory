@@ -55,7 +55,9 @@ export const sheetGroups: SheetGroup[] = [
     pathName: 'hr',
     name: 'שלישות',
     sheets: [
-      { name: 'טופס 445', range: 'טופס445', id: 0 }
+      { name: 'טופס 445', range: 'טופס445', id: 0 },
+      { name: 'ועדה ללא נוכחות', range: 'ועדה ללא נוכחות', id: 1 },
+      { name: 'סודיות רפואית', range: 'סודיות רפואית', id: 2 }
     ]
   }
 ];

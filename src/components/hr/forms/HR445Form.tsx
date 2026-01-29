@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,9 +10,11 @@ import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageP
 import { Download, Trash2, ArrowLeft } from 'lucide-react';
 
 const HR445Form: React.FC = () => {
+    const navigate = useNavigate();
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [personalId, setPersonalId] = useState('');
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [signature, setSignature] = useState('');
     const [statusMessage, setStatusMessage] = useState({ isSuccess: false, text: '', onClose: () => {} });
     const [isLoading, setIsLoading] = useState(false);
@@ -20,11 +23,15 @@ const HR445Form: React.FC = () => {
 
     // Get today's date in dd.mm.yyyy format
     const getTodayDate = () => {
-        const today = new Date();
-        const day = String(today.getDate()).padStart(2, '0');
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const year = today.getFullYear();
+        const selectedDate = new Date(date);
+        const day = String(selectedDate.getDate()).padStart(2, '0');
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const year = selectedDate.getFullYear();
         return `${day}.${month}.${year}`;
+    };
+
+    const getTodayDateISO = () => {
+        return new Date().toISOString().split('T')[0];
     };
 
     const saveSignature = () => {
@@ -244,21 +251,23 @@ const HR445Form: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-green-600 to-green-100" dir="rtl">
-            {/* Green Header */}
-            <div className="bg-green-500 text-white py-4 md:py-6 px-4 relative">
-                <a
-                    href="/armory/"
-                    className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-200 text-xs md:text-sm underline"
-                >
-                    ← חזור
-                </a>
-                <h1 className="text-xl md:text-3xl font-bold text-center">
-                    טופס 445 📝
-                </h1>
-            </div>
-
             <div className="max-w-lg mx-auto p-3 md:p-6">
-                <div className="bg-white rounded-lg shadow-lg p-4 md:p-6">
+                {/* Header */}
+                <div className="bg-green-500 text-white p-6 rounded-t-lg flex items-center justify-between">
+                    <Button
+                        variant="outline"
+                        onClick={() => navigate(-1)}
+                        className="bg-white text-green-500 hover:bg-green-50"
+                    >
+                        ← חזרה
+                    </Button>
+                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                        📝 טופס 445
+                    </h1>
+                </div>
+
+                {/* Form */}
+                <div className="bg-white p-6 rounded-b-lg shadow-lg space-y-4">
                     {statusMessage.text && (
                         <StatusMessage
                             isSuccess={statusMessage.isSuccess}
@@ -323,14 +332,20 @@ const HR445Form: React.FC = () => {
                             </p>
                         </div>
 
-                        {/* Date (read-only) */}
+                        {/* Date */}
                         <div>
                             <Label htmlFor="date" className="text-right block mb-2 font-semibold">
-                                תאריך
+                                תאריך *
                             </Label>
-                            <div className="text-right p-3 bg-gray-100 rounded-md border border-gray-300">
-                                <span className="text-gray-700">{getTodayDate()}</span>
-                            </div>
+                            <Input
+                                id="date"
+                                type="date"
+                                value={date}
+                                onChange={(e) => setDate(e.target.value)}
+                                min={getTodayDateISO()}
+                                className="text-right"
+                                dir="rtl"
+                            />
                         </div>
 
                         {/* Signature Canvas */}
@@ -375,16 +390,6 @@ const HR445Form: React.FC = () => {
                             {isLoading ? 'מייצר קובץ...' : 'הורד טופס'}
                             <Download className="w-5 h-5" />
 
-                        </Button>
-
-                        {/* Back Button */}
-                        <Button
-                            onClick={() => window.location.href = '/armory/'}
-                            variant="outline"
-                            className="w-full mt-3 flex items-center justify-center gap-2"
-                        >
-                            חזור
-                            <ArrowLeft className="w-4 h-4" />
                         </Button>
                     </div>
                 </div>
