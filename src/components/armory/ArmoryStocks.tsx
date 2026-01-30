@@ -12,6 +12,10 @@ import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageP
 import jsPDF from "jspdf";
 import "@/fonts/NotoSansHebrew-normal.js";
 import logoImage from "@/assets/logo.jpeg";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ClipboardCheck } from "lucide-react";
 
 interface ArmoryStocksProps {
     selectedSheet: {
@@ -63,6 +67,10 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
     const [filteredSearchNames, setFilteredSearchNames] = useState<string[]>([]);
     const [searchedItems, setSearchedItems] = useState<ArmoryItem[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
+    
+    // Examine view states
+    const [viewMode, setViewMode] = useState<"stocks" | "examine">("stocks");
+    const [examineSearchQuery, setExamineSearchQuery] = useState("");
 
     // Helper function to log actions to armory_document
     const logAction = async (message: string) => {
@@ -322,6 +330,128 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
     const handleSearchChange = useCallback((value: string) => {
         setGlobalSearch(value);
     }, []);
+
+    // Filter items for examine view - only נשק and אמרל from גדוד
+    const examineItemsByKind = useMemo(() => {
+        let items = gedudData.filter(item => item.kind === 'נשק' || item.kind === 'אמרל');
+        
+        // Filter by search query
+        if (examineSearchQuery.trim()) {
+            const query = examineSearchQuery.trim().toLowerCase();
+            items = items.filter(item => {
+                return (
+                    item.name.toLowerCase().includes(query) ||
+                    item.id.toString().includes(query)
+                );
+            });
+        }
+        
+        // Sort by name first, then by id
+        items.sort((a, b) => {
+            const nameCompare = a.name.localeCompare(b.name, 'he');
+            if (nameCompare !== 0) return nameCompare;
+            return a.id - b.id;
+        });
+        
+        // Separate by kind
+        const נשקItems = items.filter(item => item.kind === 'נשק');
+        const אמרלItems = items.filter(item => item.kind === 'אמרל');
+        
+        return { נשק: נשקItems, אמרל: אמרלItems, all: items };
+    }, [gedudData, examineSearchQuery]);
+
+    // Handle examine checkbox change
+    const handleExamineChange = async (itemId: number, checked: boolean) => {
+        if (!permissions['armory'] || !permissions['admin']) return;
+
+        try {
+            const { error } = await supabase
+                .from("armory_items")
+                .update({ is_examine: checked })
+                .eq("id", itemId);
+
+            if (error) {
+                console.error("Error updating is_examine:", error);
+                setStatusMessage({
+                    text: `שגיאה בעדכון סטטוס בדיקה: ${error.message}`,
+                    type: "error"
+                });
+                return;
+            }
+
+            // Update local state
+            setGedudData(prev => prev.map(item =>
+                item.id === itemId ? { ...item, is_examine: checked } : item
+            ));
+
+            setStatusMessage({
+                text: `פריט ${itemId} ${checked ? 'סומן כנבדק' : 'הוסר מנבדק'}`,
+                type: "success"
+            });
+        } catch (err: any) {
+            console.error("Unexpected error:", err);
+            setStatusMessage({
+                text: `שגיאה לא צפויה: ${err.message}`,
+                type: "error"
+            });
+        }
+    };
+
+    // Reset all is_examine to false for all items in gedud
+    const handleResetAllExamine = async () => {
+        if (!permissions['armory'] || !permissions['admin']) return;
+
+        const confirmReset = window.confirm(`האם אתה בטוח שברצונך לאפס את כל האמצעים שנבדקו?`);
+        if (!confirmReset) return;
+
+        try {
+            setLoading(true);
+            
+            // Get all item IDs from gedud that are נשק or אמרל
+            const itemIds = examineItemsByKind.all.map(item => item.id);
+            
+            if (itemIds.length === 0) {
+                setStatusMessage({
+                    text: 'אין אמצעים לאיפוס',
+                    type: "error"
+                });
+                return;
+            }
+
+            // Update all items to is_examine = false
+            const { error } = await supabase
+                .from("armory_items")
+                .update({ is_examine: false })
+                .in("id", itemIds);
+
+            if (error) {
+                console.error("Error resetting is_examine:", error);
+                setStatusMessage({
+                    text: `שגיאה באיפוס סטטוס בדיקה: ${error.message}`,
+                    type: "error"
+                });
+                return;
+            }
+
+            // Update local state
+            setGedudData(prev => prev.map(item =>
+                itemIds.includes(item.id) ? { ...item, is_examine: false } : item
+            ));
+
+            setStatusMessage({
+                text: ` אמצעים אופסו בהצלחה`,
+                type: "success"
+            });
+        } catch (err: any) {
+            console.error("Unexpected error:", err);
+            setStatusMessage({
+                text: `שגיאה לא צפויה: ${err.message}`,
+                type: "error"
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Get unique sorted item names from gedudData
     const uniqueGedudNames = useMemo(() => {
@@ -775,44 +905,179 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
                 </div>
             </div>
 
-            {/* Top Action Buttons and Search */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-gray-50 p-4 rounded-lg">
-
-                {statusMessage.text && (
-                    <StatusMessage
-                        isSuccess={statusMessage.type === 'success'}
-                        message={statusMessage.text}
-                        onClose={() => setStatusMessage({text: "", type: ""})}
-                    />
-                )}
-
-                <div className="flex gap-2 w-full md:w-auto">
-                    <button
-                        onClick={() => setAddNewItemModalOpen(true)}
-                        className="flex-1 md:flex-none px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 font-semibold whitespace-nowrap"
+            {/* View Mode Toggle */}
+            {(permissions['admin'] && permissions['armory']) && (
+                <div className="flex justify-center gap-2 mb-4">
+                    <Button
+                        onClick={() => setViewMode("stocks")}
+                        variant={viewMode === "stocks" ? "default" : "outline"}
+                        className="flex items-center gap-2"
                     >
-                        הוספת פריט חדש
-                    </button>
-                    <button
-                        onClick={() => setAddItemIdModalOpen(true)}
-                        className="flex-1 md:flex-none px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 font-semibold whitespace-nowrap"
+                        מלאי
+                    </Button>
+                    <Button
+                        onClick={() => setViewMode("examine")}
+                        variant={viewMode === "examine" ? "default" : "outline"}
+                        className="flex items-center gap-2"
+                        title="בדיקת אמצעים"
                     >
-                        הוספת צ
-                    </button>
+                        <ClipboardCheck className="h-4 w-4" />
+                        בדיקת אמצעים
+                    </Button>
                 </div>
-                <div className="w-full md:w-1/2">
-                    <input
-                        type="text"
-                        placeholder="חיפוש בכל המיקומים..."
-                        className="w-full p-2 border rounded-md text-right"
-                        value={globalSearch}
-                        onChange={(e) => handleSearchChange(e.target.value)}
-                    />
-                </div>
-            </div>
+            )}
 
-            {/* Gedud Section - Grouped by Kind */}
-            {visibleSections.gedud && (
+            {/* Top Action Buttons and Search - Only show in stocks view */}
+            {viewMode === "stocks" && (
+                <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-gray-50 p-4 rounded-lg">
+
+                    {statusMessage.text && (
+                        <StatusMessage
+                            isSuccess={statusMessage.type === 'success'}
+                            message={statusMessage.text}
+                            onClose={() => setStatusMessage({text: "", type: ""})}
+                        />
+                    )}
+
+                    <div className="flex gap-2 w-full md:w-auto">
+                        <button
+                            onClick={() => setAddNewItemModalOpen(true)}
+                            className="flex-1 md:flex-none px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 font-semibold whitespace-nowrap"
+                        >
+                            הוספת פריט חדש
+                        </button>
+                        <button
+                            onClick={() => setAddItemIdModalOpen(true)}
+                            className="flex-1 md:flex-none px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 font-semibold whitespace-nowrap"
+                        >
+                            הוספת צ
+                        </button>
+                    </div>
+                    <div className="w-full md:w-1/2">
+                        <input
+                            type="text"
+                            placeholder="חיפוש בכל המיקומים..."
+                            className="w-full p-2 border rounded-md text-right"
+                            value={globalSearch}
+                            onChange={(e) => handleSearchChange(e.target.value)}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Examine View */}
+            {viewMode === "examine" && (
+                <div className="space-y-4">
+                    {statusMessage.text && (
+                        <StatusMessage
+                            isSuccess={statusMessage.type === 'success'}
+                            message={statusMessage.text}
+                            onClose={() => setStatusMessage({text: "", type: ""})}
+                        />
+                    )}
+
+                    <div className="flex flex-col md:flex-row gap-3 mb-4">
+                        <Input
+                            type="text"
+                            placeholder="חיפוש לפי שם או מסד..."
+                            value={examineSearchQuery}
+                            onChange={(e) => setExamineSearchQuery(e.target.value)}
+                            className="flex-1 text-right"
+                            dir="rtl"
+                        />
+                        <Button
+                            onClick={handleResetAllExamine}
+                            variant="destructive"
+                            className="bg-red-600 hover:bg-red-700 text-white font-semibold whitespace-nowrap flex-1"
+                            disabled={loading || examineItemsByKind.all.length === 0}
+                        >
+                            🔄 איפוס כל הבדיקות
+                        </Button>
+                    </div>
+
+                    <div className="p-3 bg-white rounded-lg shadow text-sm">
+                        <span className="font-semibold">סה״כ: </span>{examineItemsByKind.all.length} אמצעים
+                        <span className="mx-2">|</span>
+                        <span className="font-semibold text-green-600">נבדקו: </span>{examineItemsByKind.all.filter(i => i.is_examine).length}
+                    </div>
+
+                    {examineItemsByKind.all.length === 0 ? (
+                        <div className="text-center p-8 text-gray-500 bg-white rounded-lg">
+                            לא נמצאו אמצעים
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {/* נשק Section */}
+                            {examineItemsByKind.נשק.length > 0 && (
+                                <div className="space-y-2">
+                                    <h3 className="text-xl font-bold text-right text-blue-800 bg-blue-100 p-3 rounded-lg">
+                                        נשק ({examineItemsByKind.נשק.length})
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {examineItemsByKind.נשק.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                className={`flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border-r-4 ${
+                                                    item.is_examine ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <Checkbox
+                                                        checked={item.is_examine || false}
+                                                        onCheckedChange={(checked) => handleExamineChange(item.id, checked as boolean)}
+                                                        className="h-6 w-6"
+                                                    />
+                                                    <div>
+                                                        <div className="font-semibold text-gray-800">{item.name}</div>
+                                                        <div className="text-sm text-gray-500">מסד: {item.id}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* אמרל Section */}
+                            {examineItemsByKind.אמרל.length > 0 && (
+                                <div className="space-y-2">
+                                    <h3 className="text-xl font-bold text-right text-purple-800 bg-purple-100 p-3 rounded-lg">
+                                        אמרל ({examineItemsByKind.אמרל.length})
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {examineItemsByKind.אמרל.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                className={`flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border-r-4 ${
+                                                    item.is_examine ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <Checkbox
+                                                        checked={item.is_examine || false}
+                                                        onCheckedChange={(checked) => handleExamineChange(item.id, checked as boolean)}
+                                                        className="h-6 w-6"
+                                                    />
+                                                    <div>
+                                                        <div className="font-semibold text-gray-800">{item.name}</div>
+                                                        <div className="text-sm text-gray-500">מסד: {item.id}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Stocks View */}
+            {viewMode === "stocks" && (
+                <>
+                    {/* Gedud Section - Grouped by Kind */}
+                    {visibleSections.gedud && (
                 <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
                     <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-4">
@@ -1022,6 +1287,8 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
                         </div>
                     )}
                 </div>
+            )}
+                </>
             )}
             
             {/* Modals */}

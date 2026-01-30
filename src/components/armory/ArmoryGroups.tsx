@@ -338,6 +338,62 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
         }
     };
 
+    // Reset all is_examine to false for all items in the current people list
+    const handleResetAllExamine = async () => {
+        if (!permissions['armory'] || !permissions['admin']) return;
+
+        const confirmReset = window.confirm(`האם אתה בטוח שברצונך לאפס את כל האמצעים שנבדקו?`);
+        if (!confirmReset) return;
+
+        try {
+            setLoading(true);
+            
+            // Get all item IDs from the current people list
+            const itemIds = examineItemsByKind.all.map(item => item.id);
+            
+            if (itemIds.length === 0) {
+                setStatusMessage({
+                    text: 'אין אמצעים לאיפוס',
+                    isSuccess: false
+                });
+                return;
+            }
+
+            // Update all items to is_examine = false
+            const { error } = await supabase
+                .from("armory_items")
+                .update({ is_examine: false })
+                .in("id", itemIds);
+
+            if (error) {
+                console.error("Error resetting is_examine:", error);
+                setStatusMessage({
+                    text: `שגיאה באיפוס סטטוס בדיקה: ${error.message}`,
+                    isSuccess: false
+                });
+                return;
+            }
+
+            // Update local state
+            setAllItems(prev => prev.map(item =>
+                itemIds.includes(item.id) ? { ...item, is_examine: false } : item
+            ));
+
+            setStatusMessage({
+                text: ` אמצעים אופסו בהצלחה`,
+                isSuccess: true
+            });
+        } catch (err: any) {
+            console.error("Unexpected error:", err);
+            setStatusMessage({
+                text: `שגיאה לא צפויה: ${err.message}`,
+                isSuccess: false
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // Create summary data - group items by kind, then by name and count
     const summaryData = useMemo(() => {
         const kindGroups: Record<string, Record<string, { count: number; isSaveCount: number }>> = {};
@@ -654,7 +710,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                     {/* Examine View */}
                     {viewMode === "examine" && (
                         <div className="space-y-4">
-                            <div className="mb-4">
+                            <div className="flex flex-col md:flex-row gap-3 mb-4">
                                 <Input
                                     type="text"
                                     placeholder="חיפוש לפי שם או מסד..."
@@ -663,6 +719,14 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                                     className="max-w-md text-right"
                                     dir="rtl"
                                 />
+                                <Button
+                                    onClick={handleResetAllExamine}
+                                    variant="destructive"
+                                    className="bg-red-600 hover:bg-red-700 text-white font-semibold whitespace-nowrap"
+                                    disabled={loading || examineItemsByKind.all.length === 0}
+                                >
+                                    🔄 איפוס כל הבדיקות
+                                </Button>
                             </div>
 
                             <div className="p-3 bg-white rounded-lg shadow text-sm">
