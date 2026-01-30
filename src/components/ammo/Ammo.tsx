@@ -34,11 +34,13 @@ import CreatableSelect from 'react-select/creatable';
 import logoImg from "@/assets/logo.jpeg";
 
 const STATUSES = ['החתמה', 'דיווח'] as const;
+const STATUSES_WITH_SHATZAL = ['החתמה', 'דיווח', 'שצל'] as const;
 
 // Map internal status names to display names
 const STATUS_DISPLAY_MAP: Record<string, string> = {
     'החתמה': 'החתמה',
-    'דיווח': 'דיווחים'
+    'דיווח': 'דיווחים',
+    'שצל': 'שצל'
 };
 
 interface LogisticProps {
@@ -90,6 +92,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const [signerPersonalId, setSignerPersonalId] = useState(0);
     const sigPadRef = useRef<SignatureCanvas>(null);
     const [activeTab, setActiveTab] = useState<string>('דיווח'); // Track active tab
+    const [shatzalViewMode, setShatzalViewMode] = useState<'table' | 'cards'>('cards'); // Toggle for שצל view
     const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards'); // Toggle between table and card view
     const [cardActionModalOpen, setCardActionModalOpen] = useState(false);
     const [selectedCardItem, setSelectedCardItem] = useState<LogisticItem | null>(null);
@@ -322,6 +325,48 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
         return sortedEntries;
     }, [ballDataByStatus, explosionDataByStatus]);
+
+    // Group שצל data by תאריך for card view (where צורך=שצל and סטטוס=החתמה)
+    const groupedShatzalByDate = useMemo(() => {
+        if (!permissions['ammo']) return [];
+        
+        const ballData = ballDataByStatus['החתמה'] || [];
+        const explosionData = explosionDataByStatus['החתמה'] || [];
+        const allData = [...ballData, ...explosionData];
+        
+        // Filter only שצל items
+        const shatzalItems = allData.filter(item => item.צורך === 'שצל');
+        
+        const grouped: { [date: string]: LogisticItem[] } = {};
+
+        shatzalItems.forEach(item => {
+            const date = item.תאריך || '';
+            if (!grouped[date]) {
+                grouped[date] = [];
+            }
+            grouped[date].push(item);
+        });
+
+        // Sort dates in descending order (newest first)
+        const sortedEntries = Object.entries(grouped).sort((a, b) => {
+            const parseHebrewDate = (dateStr: string) => {
+                if (!dateStr) return 0;
+                const [datePart, timePart] = dateStr.split(', ');
+                if (!datePart) return 0;
+
+                const [day, month, year] = datePart.split('.').map(Number);
+                const [hours = 0, minutes = 0, seconds = 0] = (timePart || '').split(':').map(Number);
+
+                return new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+            };
+
+            const dateA = parseHebrewDate(a[0]);
+            const dateB = parseHebrewDate(b[0]);
+            return dateB - dateA;
+        });
+
+        return sortedEntries;
+    }, [ballDataByStatus, explosionDataByStatus, permissions]);
 
     // Get unique item names from החתמה status only for דיווח mode
     const uniqueBallItemNames = useMemo(() => {
@@ -1399,7 +1444,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             {/* Status tabs */}
             <div className="border-b mb-4">
                 <div className="flex overflow-x-auto">
-                    {STATUSES.map(status => (
+                    {(permissions['ammo'] ? STATUSES_WITH_SHATZAL : STATUSES).map(status => (
                         <button
                             key={status}
                             className={`py-2 px-4 ${activeTab === status ? 'border-b-2 border-blue-500 font-bold' : ''}`}
@@ -1411,26 +1456,26 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 </div>
             </div>
             
-            {/* View toggle for דיווח tab */}
-            {activeTab === 'דיווח' && (
+            {/* View toggle for דיווח and שצל tabs */}
+            {(activeTab === 'דיווח' || activeTab === 'שצל') && (
                 <div className="flex justify-center gap-2 mb-4">
                     <Button
-                        variant={viewMode === 'cards' ? 'default' : 'outline'}
+                        variant={(activeTab === 'דיווח' ? viewMode : shatzalViewMode) === 'cards' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => setViewMode('cards')}
+                        onClick={() => activeTab === 'דיווח' ? setViewMode('cards') : setShatzalViewMode('cards')}
                         className="flex items-center gap-1"
                     >
                         <LayoutGrid className="h-4 w-4" />
                     </Button>
                     <Button
-                        variant={viewMode === 'table' ? 'default' : 'outline'}
+                        variant={(activeTab === 'דיווח' ? viewMode : shatzalViewMode) === 'table' ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => setViewMode('table')}
+                        onClick={() => activeTab === 'דיווח' ? setViewMode('table') : setShatzalViewMode('table')}
                         className="flex items-center gap-1"
                     >
                         <Table className="h-4 w-4" />
                     </Button>
-                    {viewMode === 'cards' && (
+                    {(activeTab === 'דיווח' ? viewMode : shatzalViewMode) === 'cards' && activeTab === 'דיווח' && (
                         <Popover>
                             <PopoverTrigger asChild>
                                 <Button
@@ -1462,8 +1507,51 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 </div>
             )}
 
-            {/* Conditional rendering: Card view or Table view for דיווח */}
-            {activeTab === 'דיווח' && viewMode === 'cards' ? (
+            {/* Conditional rendering: Card view for שצל */}
+            {activeTab === 'שצל' && shatzalViewMode === 'cards' ? (
+                <div className="space-y-4 mb-8">
+                    {groupedShatzalByDate.length === 0 ? (
+                        <div className="text-center p-8 text-gray-500">
+                            אין שצל להצגה
+                        </div>
+                    ) : (
+                        groupedShatzalByDate.map(([date, items]) => (
+                            <div key={date} className="border rounded-lg shadow-sm bg-white overflow-hidden">
+                                {/* Date header */}
+                                <div className="bg-orange-50 border-b px-4 py-3 flex justify-between items-center">
+                                    <h3 className="font-bold text-lg text-orange-900">{date}</h3>
+                                    <span className="text-sm text-orange-700">מדווח: {items[0].משתמש}</span>
+                                </div>
+                                
+                                {/* Items list */}
+                                <div className="divide-y">
+                                    {items.map((item, idx) => (
+                                        <div 
+                                            key={item.id || idx} 
+                                            className="p-4 bg-orange-50"
+                                        >
+                                            <div className="grid grid-cols-3 gap-3 text-sm">
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">סוג:</span>
+                                                    <span className="mr-2 text-gray-900">{item.is_explosion ? 'נפיצה' : 'קליעית'}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">פריט:</span>
+                                                    <span className="mr-1 text-gray-900">{item.פריט}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">כמות:</span>
+                                                    <span className="mr-2 text-gray-900">{item.כמות}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            ) : activeTab === 'דיווח' && viewMode === 'cards' ? (
                 <div className="space-y-4 mb-8">
                     {groupedByDate.length === 0 ? (
                         <div className="text-center p-8 text-gray-500">
@@ -1516,7 +1604,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                     <div className="mb-8">
                         <div className="flex justify-start items-center gap-4 mb-2">
                             <h3 className="text-xl font-bold">קליעית</h3>
-                            {(permissions['ammo']) && activeTab !== 'החתמה' && (
+                            {(permissions['ammo']) && activeTab !== 'החתמה' && activeTab !== 'שצל' && (
                                 <Button
                                     onClick={() => handleDeleteSelectedItems()}
                                     className="bg-red-500 hover:bg-red-600"
@@ -1528,17 +1616,17 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                         </div>
                         <div className="ag-theme-alpine w-[60vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
                             <AgGridReact
-                        rowData={activeTab === 'החתמה' ? summarizedBallSignatureData : ballDataByStatus[activeTab] || []}
+                        rowData={activeTab === 'החתמה' ? summarizedBallSignatureData : activeTab === 'שצל' ? (ballDataByStatus['החתמה'] || []).filter(item => item.צורך === 'שצל') : ballDataByStatus[activeTab] || []}
                         columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
                         enableRtl={true}
                         defaultColDef={{
                             ...defaultColDef,
-                            checkboxSelection: activeTab !== 'החתמה' ? (params) => {
+                            checkboxSelection: (activeTab !== 'החתמה' && activeTab !== 'שצל') ? (params) => {
                                 return params.column.getColId() === 'checkboxCol';
                             } : false
                         }}
                         suppressHorizontalScroll={false}
-                        rowSelection={activeTab !== 'החתמה' ? 'multiple' : undefined}
+                        rowSelection={(activeTab !== 'החתמה' && activeTab !== 'שצל') ? 'multiple' : undefined}
                         suppressRowClickSelection={true}
                         onSelectionChanged={(params) => {
                             const selectedRows = params.api.getSelectedRows();
@@ -1573,17 +1661,17 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 </div>
                 <div className="ag-theme-alpine w-[60vh] h-[40vh] mb-4 overflow-auto" style={{maxWidth: '100%'}}>
                     <AgGridReact
-                        rowData={activeTab === 'החתמה' ? summarizedExplosionSignatureData : explosionDataByStatus[activeTab] || []}
+                        rowData={activeTab === 'החתמה' ? summarizedExplosionSignatureData : activeTab === 'שצל' ? (explosionDataByStatus['החתמה'] || []).filter(item => item.צורך === 'שצל') : explosionDataByStatus[activeTab] || []}
                         columnDefs={activeTab === 'החתמה' ? summaryColumns : baseColumns}
                         enableRtl={true}
                         defaultColDef={{
                             ...defaultColDef,
-                            checkboxSelection: activeTab !== 'החתמה' ? (params) => {
+                            checkboxSelection: (activeTab !== 'החתמה' && activeTab !== 'שצל') ? (params) => {
                                 return params.column.getColId() === 'checkboxCol';
                             } : false
                         }}
                         suppressHorizontalScroll={false}
-                        rowSelection={activeTab !== 'החתמה' ? 'multiple' : undefined}
+                        rowSelection={(activeTab !== 'החתמה' && activeTab !== 'שצל') ? 'multiple' : undefined}
                         suppressRowClickSelection={true}
                         onSelectionChanged={(params) => {
                             const selectedRows = params.api.getSelectedRows();
