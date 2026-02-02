@@ -3,25 +3,38 @@ import {AgGridReact} from "ag-grid-react";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import {supabase} from "@/lib/supabaseClient";
-import {ColDef, IServerSideDatasource} from "ag-grid-community";
+import {ColDef} from "ag-grid-community";
 import {usePermissions} from "@/contexts/PermissionsContext";
 import {Button} from "@/components/ui/button";
-import {X} from "lucide-react";
+import {X, ClipboardCheck} from "lucide-react";
 import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
 
 
 type DocumentItem = {
     id?: string;
     created_at?: string;
-    [key: string]: any; // Allow dynamic fields from the table
+    [key: string]: unknown;
+};
+
+type ExamineDocItem = {
+    id?: string;
+    user?: string;
+    item_id?: number;
+    name?: string;
+    date?: string;
+    created_at?: string;
 };
 
 const ArmoryDocumentation: React.FC = () => {
     const {permissions} = usePermissions();
     const [rowData, setRowData] = useState<DocumentItem[]>([]);
+    const [examineRowData, setExamineRowData] = useState<ExamineDocItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [examineLoading, setExamineLoading] = useState(false);
     const gridRef = useRef<AgGridReact>(null);
+    const examineGridRef = useRef<AgGridReact>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [showExamineTable, setShowExamineTable] = useState(false);
     const [newMessage, setNewMessage] = useState('');
     const [statusMessage, setStatusMessage] = useState({ text: '', isSuccess: false });
 
@@ -104,10 +117,59 @@ const ArmoryDocumentation: React.FC = () => {
         }
     };
 
+    // Fetch examine documentation data
+    const fetchExamineData = async () => {
+        try {
+            if (!permissions['armory'] || !permissions['admin']) return;
+            setExamineLoading(true);
+            
+            // Fetch data in chunks of 1000
+            let allData: any[] = [];
+            let offset = 0;
+            const chunkSize = 1000;
+            let hasMore = true;
+
+            while (hasMore) {
+                const {data, error} = await supabase
+                    .from("armory_examine_documentation")
+                    .select("*")
+                    .range(offset, offset + chunkSize - 1);
+
+                if (error) {
+                    console.error("Error fetching examine data:", error);
+                    break;
+                }
+
+                if (data && data.length > 0) {
+                    allData = [...allData, ...data];
+                    offset += chunkSize;
+                    hasMore = data.length === chunkSize;
+                } else {
+                    hasMore = false;
+                }
+            }
+
+            // Reverse the array to show last row first
+            setExamineRowData(allData.reverse());
+
+        } catch (err: any) {
+            console.error("Unexpected error:", err);
+        } finally {
+            setExamineLoading(false);
+        }
+    };
+
     // Initial data fetch
     useEffect(() => {
         fetchData();
     }, []);
+
+    // Fetch examine data when showing examine table
+    useEffect(() => {
+        if (showExamineTable && permissions['armory'] && permissions['admin']) {
+            fetchExamineData();
+        }
+    }, [showExamineTable]);
 
     const handleInsertRow = async () => {
         if (!newMessage.trim()) {
@@ -150,7 +212,7 @@ const ArmoryDocumentation: React.FC = () => {
         // Create column definitions for each key with specific widths
         return Array.from(keys).map(key => {
             const baseConfig: ColDef<DocumentItem> = {
-                field: key,
+                field: key as any,
                 headerName: key,
                 sortable: true,
                 filter: 'agTextColumnFilter',
@@ -183,6 +245,78 @@ const ArmoryDocumentation: React.FC = () => {
         });
     }, [rowData]);
 
+    // AG Grid column definitions for examine documentation - exclude id field
+    const examineColumnDefs = useMemo<ColDef<ExamineDocItem>[]>(() => {
+        if (examineRowData.length === 0) return [];
+
+        // Define column order: date, name, item_id, user
+        const columnOrder = ['date', 'name', 'item_id', 'user', 'location'];
+        
+        // Get all unique keys from the data, excluding 'id' and 'created_at'
+        const keys = new Set<string>();
+        examineRowData.forEach(row => {
+            Object.keys(row).forEach(key => {
+                if (key !== 'id' && key !== 'created_at') {
+                    keys.add(key);
+                }
+            });
+        });
+
+        // Sort keys based on columnOrder
+        const sortedKeys = Array.from(keys).sort((a, b) => {
+            const indexA = columnOrder.indexOf(a);
+            const indexB = columnOrder.indexOf(b);
+            
+            // If both are in columnOrder, sort by their position
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            // If only a is in columnOrder, it comes first
+            if (indexA !== -1) return -1;
+            // If only b is in columnOrder, it comes first
+            if (indexB !== -1) return 1;
+            // Otherwise maintain original order
+            return 0;
+        });
+
+        // Create column definitions for each key with specific widths
+        return sortedKeys.map(key => {
+            const baseConfig: ColDef<ExamineDocItem> = {
+                field: key as any,
+                headerName: key,
+                sortable: true,
+                filter: 'agTextColumnFilter',
+                filterParams: {
+                    filterOptions: ['contains'],
+                    defaultOption: 'contains',
+                    suppressAndOrCondition: true,
+                },
+            };
+
+            // Add custom comparator for date column
+            if (key === 'date') {
+                baseConfig.comparator = (valueA: string, valueB: string) => {
+                    const dateA = parseHebrewDate(valueA);
+                    const dateB = parseHebrewDate(valueB);
+                    return dateA.getTime() - dateB.getTime();
+                };
+            }
+
+            // Set specific widths for different columns
+            if (key === 'user') {
+                return { ...baseConfig, width: 150, headerName: 'משתמש' };
+            } else if (key === 'date') {
+                return { ...baseConfig, width: 180, headerName: 'תאריך', sort: 'desc' as const, sortIndex: 0 };
+            } else if (key === 'item_id') {
+                return { ...baseConfig, width: 100, headerName: 'מסד' };
+            } else if (key === 'location') {
+                return { ...baseConfig, width: 100, headerName: 'מיקום' };
+            } else if (key === 'name') {
+                return { ...baseConfig, width: 80, headerName: 'שם', cellStyle: {textAlign: 'right'} };
+            } else {
+                return { ...baseConfig, width: 100 };
+            }
+        });
+    }, [examineRowData]);
+
     // Default column definition for AG Grid
     const defaultColDef = {
         headerClass: 'ag-right-aligned-header',
@@ -202,14 +336,26 @@ const ArmoryDocumentation: React.FC = () => {
         <div className="container mx-auto p-4">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-right">תיעוד</h2>
-                {(permissions['armory'] || permissions['admin']) && (
-                    <Button
-                        onClick={() => setIsModalOpen(true)}
-                        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-2 px-4 rounded-lg shadow-lg"
-                    >
-                        ➕ הוסף הודעה
-                    </Button>
-                )}
+                <div className="flex gap-2">
+                    {(permissions['armory'] && permissions['admin']) && (
+                        <Button
+                            onClick={() => setShowExamineTable(!showExamineTable)}
+                            variant={showExamineTable ? 'default' : 'outline'}
+                            className="flex items-center gap-2"
+                        >
+                            <ClipboardCheck className="h-4 w-4" />
+                            {showExamineTable ? 'הסתר בדיקות' : 'הצג בדיקות'}
+                        </Button>
+                    )}
+                    {(permissions['armory'] || permissions['admin']) && (
+                        <Button
+                            onClick={() => setIsModalOpen(true)}
+                            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-2 px-4 rounded-lg shadow-lg"
+                        >
+                            ➕ הוסף הודעה
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {statusMessage.text && (
@@ -222,6 +368,43 @@ const ArmoryDocumentation: React.FC = () => {
                 </div>
             )}
 
+            {/* Examine Documentation Table */}
+            {showExamineTable && (permissions['armory'] && permissions['admin']) && (
+                <div className="mb-8">
+                    <h3 className="text-lg font-bold text-right mb-2">תיעוד בדיקות אמצעים</h3>
+                    {examineLoading ? (
+                        <div className="flex flex-col items-center justify-center h-[30vh]">
+                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500 mb-4"></div>
+                            <p className="text-center p-4">טוען נתוני בדיקות...</p>
+                        </div>
+                    ) : (
+                        <div 
+                            className="ag-theme-alpine rtl" 
+                            style={{height: "30vh", width: "100%", direction: "rtl"}}
+                        >
+                            <AgGridReact
+                                ref={examineGridRef}
+                                rowData={examineRowData}
+                                columnDefs={examineColumnDefs}
+                                defaultColDef={defaultColDef}
+                                pagination={false}
+                                enableRtl={true}
+                                domLayout="normal"
+                                rowSelection='multiple'
+                                suppressRowClickSelection={true}
+                                enableCellTextSelection={true}
+                                ensureDomOrder={true}
+                                getRowStyle={getRowStyle}
+                                alwaysShowHorizontalScroll={false}
+                                suppressHorizontalScroll={false}
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Main Documentation Table */}
+            <h3 className="text-lg font-bold text-right mb-2">תיעוד כללי</h3>
             {loading ? (
                 <div className="flex flex-col items-center justify-center h-[40vh]">
                     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
