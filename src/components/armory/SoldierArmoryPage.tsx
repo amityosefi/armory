@@ -260,7 +260,7 @@ const SoldierArmoryPage: React.FC = () => {
     try {
       const { error } = await supabase
         .from('armory_items')
-        .update({ location: newLocation , is_save: false, people_sign: '', sign_time: '', logistic_sign: '', logistic_name: '', logistic_id: 0})
+        .update({ location: newLocation , is_save: false, people_sign: '', sign_time: '', logistic_sign: '', logistic_name: '', logistic_id: 0, is_examine: false, is_examine_group: false})
         .eq('id', item.id)
         .eq('kind', item.kind)
           .eq('name', item.name);

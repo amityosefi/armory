@@ -331,9 +331,9 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
         setGlobalSearch(value);
     }, []);
 
-    // Filter items for examine view - only נשק and אמרל from גדוד
+    // Filter items for examine view - only נשק, אמרל, and אופטיקה from גדוד
     const examineItemsByKind = useMemo(() => {
-        let items = gedudData.filter(item => item.kind === 'נשק' || item.kind === 'אמרל');
+        let items = gedudData.filter(item => item.kind === 'נשק' || item.kind === 'אמרל' || item.kind === 'אופטיקה');
         
         // Filter by search query
         if (examineSearchQuery.trim()) {
@@ -356,8 +356,9 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
         // Separate by kind
         const נשקItems = items.filter(item => item.kind === 'נשק');
         const אמרלItems = items.filter(item => item.kind === 'אמרל');
+        const אופטיקהItems = items.filter(item => item.kind === 'אופטיקה');
         
-        return { נשק: נשקItems, אמרל: אמרלItems, all: items };
+        return { נשק: נשקItems, אמרל: אמרלItems, אופטיקה: אופטיקהItems, all: items };
     }, [gedudData, examineSearchQuery]);
 
     // Handle examine checkbox change
@@ -388,6 +389,14 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
                 text: `פריט ${itemId} ${checked ? 'סומן כנבדק' : 'הוסר מנבדק'}`,
                 type: "success"
             });
+
+            if(checked) {
+                // Find the item to get its name
+                const item = gedudData.find(i => i.id === itemId);
+                const { error } = await supabase
+                    .from("armory_examine_documentation")
+                    .insert({user: permissions['name'], item_id: itemId, name: item?.name || '', date: new Date().toLocaleString('he-IL'), location: selectedSheet.range})
+            }
         } catch (err: any) {
             console.error("Unexpected error:", err);
             setStatusMessage({
@@ -1046,6 +1055,37 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
                                     </h3>
                                     <div className="space-y-2">
                                         {examineItemsByKind.אמרל.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                className={`flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border-r-4 ${
+                                                    item.is_examine ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <Checkbox
+                                                        checked={item.is_examine || false}
+                                                        onCheckedChange={(checked) => handleExamineChange(item.id, checked as boolean)}
+                                                        className="h-6 w-6"
+                                                    />
+                                                    <div>
+                                                        <div className="font-semibold text-gray-800">{item.name}</div>
+                                                        <div className="text-sm text-gray-500">מסד: {item.id}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* אופטיקה Section */}
+                            {examineItemsByKind.אופטיקה.length > 0 && (
+                                <div className="space-y-2">
+                                    <h3 className="text-xl font-bold text-right text-orange-800 bg-orange-100 p-3 rounded-lg">
+                                        אופטיקה ({examineItemsByKind.אופטיקה.length})
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {examineItemsByKind.אופטיקה.map((item) => (
                                             <div
                                                 key={item.id}
                                                 className={`flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border-r-4 ${
