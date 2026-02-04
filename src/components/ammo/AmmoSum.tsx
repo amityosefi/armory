@@ -7,6 +7,8 @@ import {ColDef} from "ag-grid-community";
 import {Button} from '@/components/ui/button';
 import * as XLSX from "xlsx";
 import {usePermissions} from "@/contexts/PermissionsContext";
+import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
+import { FileSpreadsheet } from 'lucide-react';
 
 interface EquipmentSumProps {
     selectedSheet: {
@@ -54,6 +56,7 @@ const AmmoSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
     const [uniqueItemsExplosion, setUniqueItemsExplosion] = useState<string[]>([]);
     const [summaryDataBall, setSummaryDataBall] = useState<SummaryRow[]>([]);
     const [summaryDataExplosion, setSummaryDataExplosion] = useState<SummaryRow[]>([]);
+    const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
     const ballGridRef = useRef<any>(null);
     const explosionGridRef = useRef<any>(null);
 
@@ -377,38 +380,87 @@ const AmmoSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
         return columns;
     }, [uniqueCompaniesExplosion]);
 
-    // Export to Excel - includes both datasets
+    // Export to Excel - exports summary data like ArmorySum
     const exportToExcel = () => {
-        if (!ballGridRef.current && !explosionGridRef.current) return;
-
-        // Create a new workbook
-        const wb = XLSX.utils.book_new();
-        
-        // Create worksheets for each dataset
-        if (ballData.length > 0) {
-            const wsBall = XLSX.utils.json_to_sheet(ballData);
-            XLSX.utils.book_append_sheet(wb, wsBall, "קליעית");
+        try {
+            const wb = XLSX.utils.book_new();
+            
+            // Export Ball (קליעית) summary data
+            if (summaryDataBall.length > 0) {
+                const ballExcelData = summaryDataBall.map(row => {
+                    const excelRow: any = { 'פריט': row.פריט };
+                    
+                    // Add all company columns
+                    uniqueCompaniesBall.forEach(company => {
+                        excelRow[company] = row[company] || 0;
+                    });
+                    
+                    // Add total
+                    excelRow['סה״כ'] = row['סה״כ'] || 0;
+                    
+                    return excelRow;
+                });
+                
+                const wsBall = XLSX.utils.json_to_sheet(ballExcelData);
+                XLSX.utils.book_append_sheet(wb, wsBall, 'קליעית');
+            }
+            
+            // Export Explosion (נפיצה) summary data
+            if (summaryDataExplosion.length > 0) {
+                const explosionExcelData = summaryDataExplosion.map(row => {
+                    const excelRow: any = { 'פריט': row.פריט };
+                    
+                    // Add all company columns
+                    uniqueCompaniesExplosion.forEach(company => {
+                        excelRow[company] = row[company] || 0;
+                    });
+                    
+                    // Add total
+                    excelRow['סה״כ'] = row['סה״כ'] || 0;
+                    
+                    return excelRow;
+                });
+                
+                const wsExplosion = XLSX.utils.json_to_sheet(explosionExcelData);
+                XLSX.utils.book_append_sheet(wb, wsExplosion, 'נפיצה');
+            }
+            
+            const today = new Date().toLocaleDateString('he-IL').replace(/\./g, '-');
+            XLSX.writeFile(wb, `סיכום_תחמושת_${today}.xlsx`);
+            
+            setStatusMessage({
+                text: 'הקובץ הורד בהצלחה',
+                type: 'success'
+            });
+        } catch (error: any) {
+            console.error('Error exporting to Excel:', error);
+            setStatusMessage({
+                text: `שגיאה ביצירת קובץ Excel: ${error.message}`,
+                type: 'error'
+            });
         }
-        
-        if (explosionData.length > 0) {
-            const wsExplosion = XLSX.utils.json_to_sheet(explosionData);
-            XLSX.utils.book_append_sheet(wb, wsExplosion, "נפיצה");
-        }
-
-        // Generate a download of the excel file
-        XLSX.writeFile(wb, "סיכום תחמושת.xlsx");
     };
 
     return (
         <div className="p-4">
+            <StatusMessage
+                isSuccess={statusMessage.type === 'success'}
+                message={statusMessage.text}
+                onClose={() => setStatusMessage({text: "", type: ""})}
+            />
+            
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">סיכום תחמושת לפי פלוגות</h2>
-                <Button
-                    onClick={exportToExcel}
-                    disabled={loading || (summaryDataBall.length === 0 && summaryDataExplosion.length === 0)}
-                >
-                    ייצא לאקסל
-                </Button>
+                {(permissions['ammo'] && permissions['admin']) && (
+                    <Button
+                        onClick={exportToExcel}
+                        className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                        disabled={loading || (summaryDataBall.length === 0 && summaryDataExplosion.length === 0)}
+                    >
+                        <FileSpreadsheet className="w-4 h-4" />
+                        ייצוא ל-Excel
+                    </Button>
+                )}
             </div>
 
             {/* Ball Ammo Table */}

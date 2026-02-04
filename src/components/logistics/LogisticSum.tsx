@@ -7,6 +7,8 @@ import {ColDef} from "ag-grid-community";
 import {Button} from '@/components/ui/button';
 import * as XLSX from "xlsx";
 import {usePermissions} from "@/contexts/PermissionsContext";
+import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
+import { FileSpreadsheet } from 'lucide-react';
 
 interface EquipmentSumProps {
     selectedSheet: {
@@ -49,6 +51,7 @@ const LogisticSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
     const [uniqueCompanies, setUniqueCompanies] = useState<string[]>([]);
     const [uniqueItems, setUniqueItems] = useState<string[]>([]);
     const [summaryData, setSummaryData] = useState<SummaryRow[]>([]);
+    const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
     const gridRef = useRef<any>(null);
 
     // Fetch all logistic data from Supabase
@@ -273,31 +276,66 @@ const LogisticSum: React.FC<EquipmentSumProps> = ({selectedSheet}) => {
         return columns;
     }, [uniqueCompanies]);
 
-    // Export to Excel
+    // Export to Excel - exports summary data like ArmorySum
     const exportToExcel = () => {
-        if (!gridRef.current) return;
-
-        // Create a new workbook
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(logisticData);
-
-        // Add the worksheet to the workbook
-        XLSX.utils.book_append_sheet(wb, ws, "EquipmentSummary");
-
-        // Generate a download of the excel file
-        XLSX.writeFile(wb, "לוגיסטיקה 8101.xlsx");
+        try {
+            const wb = XLSX.utils.book_new();
+            
+            if (summaryData.length > 0) {
+                const excelData = summaryData.map(row => {
+                    const excelRow: any = { 'פריט': row.פריט };
+                    
+                    // Add all company columns
+                    uniqueCompanies.forEach(company => {
+                        excelRow[company] = row[company] || 0;
+                    });
+                    
+                    // Add total
+                    excelRow['סה״כ'] = row['סה״כ'] || 0;
+                    
+                    return excelRow;
+                });
+                
+                const ws = XLSX.utils.json_to_sheet(excelData);
+                XLSX.utils.book_append_sheet(wb, ws, 'לוגיסטיקה');
+            }
+            
+            const today = new Date().toLocaleDateString('he-IL').replace(/\./g, '-');
+            XLSX.writeFile(wb, `סיכום_לוגיסטיקה_${today}.xlsx`);
+            
+            setStatusMessage({
+                text: 'הקובץ הורד בהצלחה',
+                type: 'success'
+            });
+        } catch (error: any) {
+            console.error('Error exporting to Excel:', error);
+            setStatusMessage({
+                text: `שגיאה ביצירת קובץ Excel: ${error.message}`,
+                type: 'error'
+            });
+        }
     };
 
     return (
         <div className="p-4">
+            <StatusMessage
+                isSuccess={statusMessage.type === 'success'}
+                message={statusMessage.text}
+                onClose={() => setStatusMessage({text: "", type: ""})}
+            />
+            
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">סיכום ציוד לפי פלוגות</h2>
-                <Button
-                    onClick={exportToExcel}
-                    disabled={loading || summaryData.length === 0}
-                >
-                    ייצא לאקסל
-                </Button>
+                {(permissions['logistic'] && permissions['admin']) && (
+                    <Button
+                        onClick={exportToExcel}
+                        className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                        disabled={loading || summaryData.length === 0}
+                    >
+                        <FileSpreadsheet className="w-4 h-4" />
+                        ייצוא ל-Excel
+                    </Button>
+                )}
             </div>
 
             <div className="ag-theme-alpine" style={{height: '40vh', width: '100%', direction: 'rtl'}}>

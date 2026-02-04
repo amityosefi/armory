@@ -172,6 +172,27 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
         return pivotByKind;
     };
 
+    // Helper function to sort kinds in the specified order
+    const sortKindsByOrder = (pivotData: { [kind: string]: any }) => {
+        const kindOrder = ['נשק', 'כוונת', 'אמרל', 'אופטיקה', 'ציוד'];
+        
+        return Object.keys(pivotData).sort((a, b) => {
+            const indexA = kindOrder.indexOf(a);
+            const indexB = kindOrder.indexOf(b);
+            
+            // If both are in the order array, sort by their position
+            if (indexA !== -1 && indexB !== -1) {
+                return indexA - indexB;
+            }
+            // If only a is in the order array, it comes first
+            if (indexA !== -1) return -1;
+            // If only b is in the order array, it comes first
+            if (indexB !== -1) return 1;
+            // If neither is in the order array, sort alphabetically
+            return a.localeCompare(b, 'he');
+        });
+    };
+
     // Process data into pivot table format with IDs for each location
     const gedudPivotData = useMemo(() => createPivotData(gedudData), [gedudData]);
     const mahsanPivotData = useMemo(() => createPivotData(mahsanData), [mahsanData]);
@@ -1129,7 +1150,8 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
                         <p className="text-center text-gray-500 p-4">אין נתונים להצגה</p>
                     ) : (
                         <div className="space-y-6">
-                            {Object.entries(gedudPivotData).map(([kind, items]) => {
+                            {sortKindsByOrder(gedudPivotData).map(kind => {
+                                const items = gedudPivotData[kind];
                                 const allRows = createRowData(kind, items);
                                 const filteredRows = allRows.filter(item => {
                                     if (!searchTerms.gedud) return true;
@@ -1198,7 +1220,8 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
                         <p className="text-center text-gray-500 p-4">אין נתונים להצגה</p>
                     ) : (
                         <div className="space-y-6">
-                            {Object.entries(mahsanPivotData).map(([kind, items]) => {
+                            {sortKindsByOrder(mahsanPivotData).map(kind => {
+                                const items = mahsanPivotData[kind];
                                 const allRows = createRowData(kind, items);
                                 const filteredRows = allRows.filter(item => {
                                     if (!searchTerms.mahsan) return true;
@@ -1273,7 +1296,8 @@ const ArmoryStocks: React.FC<ArmoryStocksProps> = ({selectedSheet}) => {
                         <p className="text-center text-gray-500 p-4">אין נתונים להצגה</p>
                     ) : (
                         <div className="space-y-6">
-                            {Object.entries(sadnaPivotData).map(([kind, items]) => {
+                            {sortKindsByOrder(sadnaPivotData).map(kind => {
+                                const items = sadnaPivotData[kind];
                                 const allRows = createRowData(kind, items);
                                 const filteredRows = allRows.filter(item => {
                                     if (!searchTerms.sadna) return true;
