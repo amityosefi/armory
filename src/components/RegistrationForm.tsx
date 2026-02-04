@@ -15,6 +15,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
         logistic: false,
         ammo: false,
         armory: false,
+        hr: false,
         א: false,
         ב: false,
         ג: false,
@@ -112,7 +113,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
         }
         
         const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'פלסם', 'מכלול'];
-        const otherPermissions = ['admin', 'armory', 'logistic', 'ammo'];
+        const otherPermissions = ['admin', 'armory', 'logistic', 'ammo', 'hr'];
         const selectedCompanies = companyPermissions.filter(perm => registrationData[perm as keyof typeof registrationData]);
         const selectedOthers = otherPermissions.filter(perm => registrationData[perm as keyof typeof registrationData]);
         
@@ -123,6 +124,11 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
         
         if (selectedCompanies.length > 0 && selectedOthers.length > 0) {
             setRegistrationMessage({text: "לא ניתן לשלב הרשאת פלוגה עם הרשאות אחרות", type: "error"});
+            return;
+        }
+        
+        if (registrationData.hr && selectedCompanies.length > 0) {
+            setRegistrationMessage({text: "לא ניתן לבחור גם שלישות וגם פלוגה", type: "error"});
             return;
         }
         
@@ -145,6 +151,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
                     logistic: false,
                     ammo: false,
                     armory: false,
+                    hr: false,
                     א: false,
                     ב: false,
                     ג: false,
@@ -300,6 +307,19 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
                 </div>
 
                 <div className="mb-4">
+                    <label className="flex items-center space-x-2 text-right">
+                        <input
+                            type="checkbox"
+                            name="hr"
+                            checked={registrationData.hr}
+                            onChange={handleRegistrationChange}
+                            className="ml-2"
+                        />
+                        שלישות
+                    </label>
+                </div>
+
+                <div className="mb-4">
                     <label className="block text-sm font-medium text-right mb-2">בחר פלוגה (מיועד לחיילי הפלוגות):</label>
                     <select
                         name="companyPermission"
@@ -307,7 +327,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
                         onChange={(e) => {
                             const value = e.target.value;
                             const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'פלסם', 'מכלול'];
-                            const otherPermissions = ['admin', 'armory', 'logistic', 'ammo'];
+                            const otherPermissions = ['admin', 'armory', 'logistic', 'ammo', 'hr'];
                             
                             setCompanyPermission(value);
                             

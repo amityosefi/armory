@@ -43,6 +43,7 @@ const AdminPage = () => {
         logistic: false,
         ammo: false,
         armory: false,
+        hr: false,
         א: false,
         ב: false,
         ג: false,
@@ -135,6 +136,7 @@ const AdminPage = () => {
                 if (user.armory) permissions.push('נשקיה');
                 if (user.logistic) permissions.push('לוגיסטיקה');
                 if (user.ammo) permissions.push('תחמושת');
+                if (user.hr) permissions.push('שלישות');
                 if (user.א) permissions.push('א');
                 if (user.ב) permissions.push('ב');
                 if (user.ג) permissions.push('ג');
@@ -326,7 +328,7 @@ const AdminPage = () => {
         
         // Validate company permissions - only one allowed and cannot be combined with other permissions
         const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'פלסם', 'מכלול'];
-        const otherPermissions = ['admin', 'armory', 'logistic', 'ammo'];
+        const otherPermissions = ['admin', 'armory', 'logistic', 'ammo', 'hr'];
         const selectedCompanies = companyPermissions.filter(perm => newUser[perm as keyof typeof newUser]);
         const selectedOthers = otherPermissions.filter(perm => newUser[perm as keyof typeof newUser]);
         
@@ -379,6 +381,7 @@ const AdminPage = () => {
                     logistic: false,
                     ammo: false,
                     armory: false,
+                    hr: false,
                     א: false,
                     ב: false,
                     ג: false,
@@ -724,6 +727,20 @@ const AdminPage = () => {
                             </div>
                         </div>
 
+                        {/* HR Checkbox */}
+                        <div className="mb-4">
+                            <label className="flex items-center space-x-2 text-right">
+                                <input
+                                    type="checkbox"
+                                    name="hr"
+                                    checked={newUser.hr}
+                                    onChange={handleNewUserChange}
+                                    className="ml-2"
+                                />
+                                שלישות
+                            </label>
+                        </div>
+
                         {/* Company Permissions Dropdown */}
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-right mb-2">פלוגה</label>
@@ -733,7 +750,7 @@ const AdminPage = () => {
                                 onChange={(e) => {
                                     const value = e.target.value;
                                     const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'פלסם', 'מכלול'];
-                                    const otherPermissions = ['admin', 'armory', 'logistic', 'ammo'];
+                                    const otherPermissions = ['admin', 'armory', 'logistic', 'ammo', 'hr'];
                                     
                                     setNewUser(prev => {
                                         const updated = {...prev, companyPermission: value};
@@ -900,6 +917,23 @@ const AdminPage = () => {
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                             {rowData.filter(u => u.ammo).map(user => (
                                 <div key={user.email} className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* שלישות Users */}
+                {rowData.filter(u => u.hr).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">שלישות</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.hr).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
                                     <div className="text-white text-right">
                                         <div className="font-bold text-sm truncate">{user.name}</div>
                                         <div className="text-xs opacity-90 truncate">{user.email}</div>
