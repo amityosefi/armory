@@ -322,7 +322,29 @@ const SoldierArmoryPage: React.FC = () => {
       }
       grouped[item.kind].push(item);
     });
-    return grouped;
+    
+    // Define the order of kinds
+    const kindOrder = ['נשק', 'כוונת', 'אמרל', 'אופטיקה', 'ציוד'];
+    
+    // Create ordered object
+    const orderedGrouped: { [key: string]: ArmoryItem[] } = {};
+    
+    // First add items in the specified order
+    kindOrder.forEach(kind => {
+      if (grouped[kind]) {
+        orderedGrouped[kind] = grouped[kind];
+      }
+    });
+    
+    // Then add any remaining kinds not in the order (alphabetically)
+    Object.keys(grouped)
+      .filter(kind => !kindOrder.includes(kind))
+      .sort((a, b) => a.localeCompare(b, 'he'))
+      .forEach(kind => {
+        orderedGrouped[kind] = grouped[kind];
+      });
+    
+    return orderedGrouped;
   };
 
   if (loading) {

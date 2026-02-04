@@ -115,8 +115,29 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
         }
     });
 
-    // Create a table for each kind
-    Object.entries(groupedItems).forEach(([kind, items]) => {
+    // Define the order of kinds
+    const kindOrder = ['נשק', 'כוונת', 'אמרל', 'אופטיקה', 'ציוד'];
+    
+    // Sort grouped items by the defined order
+    const sortedKinds = Object.keys(groupedItems).sort((a, b) => {
+        const indexA = kindOrder.indexOf(a);
+        const indexB = kindOrder.indexOf(b);
+        
+        // If both are in the order array, sort by their position
+        if (indexA !== -1 && indexB !== -1) {
+            return indexA - indexB;
+        }
+        // If only a is in the order array, it comes first
+        if (indexA !== -1) return -1;
+        // If only b is in the order array, it comes first
+        if (indexB !== -1) return 1;
+        // If neither is in the order array, sort alphabetically
+        return a.localeCompare(b, 'he');
+    });
+
+    // Create a table for each kind in the sorted order
+    sortedKinds.forEach(kind => {
+        const items = groupedItems[kind];
         // Check if we need a new page
         if (y > 220) {
             doc.addPage();

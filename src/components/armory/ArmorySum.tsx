@@ -5,6 +5,10 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 import {supabase} from "@/lib/supabaseClient";
 import {ColDef} from "ag-grid-community";
 import {usePermissions} from "@/contexts/PermissionsContext";
+import * as XLSX from 'xlsx';
+import { Button } from "@/components/ui/button";
+import { FileSpreadsheet } from 'lucide-react';
+import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
 
 interface ArmorySumProps {
     selectedSheet: {
@@ -164,6 +168,27 @@ const ArmorySum: React.FC<ArmorySumProps> = ({selectedSheet}) => {
         return "no location";
     };
 
+    // Helper function to sort kinds in the specified order
+    const sortKindsByOrder = (kinds: string[]) => {
+        const kindOrder = ['נשק', 'כוונת', 'אמרל', 'אופטיקה', 'ציוד'];
+        
+        return kinds.sort((a, b) => {
+            const indexA = kindOrder.indexOf(a);
+            const indexB = kindOrder.indexOf(b);
+            
+            // If both are in the order array, sort by their position
+            if (indexA !== -1 && indexB !== -1) {
+                return indexA - indexB;
+            }
+            // If only a is in the order array, it comes first
+            if (indexA !== -1) return -1;
+            // If only b is in the order array, it comes first
+            if (indexB !== -1) return 1;
+            // If neither is in the order array, sort alphabetically
+            return a.localeCompare(b, 'he');
+        });
+    };
+
     // Process data into summary format grouped by kind
     const summaryByKind = useMemo(() => {
         if (armoryItems.length === 0) return {};
@@ -247,6 +272,62 @@ const ArmorySum: React.FC<ArmorySumProps> = ({selectedSheet}) => {
         return result;
     }, [armoryItems, peopleData]);
 
+    // Get sorted kinds for rendering
+    const sortedKinds = useMemo(() => {
+        return sortKindsByOrder(Object.keys(summaryByKind));
+    }, [summaryByKind]);
+
+    // Export to Excel
+    const exportToExcel = () => {
+        try {
+            const wb = XLSX.utils.book_new();
+            
+            sortedKinds.forEach(kind => {
+                const rows = summaryByKind[kind];
+                if (!rows || rows.length === 0) return;
+                
+                // Prepare data for Excel
+                const excelData = rows.map(row => ({
+                    'שם': row.name,
+                    'א': row.א || 0,
+                    'ב': row.ב || 0,
+                    'ג': row.ג || 0,
+                    'מסייעת': row.מסייעת || 0,
+                    'אלון': row.אלון || 0,
+                    'מכלול': row.מכלול || 0,
+                    'פלסם': row.פלסם || 0,
+                    'מנופק': row.מנופק || 0,
+                    'גדוד': row.גדוד || 0,
+                    'מחסן': row.מחסן || 0,
+                    'סדנא': row.סדנא || 0,
+                    'מאופסן': row.מאופסן || 0,
+                    'סה״כ': row['סה״כ'] || 0
+                }));
+                
+                const ws = XLSX.utils.json_to_sheet(excelData);
+                
+                // Sanitize sheet name (Excel has restrictions)
+                const sanitizedKind = kind.replace(/[:\\/?*\[\]]/g, '_').substring(0, 31);
+                XLSX.utils.book_append_sheet(wb, ws, sanitizedKind);
+            });
+            
+            const today = new Date().toLocaleDateString('he-IL').replace(/\./g, '-');
+            XLSX.writeFile(wb, `סיכום_נשקיה_${today}.xlsx`);
+            
+            setStatusMessage({
+                text: 'הקובץ הורד בהצלחה',
+                type: 'success'
+            });
+        } catch (error: any) {
+            console.error('Error exporting to Excel:', error);
+            setStatusMessage({
+                text: `שגיאה ביצירת קובץ Excel: ${error.message}`,
+                type: 'error'
+            });
+        }
+    };
+
+
     // Column definitions for summary table
     const columnDefs = useMemo<ColDef<SummaryRow>[]>(() => {
         // Helper to create column definition with common defaults
@@ -311,19 +392,25 @@ const ArmorySum: React.FC<ArmorySumProps> = ({selectedSheet}) => {
 
     return (
         <div className="container mx-auto p-4">
-            {statusMessage.text && (
-                <div
-                    className={`p-4 mb-4 rounded-md ${
-                        statusMessage.type === 'error' 
-                            ? 'bg-red-100 text-red-700' 
-                            : 'bg-green-100 text-green-700'
-                    }`}
-                >
-                    {statusMessage.text}
-                </div>
-            )}
+            <StatusMessage
+                isSuccess={statusMessage.type === 'success'}
+                message={statusMessage.text}
+                onClose={() => setStatusMessage({text: "", type: ""})}
+            />
 
-            <h2 className="text-2xl font-bold mb-6 text-right">סיכום</h2>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-right">סיכום</h2>
+                {(permissions['armory'] && permissions['admin']) && (
+                    <Button
+                        onClick={exportToExcel}
+                        className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                        disabled={loading || Object.keys(summaryByKind).length === 0}
+                    >
+                        <FileSpreadsheet className="w-4 h-4" />
+                        ייצוא ל-Excel
+                    </Button>
+                )}
+            </div>
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center h-[40vh]">
@@ -335,14 +422,18 @@ const ArmorySum: React.FC<ArmorySumProps> = ({selectedSheet}) => {
                     {Object.keys(summaryByKind).length === 0 ? (
                         <p className="text-center text-gray-500 p-4">אין נתונים להצגה</p>
                     ) : (
-                        Object.entries(summaryByKind).map(([kind, rows]) => (
+                        sortedKinds.map(kind => {
+                            const rows = summaryByKind[kind];
+                            // Adjust height based on kind - smaller for כוונת
+                            const tableHeight = kind === 'כוונת' ? '150px' : '400px';
+                            return (
                             <div key={kind} className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
                                 <h3 className="text-xl font-semibold mb-4 text-right text-blue-800">
                                     סוג: {kind}
                                 </h3>
                                 <div 
                                     className="ag-theme-alpine rtl" 
-                                    style={{height: "400px", width: "100%", direction: "rtl"}}
+                                    style={{height: tableHeight, width: "100%", direction: "rtl"}}
                                 >
                                     <AgGridReact
                                         rowData={rows}
@@ -355,7 +446,8 @@ const ArmorySum: React.FC<ArmorySumProps> = ({selectedSheet}) => {
                                     />
                                 </div>
                             </div>
-                        ))
+                        );
+                        })
                     )}
                 </div>
             )}
