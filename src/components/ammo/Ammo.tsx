@@ -1394,6 +1394,27 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 />
             )}
 
+            {/* Ammunition Quantities Info Section */}
+            <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-300 rounded p-2 mb-3 shadow-sm" dir="rtl">
+                <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-xs font-bold text-blue-800 whitespace-nowrap">כמויות כדורים בברוס:</h3>
+                    <div className="flex gap-2">
+                        <div className="bg-white rounded px-2 py-1 shadow-sm border border-blue-200 whitespace-nowrap">
+                            <span className="text-xs text-gray-600">נגב:</span>
+                            <span className="text-sm font-bold text-blue-700 mr-1">380</span>
+                        </div>
+                        <div className="bg-white rounded px-2 py-1 shadow-sm border border-blue-200 whitespace-nowrap">
+                            <span className="text-xs text-gray-600">מאג:</span>
+                            <span className="text-sm font-bold text-blue-700 mr-1">230</span>
+                        </div>
+                        <div className="bg-white rounded px-2 py-1 shadow-sm border border-blue-200 whitespace-nowrap">
+                            <span className="text-xs text-gray-600">דגם א/ ב:</span>
+                            <span className="text-sm font-bold text-blue-700 mr-1">990</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {(permissions[selectedSheet.range] || permissions['ammo']) && (
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                     <h2 className="text-2xl font-bold">{selectedSheet.name}</h2>
