@@ -59,5 +59,13 @@ export const sheetGroups: SheetGroup[] = [
       { name: 'ועדה ללא נוכחות', range: 'ועדה ללא נוכחות', id: 1 },
       { name: 'סודיות רפואית', range: 'סודיות רפואית', id: 2 }
     ]
+  },
+  {
+    pathName: '15a',
+    name: '15 א',
+    sheets: [
+      { name: 'דוחות', range: '15א', id: 0 },
+
+    ]
   }
 ];

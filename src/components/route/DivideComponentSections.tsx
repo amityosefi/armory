@@ -18,6 +18,7 @@ import ArmoryDocumentation from "@/components/armory/ArmoryDocumentation";
 import LogisticDocumentation from "@/components/logistics/LogisticDocumentation";
 import AmmoDocumentation from "@/components/ammo/AmmoDocumentation";
 import HrPermission from "@/components/hr/hrPermission";
+import A15 from "@/a15/A15";
 
 
 const DivideComponents: React.FC = () => {
@@ -46,6 +47,7 @@ const DivideComponents: React.FC = () => {
             case 'נשקיה': return 'armory'
             case 'לוגיסטיקה': return 'logistic'
             case 'שלישות': return 'hr'
+            case '15 א': return '15a'
             default: return 'ammo'
         }
     }
@@ -110,6 +112,11 @@ const DivideComponents: React.FC = () => {
 
             {(groupIndex === 3) && (
                 <HrPermission selectedSheet={selectedSheet}
+                />
+            )}
+
+            {(groupIndex === 4) && (
+                <A15 selectedSheet={selectedSheet}
                 />
             )}
 

@@ -729,7 +729,7 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
                                 אין דרישות להצגה
                             </div>
                         ) : (
-                            <table className="min-w-full divide-y divide-gray-200">
+                            <table className="min-w-full divide-y divide-gray-200" dir="rtl">
                                 <thead className="bg-gray-50">
                                     <tr>
                                         {[
@@ -742,8 +742,26 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
                                             {key: 'הערה', label: 'הערה'},
                                             {key: 'נקרא', label: 'נקרא'}
                                         ].map(({key, label}) => (
-                                            <th key={key} className="px-3 py-2 text-right">
-                                                <div className="flex items-center justify-end gap-1">
+                                            <th key={key} className="px-3 py-2">
+                                                <div className="flex items-center gap-1">
+                                                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</span>
+                                                    {key !== 'כמות' && (
+                                                        <button
+                                                            onClick={() => handleSort(key as keyof LogisticItem)}
+                                                            className="p-1 rounded hover:bg-gray-200 transition-colors"
+                                                            title="מיון"
+                                                        >
+                                                            {sortConfig.key === key ? (
+                                                                sortConfig.direction === 'asc' ? (
+                                                                    <ArrowUp className="w-3 h-3 text-blue-600" />
+                                                                ) : (
+                                                                    <ArrowDown className="w-3 h-3 text-blue-600" />
+                                                                )
+                                                            ) : (
+                                                                <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                                                            )}
+                                                        </button>
+                                                    )}
                                                     <div className="relative">
                                                         <button
                                                             onClick={() => setActiveFilterColumn(activeFilterColumn === key ? null : key)}
@@ -774,24 +792,6 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
                                                             </div>
                                                         )}
                                                     </div>
-                                                    {key !== 'כמות' && (
-                                                        <button
-                                                            onClick={() => handleSort(key as keyof LogisticItem)}
-                                                            className="p-1 rounded hover:bg-gray-200 transition-colors"
-                                                            title="מיון"
-                                                        >
-                                                            {sortConfig.key === key ? (
-                                                                sortConfig.direction === 'asc' ? (
-                                                                    <ArrowUp className="w-3 h-3 text-blue-600" />
-                                                                ) : (
-                                                                    <ArrowDown className="w-3 h-3 text-blue-600" />
-                                                                )
-                                                            ) : (
-                                                                <ArrowUpDown className="w-3 h-3 text-gray-400" />
-                                                            )}
-                                                        </button>
-                                                    )}
-                                                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</span>
                                                 </div>
                                             </th>
                                         ))}
