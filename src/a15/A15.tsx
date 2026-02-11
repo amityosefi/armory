@@ -21,10 +21,6 @@ const A15: React.FC<A15Props> = ({selectedSheet}) => {
     const permissionKeys = ["א", "ב", "ג", "מסייעת", "אלון", "מכלול", "פלסם", "15a"];
     const activePermission = permissionKeys.find(key => permissions[key] === true);
 
-    // if (!(activePermission || permissions['a15'])) {
-    //     return null;
-    // }
-
     return (
         <div className="max-w-[2800px] mx-auto p-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} dir="rtl" className="w-full">
