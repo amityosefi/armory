@@ -15,7 +15,7 @@ const NavBar: React.FC<NavBarProps> = ({ onSignOut }) => {
       <div className="flex justify-between items-center mb-4">
         <div className='flex gap-5'>
           {/* Title on the left */}
-          <h1 className="text-2xl font-bold text-gray-800">נשקיה 8101</h1>
+          <h1 className="text-2xl font-bold text-gray-800">גדוד 8101</h1>
 
           {/* Group Navigation */}
           <div>

@@ -70,7 +70,7 @@ function TabsNavigation({
         return active?.sheet.name ?? visibleTabs[0]?.sheet.name ?? 'Select Tab';
     }, [visibleTabs, activeTabIndex]);
 
-    if (!isPermissionsLoaded) {
+    if (!isPermissionsLoaded || visibleTabs.length <= 1) {
         return null;
     }
 
