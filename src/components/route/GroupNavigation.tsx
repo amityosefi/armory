@@ -21,9 +21,12 @@ const GroupNavigation: React.FC = () => {
     // Check if user has the group-level permission (e.g., 'armory')
     if (permissions[group.pathName] || permissions['admin']) return true;
     // Check if user has permission for any sheet within the group (e.g., 'ג')
-    return group.sheets.some(sheet => permissions[sheet.range]);
+    // Also check if user has any company-level permission (א,ב,ג,מסייעת,אלון,מכלול,פלסם)
+    const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'מכלול', 'פלסם'];
+    const hasCompanyPermission = companyPermissions.some(perm => permissions[perm]);
+    return group.sheets.some(sheet => permissions[sheet.range]) || hasCompanyPermission;
   };
-
+  
   return (
       <div>
         {isMobile ? (

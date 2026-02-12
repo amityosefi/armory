@@ -10,9 +10,10 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import AddSoldierModal from "./AddSoldierModal";
 import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
-import { Download, LayoutGrid, Table, List, ClipboardCheck } from "lucide-react";
+import { Download, LayoutGrid, Table, List, ClipboardCheck, FileText } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { exportMultipleSoldiersPDF } from "./SoldierPDFExport";
+import { exportToWord } from "./WordExport";
 
 interface ArmoryGroupsProps {
     selectedSheet: {
@@ -60,6 +61,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [isAddSoldierModalOpen, setIsAddSoldierModalOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [isDownloadingWord, setIsDownloadingWord] = useState(false);
     const [allItems, setAllItems] = useState<ArmoryItem[]>([]);
     const [examineSearchQuery, setExamineSearchQuery] = useState("");
     const [examineGroupsSearchQuery, setExamineGroupsSearchQuery] = useState("");
@@ -227,6 +229,40 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
             });
         } finally {
             setIsDownloading(false);
+        }
+    };
+
+    // Handle download Word document
+    const handleDownloadWord = async () => {
+        if (peopleData.length === 0) {
+            setStatusMessage({
+                text: "אין חיילים להורדה",
+                isSuccess: false
+            });
+            return;
+        }
+
+        setIsDownloadingWord(true);
+        setStatusMessage({
+            text: `מכין קובץ Word...`,
+            isSuccess: true
+        });
+
+        try {
+            await exportToWord(peopleData, selectedSheet.name);
+
+            setStatusMessage({
+                text: `הורד קובץ Word בהצלחה`,
+                isSuccess: true
+            });
+        } catch (error: any) {
+            console.error("Error downloading Word:", error);
+            setStatusMessage({
+                text: `שגיאה בהורדת קובץ: ${error.message}`,
+                isSuccess: false
+            });
+        } finally {
+            setIsDownloadingWord(false);
         }
     };
 
@@ -549,7 +585,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                 </div>
             )}
 
-            {/* Add Soldier Button and Download Button */}
+            {/* Add Soldier Button and Download Buttons */}
             {permissions['armory'] && (
                 <div className="flex justify-center gap-4 mb-4">
                     <Button
@@ -564,8 +600,18 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                         className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg flex items-center gap-2"
                     >
                         <Download className="w-5 h-5" />
-                        {isDownloading ? 'מוריד...' : 'הורדה לקלסר'}
+                        {isDownloading ? 'מוריד...' : 'דפי חייל'}
                     </Button>
+                    {permissions['admin'] && (
+                    <Button
+                        onClick={handleDownloadWord}
+                        disabled={isDownloadingWord || peopleData.length === 0}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg flex items-center gap-2"
+                    >
+                        <FileText className="w-5 h-5" />
+                        {isDownloadingWord ? 'מוריד...' : 'כרטיסיות'}
+                    </Button>
+                    )}
                 </div>
             )}
 
