@@ -71,6 +71,21 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
     const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
     const [editingCell, setEditingCell] = useState<{rowId: number, field: string} | null>(null);
     const [editValue, setEditValue] = useState<string>('');
+    const [columnWidths, setColumnWidths] = useState<{[key: string]: number}>({
+        מסגרת: 120,
+        מיקום: 120,
+        אמצעי: 150,
+        צ: 80,
+        תקן: 100,
+        רמת_מלאי: 120,
+        הערה: 150,
+        פלוגה: 120,
+        משתמש: 120,
+        created_at: 180
+    });
+    const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+    const [startX, setStartX] = useState<number>(0);
+    const [startWidth, setStartWidth] = useState<number>(0);
 
     const formatDateTime = (dateString: string) => {
         if (!dateString) return '';
@@ -209,6 +224,39 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
         setEditValue('');
     };
 
+    const handleMouseDown = (e: React.MouseEvent, columnKey: string) => {
+        setResizingColumn(columnKey);
+        setStartX(e.clientX);
+        setStartWidth(columnWidths[columnKey]);
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (resizingColumn) {
+                const diff = e.clientX - startX;
+                const newWidth = Math.max(80, startWidth + diff);
+                setColumnWidths(prev => ({
+                    ...prev,
+                    [resizingColumn]: newWidth
+                }));
+            }
+        };
+
+        const handleMouseUp = () => {
+            setResizingColumn(null);
+        };
+
+        if (resizingColumn) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [resizingColumn, startX, startWidth]);
+
     const handleInputChange = (field: keyof FormData, value: string) => {
         setFormData(prev => {
             const updated = { ...prev, [field]: value };
@@ -297,6 +345,9 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
             const צ = parseInt(formData.צ);
             const תקן = getתקן(formData.אמצעי);
             const רמת_מלאי = parseInt(formData.רמת_מלאי);
+            
+            const now = new Date();
+            now.setHours(now.getHours() + 2);
 
             const { data, error } = await supabase.from('a15_tazqiqim').insert({
                 מסגרת: formData.מסגרת,
@@ -307,7 +358,7 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
                 רמת_מלאי: רמת_מלאי,
                 פלוגה: activePermission || '',
                 משתמש: permissions['name'],
-                created_at: new Date().toLocaleString('he-IL')
+                created_at: now.toISOString()
             });
 
             if (error) {
@@ -503,7 +554,7 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
                                         {key: 'משתמש', label: 'משתמש'},
                                         {key: 'created_at', label: 'תאריך יצירה'}
                                     ].map(({key, label}) => (
-                                        <th key={key} className="px-3 py-2">
+                                        <th key={key} className="px-3 py-2 relative" style={{width: columnWidths[key], minWidth: columnWidths[key]}}>
                                             <div className="flex items-center gap-1">
                                                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</span>
                                                 <button
@@ -552,6 +603,11 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
                                                     )}
                                                 </div>
                                             </div>
+                                            <div
+                                                className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600"
+                                                onMouseDown={(e) => handleMouseDown(e, key)}
+                                                style={{userSelect: 'none'}}
+                                            />
                                         </th>
                                     ))}
                                 </tr>

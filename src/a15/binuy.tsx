@@ -68,6 +68,20 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
     const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
     const [editingCell, setEditingCell] = useState<{rowId: number, field: string} | null>(null);
     const [editValue, setEditValue] = useState<string>('');
+    const [columnWidths, setColumnWidths] = useState<{[key: string]: number}>({
+        מיקום: 120,
+        סוג_תקלה: 200,
+        פירוט_התקלה: 200,
+        רמת_דחיפות: 120,
+        פלוגה: 120,
+        סטטוס: 120,
+        הערה: 150,
+        משתמש: 120,
+        created_at: 180
+    });
+    const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+    const [startX, setStartX] = useState<number>(0);
+    const [startWidth, setStartWidth] = useState<number>(0);
 
     const formatDateTime = (dateString: string) => {
         if (!dateString) return '';
@@ -195,12 +209,45 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
         setEditValue('');
     };
 
+    const handleMouseDown = (e: React.MouseEvent, columnKey: string) => {
+        setResizingColumn(columnKey);
+        setStartX(e.clientX);
+        setStartWidth(columnWidths[columnKey]);
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (resizingColumn) {
+                const diff = e.clientX - startX;
+                const newWidth = Math.max(80, startWidth + diff);
+                setColumnWidths(prev => ({
+                    ...prev,
+                    [resizingColumn]: newWidth
+                }));
+            }
+        };
+
+        const handleMouseUp = () => {
+            setResizingColumn(null);
+        };
+
+        if (resizingColumn) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [resizingColumn, startX, startWidth]);
+
     const handleInputChange = (field: keyof FormData, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
     const מיקוםOptions = ['מטאור 3', 'נגב 88', 'נחל עוז', 'פגה'];
-    const סוגתקלהOptions = ['חשמל', 'אינטלציה', 'מיזוג אוויר', 'שיפוץ כללי', 'תשתיות'];
+    const סוגתקלהOptions = ['חשמל', 'אינסטלציה', 'מיזוג אוויר', 'שיפוץ כללי', 'תשתיות'];
     const רמתדחיפותOptions = ['נמוכה', 'בינונית', 'גבוהה'];
 
     const fetchData = async () => {
@@ -259,6 +306,9 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
         setStatusMessage({ text: '', isSuccess: false });
 
         try {
+            const now = new Date();
+            now.setHours(now.getHours() + 2);
+            
             const { data, error } = await supabase.from('a15_binuy').insert({
                 מיקום: formData.מיקום,
                 סוג_תקלה: formData.סוג_תקלה,
@@ -266,7 +316,7 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                 רמת_דחיפות: formData.רמת_דחיפות,
                 הערה: '',
                 פלוגה: activePermission || '',
-                created_at: new Date().toLocaleString('he-IL'),
+                created_at: now.toISOString(),
                 משתמש: permissions['name']
             });
 
@@ -442,13 +492,13 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                         {key: 'סוג_תקלה', label: 'סוג תקלה'},
                                         {key: 'פירוט_התקלה', label: 'פירוט התקלה'},
                                         {key: 'רמת_דחיפות', label: 'רמת דחיפות'},
-                                        {key: 'הערה', label: 'הערה'},
                                         {key: 'פלוגה', label: 'פלוגה'},
                                         {key: 'סטטוס', label: 'סטטוס'},
+                                        {key: 'הערה', label: 'הערה'},
                                         {key: 'משתמש', label: 'משתמש'},
                                         {key: 'created_at', label: 'תאריך יצירה'}
                                     ].map(({key, label}) => (
-                                        <th key={key} className="px-3 py-2">
+                                        <th key={key} className="px-3 py-2 relative" style={{width: columnWidths[key], minWidth: columnWidths[key]}}>
                                             <div className="flex items-center gap-1">
                                                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</span>
                                                 <button
@@ -497,6 +547,11 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                                     )}
                                                 </div>
                                             </div>
+                                            <div
+                                                className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600"
+                                                onMouseDown={(e) => handleMouseDown(e, key)}
+                                                style={{userSelect: 'none'}}
+                                            />
                                         </th>
                                     ))}
                                 </tr>
@@ -612,31 +667,6 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                             )}
                                         </td>
                                         
-                                        {/* הערה */}
-                                        <td className="px-6 py-4 text-sm text-gray-900">
-                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'הערה' ? (
-                                                <Input
-                                                    type="text"
-                                                    value={editValue}
-                                                    onChange={(e) => setEditValue(e.target.value)}
-                                                    onBlur={() => handleCellSave(item.id, 'הערה')}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleCellSave(item.id, 'הערה');
-                                                        if (e.key === 'Escape') handleCellCancel();
-                                                    }}
-                                                    className="w-full text-sm"
-                                                    autoFocus
-                                                />
-                                            ) : (
-                                                <span 
-                                                    onClick={() => handleCellEdit(item.id, 'הערה', item.הערה)}
-                                                    className={isA15Admin ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' : ''}
-                                                >
-                                                    {item.הערה || '-'}
-                                                </span>
-                                            )}
-                                        </td>
-                                        
                                         {/* פלוגה */}
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                             {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'פלוגה' ? (
@@ -698,6 +728,31 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                                 </Select>
                                             ) : (
                                                 <span>{item.סטטוס || '-'}</span>
+                                            )}
+                                        </td>
+                                        
+                                        {/* הערה */}
+                                        <td className="px-6 py-4 text-sm text-gray-900">
+                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'הערה' ? (
+                                                <Input
+                                                    type="text"
+                                                    value={editValue}
+                                                    onChange={(e) => setEditValue(e.target.value)}
+                                                    onBlur={() => handleCellSave(item.id, 'הערה')}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleCellSave(item.id, 'הערה');
+                                                        if (e.key === 'Escape') handleCellCancel();
+                                                    }}
+                                                    className="w-full text-sm"
+                                                    autoFocus
+                                                />
+                                            ) : (
+                                                <span 
+                                                    onClick={() => handleCellEdit(item.id, 'הערה', item.הערה)}
+                                                    className={isA15Admin ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' : ''}
+                                                >
+                                                    {item.הערה || '-'}
+                                                </span>
                                             )}
                                         </td>
                                         
