@@ -77,6 +77,22 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
     const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
     const [editingCell, setEditingCell] = useState<{rowId: number, field: string} | null>(null);
     const [editValue, setEditValue] = useState<string>('');
+    const [columnWidths, setColumnWidths] = useState<{[key: string]: number}>({
+        תאריך_חילוף: 120,
+        שעת_התייצבות: 120,
+        כמות_חיילים_נכנסים: 140,
+        כמות_חיילים_יוצאים: 140,
+        שם_מפקד_אחראי: 150,
+        מספר_טלפון_מפקד: 130,
+        מסלול_נסיעה: 150,
+        פלוגה: 120,
+        סטטוס: 120,
+        משתמש: 120,
+        created_at: 180
+    });
+    const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+    const [startX, setStartX] = useState<number>(0);
+    const [startWidth, setStartWidth] = useState<number>(0);
 
     const formatDateTime = (dateString: string) => {
         if (!dateString) return '';
@@ -210,6 +226,39 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
         setEditValue('');
     };
 
+    const handleMouseDown = (e: React.MouseEvent, columnKey: string) => {
+        setResizingColumn(columnKey);
+        setStartX(e.clientX);
+        setStartWidth(columnWidths[columnKey]);
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (resizingColumn) {
+                const diff = e.clientX - startX;
+                const newWidth = Math.max(80, startWidth + diff);
+                setColumnWidths(prev => ({
+                    ...prev,
+                    [resizingColumn]: newWidth
+                }));
+            }
+        };
+
+        const handleMouseUp = () => {
+            setResizingColumn(null);
+        };
+
+        if (resizingColumn) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [resizingColumn, startX, startWidth]);
+
     const handleInputChange = (field: keyof FormData, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
@@ -279,6 +328,9 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
         setStatusMessage({ text: '', isSuccess: false });
 
         try {
+            const now = new Date();
+            now.setHours(now.getHours() + 2);
+            
             const { data, error } = await supabase.from('a15_shayarot').insert({
                 תאריך_חילוף: formData.תאריך_חילוף,
                 שעת_התייצבות: formData.שעת_התייצבות,
@@ -288,7 +340,7 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
                 מספר_טלפון_מפקד: formData.מספר_טלפון_מפקד,
                 מסלול_נסיעה: formData.מסלול_נסיעה,
                 פלוגה: activePermission || '',
-                created_at: new Date().toLocaleString('he-IL'),
+                created_at: now.toISOString(),
                 משתמש: permissions['name']
             });
 
@@ -504,7 +556,7 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                         {key: 'משתמש', label: 'משתמש'},
                                         {key: 'created_at', label: 'תאריך יצירה'}
                                     ].map(({key, label}) => (
-                                        <th key={key} className="px-3 py-2">
+                                        <th key={key} className="px-3 py-2 relative" style={{width: columnWidths[key], minWidth: columnWidths[key]}}>
                                             <div className="flex items-center gap-1">
                                                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</span>
                                                 <button
@@ -553,6 +605,11 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                                     )}
                                                 </div>
                                             </div>
+                                            <div
+                                                className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600"
+                                                onMouseDown={(e) => handleMouseDown(e, key)}
+                                                style={{userSelect: 'none'}}
+                                            />
                                         </th>
                                     ))}
                                 </tr>
