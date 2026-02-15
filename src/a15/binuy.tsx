@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabaseClient';
 import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
-import { TableIcon, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react';
+import { TableIcon, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
     Select,
@@ -40,7 +41,7 @@ interface BinuyData {
 
 const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
     const permissions = useAuthStore((state) => state.permissions);
-    const isA15Admin = permissions['a15'] === true;
+    const isA15Admin = permissions['a15'];
     
     const [formData, setFormData] = useState<FormData>({
         מיקום: '',
@@ -82,6 +83,7 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
     const [resizingColumn, setResizingColumn] = useState<string | null>(null);
     const [startX, setStartX] = useState<number>(0);
     const [startWidth, setStartWidth] = useState<number>(0);
+    const [showForm, setShowForm] = useState<boolean>(!isA15Admin);
 
     const formatDateTime = (dateString: string) => {
         if (!dateString) return '';
@@ -246,6 +248,25 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+    const handleExportToExcel = () => {
+        const exportData = filteredAndSortedData.map(item => ({
+            'מיקום': item.מיקום,
+            'סוג תקלה': item.סוג_תקלה,
+            'פירוט התקלה': item.פירוט_התקלה,
+            'רמת דחיפות': item.רמת_דחיפות,
+            'פלוגה': item.פלוגה,
+            'סטטוס': item.סטטוס || '',
+            'הערה': item.הערה || '',
+            'משתמש': item.משתמש || '',
+            'תאריך יצירה': formatDateTime(item.created_at)
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'פערי בינוי');
+        XLSX.writeFile(wb, `פערי_בינוי_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
     const מיקוםOptions = ['מטאור 3', 'נגב 88', 'נחל עוז', 'פגה'];
     const סוגתקלהOptions = ['חשמל', 'אינסטלציה', 'מיזוג אוויר', 'שיפוץ כללי', 'תשתיות'];
     const רמתדחיפותOptions = ['נמוכה', 'בינונית', 'גבוהה'];
@@ -348,7 +369,21 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                 />
             )}
 
+            {/* Toggle Form Button for A15 Admins */}
+            {isA15Admin && (
+                <div className="flex justify-center mb-4">
+                    <Button
+                        onClick={() => setShowForm(!showForm)}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                    >
+                        {showForm ? 'הסתר טופס' : 'הצג טופס'}
+                    </Button>
+                </div>
+            )}
+
             {/* Form */}
+            {showForm && (
             <div className="max-w-sm mx-auto space-y-4">
             {/* מיקום */}
             <div>
@@ -454,27 +489,23 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                 </Button>
             </div>
             </div>
+            )}
 
             {/* Data Display Section */}
             <div className="mt-8 pt-8 border-t">
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex gap-2">
-                        <Button
-                            onClick={() => setViewMode('card')}
-                            variant={viewMode === 'card' ? 'default' : 'outline'}
-                            size="sm"
-                            className="flex items-center gap-2"
-                        >
-                            <LayoutGrid className="w-4 h-4" />
-                        </Button>
-                        <Button
-                            onClick={() => setViewMode('table')}
-                            variant={viewMode === 'table' ? 'default' : 'outline'}
-                            size="sm"
-                            className="flex items-center gap-2"
-                        >
-                            <TableIcon className="w-4 h-4" />
-                        </Button>
+                        {isA15Admin && (
+                            <Button
+                                onClick={handleExportToExcel}
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-2"
+                            >
+                                <Download className="w-4 h-4" />
+                                ייצוא ל-Excel
+                            </Button>
+                        )}
                     </div>
                 </div>
 

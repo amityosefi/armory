@@ -44,6 +44,7 @@ const AdminPage = () => {
         ammo: false,
         armory: false,
         hr: false,
+        a15: false,
         א: false,
         ב: false,
         ג: false,
@@ -137,6 +138,7 @@ const AdminPage = () => {
                 if (user.logistic) permissions.push('לוגיסטיקה');
                 if (user.ammo) permissions.push('תחמושת');
                 if (user.hr) permissions.push('שלישות');
+                if (user.a15) permissions.push('א15');
                 if (user.א) permissions.push('א');
                 if (user.ב) permissions.push('ב');
                 if (user.ג) permissions.push('ג');
@@ -382,6 +384,7 @@ const AdminPage = () => {
                     ammo: false,
                     armory: false,
                     hr: false,
+                    a15: false,
                     א: false,
                     ב: false,
                     ג: false,
@@ -741,6 +744,20 @@ const AdminPage = () => {
                             </label>
                         </div>
 
+                        {/* A15 Checkbox */}
+                        <div className="mb-4">
+                            <label className="flex items-center space-x-2 text-right">
+                                <input
+                                    type="checkbox"
+                                    name="a15"
+                                    checked={newUser.a15}
+                                    onChange={handleNewUserChange}
+                                    className="ml-2"
+                                />
+                                15 א
+                            </label>
+                        </div>
+
                         {/* Company Permissions Dropdown */}
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-right mb-2">פלוגה</label>
@@ -934,6 +951,23 @@ const AdminPage = () => {
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                             {rowData.filter(u => u.hr).map(user => (
                                 <div key={user.email} className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
+                                    <div className="text-white text-right">
+                                        <div className="font-bold text-sm truncate">{user.name}</div>
+                                        <div className="text-xs opacity-90 truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* א15 Users */}
+                {rowData.filter(u => u.a15).length > 0 && (
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 text-right">א 15</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                            {rowData.filter(u => u.a15).map(user => (
+                                <div key={user.email} className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
                                     <div className="text-white text-right">
                                         <div className="font-bold text-sm truncate">{user.name}</div>
                                         <div className="text-xs opacity-90 truncate">{user.email}</div>

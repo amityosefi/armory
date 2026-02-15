@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabaseClient';
 import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
-import { TableIcon, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown, Filter, Trash2 } from 'lucide-react';
+import { TableIcon, ArrowUpDown, ArrowUp, ArrowDown, Filter, Trash2, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
     Select,
@@ -44,11 +45,12 @@ interface OtzmaData {
     סוג_דלק: string;
     משתמש?: string | null;
     created_at: string;
+    cell_colors?: {[key: string]: string} | null;
 }
 
 const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
     const permissions = useAuthStore((state) => state.permissions);
-    const isA15Admin = permissions['a15'] === true;
+    const isA15Admin = permissions['a15'];
     
     const [formData, setFormData] = useState<FormData>({
         צ: '',
@@ -102,6 +104,8 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
     const [resizingColumn, setResizingColumn] = useState<string | null>(null);
     const [startX, setStartX] = useState<number>(0);
     const [startWidth, setStartWidth] = useState<number>(0);
+    const [showForm, setShowForm] = useState<boolean>(!isA15Admin);
+    const [colorPickerState, setColorPickerState] = useState<{rowId: number, field: string, x: number, y: number} | null>(null);
 
     const formatDateTime = (dateString: string) => {
         if (!dateString) return '';
@@ -171,16 +175,28 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
         setEditValue(String(currentValue || ''));
     };
 
-    const handleCellSave = async (rowId: number, field: string) => {
+    const handleCellSave = async (rowId: number, field: string, newValueParam?: string) => {
         try {
+
             const currentItem = otzmaData.find(item => item.id === rowId);
             if (!currentItem) return;
 
+            const valueToUse = newValueParam !== undefined ? newValueParam : editValue;
             const updateData: any = {};
-            updateData[field] = editValue;
+            
+            // Convert value based on field type
+            console.log("amit")
+            if (field === 'צ') {
+                updateData[field] = parseInt(valueToUse) || 0;
+            } else {
+                updateData[field] = valueToUse;
+            }
 
             const oldValue = String(currentItem[field as keyof OtzmaData] || '');
             const newValue = String(updateData[field]);
+            
+            console.log("oldValue", oldValue)
+            console.log("newValue", newValue)
 
             if (oldValue === newValue) {
                 setEditingCell(null);
@@ -188,10 +204,14 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                 return;
             }
 
+            console.log("amit3")
+
             const { error } = await supabase
                 .from('a15_otzma')
                 .update(updateData)
                 .eq('id', rowId);
+
+            console.log("amit4")
 
             if (error) throw error;
 
@@ -211,6 +231,58 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
     const handleCellCancel = () => {
         setEditingCell(null);
         setEditValue('');
+    };
+
+    const handleCellColorChange = async (rowId: number, field: string, color: string) => {
+        if (!isA15Admin) return;
+        
+        try {
+            const currentItem = otzmaData.find(item => item.id === rowId);
+            if (!currentItem) return;
+
+            const currentColors = currentItem.cell_colors || {};
+            const updatedColors = { ...currentColors };
+            
+            if (color === '') {
+                delete updatedColors[field];
+            } else {
+                updatedColors[field] = color;
+            }
+
+            const { error } = await supabase
+                .from('a15_otzma')
+                .update({ cell_colors: Object.keys(updatedColors).length > 0 ? updatedColors : null })
+                .eq('id', rowId);
+
+            if (error) throw error;
+
+            setOtzmaData(prev => prev.map(item => 
+                item.id === rowId ? { ...item, cell_colors: Object.keys(updatedColors).length > 0 ? updatedColors : null } : item
+            ));
+            
+            setColorPickerState(null);
+        } catch (error: any) {
+            console.error('Error updating cell color:', error);
+            setStatusMessage({ text: `שגיאה בעדכון צבע: ${error.message}`, isSuccess: false });
+        }
+    };
+
+    const handleOpenColorPicker = (e: React.MouseEvent | React.TouchEvent, rowId: number, field: string) => {
+        if (!isA15Admin) return;
+        e.preventDefault();
+        
+        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        setColorPickerState({
+            rowId,
+            field,
+            x: rect.left,
+            y: rect.bottom + window.scrollY
+        });
+    };
+
+    const getCellColor = (item: OtzmaData, field: string): string => {
+        if (!item.cell_colors) return '';
+        return item.cell_colors[field] || '';
     };
 
     const handleMouseDown = (e: React.MouseEvent, columnKey: string) => {
@@ -250,7 +322,29 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-    const פלוגהOptions = ['צק"פ א\'', 'צק"פ ב\'', 'צק"פ ג\'', 'אלון', 'מסייעת', 'מכלול', 'פלס"מ', 'חטיבה', 'חפ"ק סמג"ד', 'שיריון'];
+    const handleExportToExcel = () => {
+        const exportData = filteredAndSortedData.map(item => ({
+            'צ': item.צ,
+            'אמצעי': item.אמצעי,
+            'סטטוס': item.סטטוס,
+            'הערות': item.הערות || '',
+            'פלוגה': item.פלוגה,
+            'מחלקה': item.מחלקה,
+            'סוג': item.סוג,
+            'מיקום': item.מיקום,
+            'בעלות': item.בעלות,
+            'סוג דלק': item.סוג_דלק,
+            'משתמש': item.משתמש || '',
+            'תאריך יצירה': formatDateTime(item.created_at)
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'דוח עוצמה');
+        XLSX.writeFile(wb, `דוח_עוצמה_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    const פלוגהOptions = ['צק"פ א\'', 'צק"פ ב\'', 'צק"פ ג\'', 'אלון', 'מסייעת', 'מכלול', 'פלס"מ', 'שיריון'];
     const סוגOptions = ['רק"מ', 'רכב חום', 'יר"ם', 'שכור', 'אושקוש', 'ריו משא קצרה', 'אמצעי'];
     const מיקוםOptions = ['נחל עוז', 'מטאור 3', 'נגב 88', 'פגה', 'עין זיתים', 'מוסך', 'דימה 2', 'מעבר קרני'];
     const סטטוסOptions = ['תקין', 'לא תקין'];
@@ -377,9 +471,57 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
         }
     };
 
+    // Define 10 color options
+    const colorOptions = [
+        { name: 'ללא צבע', value: '', class: 'bg-white border-2 border-gray-300' },
+        { name: 'אדום', value: 'bg-red-100', class: 'bg-red-100' },
+        { name: 'כתום', value: 'bg-orange-100', class: 'bg-orange-100' },
+        { name: 'צהוב', value: 'bg-yellow-100', class: 'bg-yellow-100' },
+        { name: 'ירוק בהיר', value: 'bg-lime-100', class: 'bg-lime-100' },
+        { name: 'ירוק', value: 'bg-green-100', class: 'bg-green-100' },
+        { name: 'תכלת', value: 'bg-cyan-100', class: 'bg-cyan-100' },
+        { name: 'כחול', value: 'bg-blue-100', class: 'bg-blue-100' },
+        { name: 'סגול', value: 'bg-purple-100', class: 'bg-purple-100' },
+        { name: 'ורוד', value: 'bg-pink-100', class: 'bg-pink-100' }
+    ];
+
     return (
         <div className="bg-white p-10 rounded-lg shadow-lg space-y-4" dir="rtl">
             <h3 className="text-xl font-bold text-right mb-4 text-blue-700">דוח עוצמה</h3>
+            
+            {/* Color Picker Popup */}
+            {colorPickerState && (
+                <>
+                    {/* Backdrop */}
+                    <div 
+                        className="fixed inset-0 z-40"
+                        onClick={() => setColorPickerState(null)}
+                    />
+                    {/* Color Picker */}
+                    <div 
+                        className="fixed z-50 bg-white rounded-lg shadow-2xl border-2 border-gray-300 p-3"
+                        style={{
+                            left: `${Math.min(colorPickerState.x, window.innerWidth - 250)}px`,
+                            top: `${colorPickerState.y}px`,
+                            maxWidth: '240px'
+                        }}
+                    >
+                        <div className="text-sm font-semibold mb-2 text-center text-gray-700">בחר צבע</div>
+                        <div className="grid grid-cols-5 gap-2">
+                            {colorOptions.map((color) => (
+                                <button
+                                    key={color.value}
+                                    onClick={() => handleCellColorChange(colorPickerState.rowId, colorPickerState.field, color.value)}
+                                    className={`w-10 h-10 rounded-md ${color.class} hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer flex items-center justify-center`}
+                                    title={color.name}
+                                >
+                                    {color.value === '' && <span className="text-gray-400 text-xs">✕</span>}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </>
+            )}
 
             {statusMessage.text && (
                 <StatusMessage
@@ -389,7 +531,21 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                 />
             )}
 
+            {/* Toggle Form Button for A15 Admins */}
+            {isA15Admin && (
+                <div className="flex justify-center mb-4">
+                    <Button
+                        onClick={() => setShowForm(!showForm)}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                    >
+                        {showForm ? 'הסתר טופס' : 'הצג טופס'}
+                    </Button>
+                </div>
+            )}
+
             {/* Form */}
+            {showForm && (
             <div className="max-w-4xl mx-auto space-y-4 grid grid-cols-2 gap-4">
                 {/* צ */}
                 <div>
@@ -570,27 +726,23 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                     </Button>
                 </div>
             </div>
+            )}
 
             {/* Data Display Section */}
             <div className="mt-8 pt-8 border-t">
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex gap-2">
-                        <Button
-                            onClick={() => setViewMode('card')}
-                            variant={viewMode === 'card' ? 'default' : 'outline'}
-                            size="sm"
-                            className="flex items-center gap-2"
-                        >
-                            <LayoutGrid className="w-4 h-4" />
-                        </Button>
-                        <Button
-                            onClick={() => setViewMode('table')}
-                            variant={viewMode === 'table' ? 'default' : 'outline'}
-                            size="sm"
-                            className="flex items-center gap-2"
-                        >
-                            <TableIcon className="w-4 h-4" />
-                        </Button>
+                        {isA15Admin && (
+                            <Button
+                                onClick={handleExportToExcel}
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-2"
+                            >
+                                <Download className="w-4 h-4" />
+                                ייצוא ל-Excel
+                            </Button>
+                        )}
                     </div>
                 </div>
 
@@ -693,7 +845,24 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                                     return (
                                     <tr key={item.id} className={getRowBackgroundColor()}>
                                         {/* צ */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td 
+                                            className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${getCellColor(item, 'צ')}`}
+                                            onContextMenu={(e) => handleOpenColorPicker(e, item.id, 'צ')}
+                                            onTouchStart={(e) => {
+                                                if (isA15Admin) {
+                                                    const touch = e.touches[0];
+                                                    const timer = setTimeout(() => {
+                                                        handleOpenColorPicker(e, item.id, 'צ');
+                                                    }, 500);
+                                                    (e.target as any).longPressTimer = timer;
+                                                }
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                if ((e.target as any).longPressTimer) {
+                                                    clearTimeout((e.target as any).longPressTimer);
+                                                }
+                                            }}
+                                        >
                                             {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'צ' ? (
                                                 <Input
                                                     type="number"
@@ -718,7 +887,19 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                                         </td>
                                         
                                         {/* אמצעי */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td 
+                                            className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${getCellColor(item, 'אמצעי')}`}
+                                            onContextMenu={(e) => handleOpenColorPicker(e, item.id, 'אמצעי')}
+                                            onTouchStart={(e) => {
+                                                if (isA15Admin) {
+                                                    const timer = setTimeout(() => handleOpenColorPicker(e, item.id, 'אמצעי'), 500);
+                                                    (e.target as any).longPressTimer = timer;
+                                                }
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                if ((e.target as any).longPressTimer) clearTimeout((e.target as any).longPressTimer);
+                                            }}
+                                        >
                                             {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'אמצעי' ? (
                                                 <Input
                                                     type="text"
@@ -743,13 +924,24 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                                         </td>
                                         
                                         {/* סטטוס */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td 
+                                            className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${getCellColor(item, 'סטטוס')}`}
+                                            onContextMenu={(e) => handleOpenColorPicker(e, item.id, 'סטטוס')}
+                                            onTouchStart={(e) => {
+                                                if (isA15Admin) {
+                                                    const timer = setTimeout(() => handleOpenColorPicker(e, item.id, 'סטטוס'), 500);
+                                                    (e.target as any).longPressTimer = timer;
+                                                }
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                if ((e.target as any).longPressTimer) clearTimeout((e.target as any).longPressTimer);
+                                            }}
+                                        >
                                             {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'סטטוס' ? (
                                                 <Select
                                                     value={editValue}
                                                     onValueChange={(value) => {
-                                                        setEditValue(value);
-                                                        handleCellSave(item.id, 'סטטוס');
+                                                        handleCellSave(item.id, 'סטטוס', value);
                                                     }}
                                                 >
                                                     <SelectTrigger className="w-full">
@@ -772,7 +964,19 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                                         </td>
                                         
                                         {/* הערות */}
-                                        <td className="px-6 py-4 text-sm text-gray-900">
+                                        <td 
+                                            className={`px-6 py-4 text-sm text-gray-900 ${getCellColor(item, 'הערות')}`}
+                                            onContextMenu={(e) => handleOpenColorPicker(e, item.id, 'הערות')}
+                                            onTouchStart={(e) => {
+                                                if (isA15Admin) {
+                                                    const timer = setTimeout(() => handleOpenColorPicker(e, item.id, 'הערות'), 500);
+                                                    (e.target as any).longPressTimer = timer;
+                                                }
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                if ((e.target as any).longPressTimer) clearTimeout((e.target as any).longPressTimer);
+                                            }}
+                                        >
                                             {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'הערות' ? (
                                                 <Input
                                                     type="text"
@@ -797,13 +1001,24 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                                         </td>
                                         
                                         {/* פלוגה */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td 
+                                            className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${getCellColor(item, 'פלוגה')}`}
+                                            onContextMenu={(e) => handleOpenColorPicker(e, item.id, 'פלוגה')}
+                                            onTouchStart={(e) => {
+                                                if (isA15Admin) {
+                                                    const timer = setTimeout(() => handleOpenColorPicker(e, item.id, 'פלוגה'), 500);
+                                                    (e.target as any).longPressTimer = timer;
+                                                }
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                if ((e.target as any).longPressTimer) clearTimeout((e.target as any).longPressTimer);
+                                            }}
+                                        >
                                             {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'פלוגה' ? (
                                                 <Select
                                                     value={editValue}
                                                     onValueChange={(value) => {
-                                                        setEditValue(value);
-                                                        handleCellSave(item.id, 'פלוגה');
+                                                        handleCellSave(item.id, 'פלוגה', value);
                                                     }}
                                                 >
                                                     <SelectTrigger className="w-full">
@@ -826,7 +1041,19 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                                         </td>
                                         
                                         {/* מחלקה */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td 
+                                            className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${getCellColor(item, 'מחלקה')}`}
+                                            onContextMenu={(e) => handleOpenColorPicker(e, item.id, 'מחלקה')}
+                                            onTouchStart={(e) => {
+                                                if (isA15Admin) {
+                                                    const timer = setTimeout(() => handleOpenColorPicker(e, item.id, 'מחלקה'), 500);
+                                                    (e.target as any).longPressTimer = timer;
+                                                }
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                if ((e.target as any).longPressTimer) clearTimeout((e.target as any).longPressTimer);
+                                            }}
+                                        >
                                             {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'מחלקה' ? (
                                                 <Input
                                                     type="text"
@@ -851,13 +1078,24 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                                         </td>
                                         
                                         {/* סוג */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td 
+                                            className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${getCellColor(item, 'סוג')}`}
+                                            onContextMenu={(e) => handleOpenColorPicker(e, item.id, 'סוג')}
+                                            onTouchStart={(e) => {
+                                                if (isA15Admin) {
+                                                    const timer = setTimeout(() => handleOpenColorPicker(e, item.id, 'סוג'), 500);
+                                                    (e.target as any).longPressTimer = timer;
+                                                }
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                if ((e.target as any).longPressTimer) clearTimeout((e.target as any).longPressTimer);
+                                            }}
+                                        >
                                             {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'סוג' ? (
                                                 <Select
                                                     value={editValue}
                                                     onValueChange={(value) => {
-                                                        setEditValue(value);
-                                                        handleCellSave(item.id, 'סוג');
+                                                        handleCellSave(item.id, 'סוג', value);
                                                     }}
                                                 >
                                                     <SelectTrigger className="w-full">
@@ -880,13 +1118,24 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                                         </td>
                                         
                                         {/* מיקום */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td 
+                                            className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${getCellColor(item, 'מיקום')}`}
+                                            onContextMenu={(e) => handleOpenColorPicker(e, item.id, 'מיקום')}
+                                            onTouchStart={(e) => {
+                                                if (isA15Admin) {
+                                                    const timer = setTimeout(() => handleOpenColorPicker(e, item.id, 'מיקום'), 500);
+                                                    (e.target as any).longPressTimer = timer;
+                                                }
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                if ((e.target as any).longPressTimer) clearTimeout((e.target as any).longPressTimer);
+                                            }}
+                                        >
                                             {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'מיקום' ? (
                                                 <Select
                                                     value={editValue}
                                                     onValueChange={(value) => {
-                                                        setEditValue(value);
-                                                        handleCellSave(item.id, 'מיקום');
+                                                        handleCellSave(item.id, 'מיקום', value);
                                                     }}
                                                 >
                                                     <SelectTrigger className="w-full">
@@ -909,7 +1158,19 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                                         </td>
                                         
                                         {/* בעלות */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td 
+                                            className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${getCellColor(item, 'בעלות')}`}
+                                            onContextMenu={(e) => handleOpenColorPicker(e, item.id, 'בעלות')}
+                                            onTouchStart={(e) => {
+                                                if (isA15Admin) {
+                                                    const timer = setTimeout(() => handleOpenColorPicker(e, item.id, 'בעלות'), 500);
+                                                    (e.target as any).longPressTimer = timer;
+                                                }
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                if ((e.target as any).longPressTimer) clearTimeout((e.target as any).longPressTimer);
+                                            }}
+                                        >
                                             {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'בעלות' ? (
                                                 <Input
                                                     type="text"
@@ -934,13 +1195,24 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                                         </td>
                                         
                                         {/* סוג דלק */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td 
+                                            className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${getCellColor(item, 'סוג_דלק')}`}
+                                            onContextMenu={(e) => handleOpenColorPicker(e, item.id, 'סוג_דלק')}
+                                            onTouchStart={(e) => {
+                                                if (isA15Admin) {
+                                                    const timer = setTimeout(() => handleOpenColorPicker(e, item.id, 'סוג_דלק'), 500);
+                                                    (e.target as any).longPressTimer = timer;
+                                                }
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                if ((e.target as any).longPressTimer) clearTimeout((e.target as any).longPressTimer);
+                                            }}
+                                        >
                                             {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'סוג_דלק' ? (
                                                 <Select
                                                     value={editValue}
                                                     onValueChange={(value) => {
-                                                        setEditValue(value);
-                                                        handleCellSave(item.id, 'סוג_דלק');
+                                                        handleCellSave(item.id, 'סוג_דלק', value);
                                                     }}
                                                 >
                                                     <SelectTrigger className="w-full">

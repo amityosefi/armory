@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabaseClient';
 import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
-import { TableIcon, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react';
+import { TableIcon, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download, BarChart3 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
     Select,
@@ -41,7 +42,7 @@ interface TazqiqimData {
 
 const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
     const permissions = useAuthStore((state) => state.permissions);
-    const isA15Admin = permissions['a15'] === true;
+    const isA15Admin = permissions['a15'];
     
     const [formData, setFormData] = useState<FormData>({
         מסגרת: '',
@@ -54,7 +55,7 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
     const [statusMessage, setStatusMessage] = useState({ text: '', isSuccess: false });
     const [tazqiqimData, setTazqiqimData] = useState<TazqiqimData[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(false);
-    const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+    const [viewMode, setViewMode] = useState<'summary' | 'table'>('summary');
     const [sortConfig, setSortConfig] = useState<{key: keyof TazqiqimData | null, direction: 'asc' | 'desc' | null}>({key: null, direction: null});
     const [columnFilters, setColumnFilters] = useState<{[key: string]: string}>({
         מסגרת: '',
@@ -86,6 +87,7 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
     const [resizingColumn, setResizingColumn] = useState<string | null>(null);
     const [startX, setStartX] = useState<number>(0);
     const [startWidth, setStartWidth] = useState<number>(0);
+    const [showForm, setShowForm] = useState<boolean>(!isA15Admin);
 
     const formatDateTime = (dateString: string) => {
         if (!dateString) return '';
@@ -268,7 +270,49 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
         });
     };
 
-    const מסגרתOptions = ['עורף', 'צק"פ ג', 'מרגמות', 'מכלול', 'צק"פ א', 'ל"א', 'צק"פ ב', 'אלון'];
+    const handleExportToExcel = () => {
+        const exportData = filteredAndSortedData.map(item => ({
+            'מסגרת': item.מסגרת,
+            'מיקום': item.מיקום,
+            'אמצעי': item.אמצעי,
+            'צ': item.צ,
+            'תקן': item.תקן,
+            'רמת מלאי (%)': item.רמת_מלאי,
+            'הערה': item.הערה || '',
+            'פלוגה': item.פלוגה,
+            'משתמש': item.משתמש || '',
+            'תאריך יצירה': formatDateTime(item.created_at)
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'דוח תזקיקים');
+        XLSX.writeFile(wb, `דוח_תזקיקים_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    // Get summary data - latest entry for each location/resource combination
+    const summaryData = useMemo(() => {
+        const grouped = new Map<string, TazqiqimData>();
+        
+        // Sort by created_at descending to get latest first
+        const sorted = [...tazqiqimData].sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        
+        sorted.forEach(item => {
+            const key = `${item.מיקום}_${item.אמצעי}`;
+            if (!grouped.has(key)) {
+                grouped.set(key, item);
+            }
+        });
+        
+        // Sort by מיקום
+        return Array.from(grouped.values()).sort((a, b) => 
+            a.מיקום.localeCompare(b.מיקום, 'he')
+        );
+    }, [tazqiqimData]);
+
+    const מסגרתOptions = ['צק"פ א', 'צק"פ ב', 'צק"פ ג','מרגמות', 'מכלול', 'עורף', 'אלון', 'שיריון'];
     const מיקוםOptions = ['מטאור 3', 'נגב 88', 'נחל עוז', 'פגה'];
     
     // Mapping of מיקום to available אמצעי based on the image
@@ -323,11 +367,14 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
     };
 
     const isFormValid = () => {
+        // צ is only required for אכזרית
+        const צRequired = formData.אמצעי === 'אכזרית' ? formData.צ : true;
+        
         return (
             formData.מסגרת &&
             formData.מיקום &&
             formData.אמצעי &&
-            formData.צ &&
+            צRequired &&
             formData.רמת_מלאי
         );
     };
@@ -342,7 +389,8 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
         setStatusMessage({ text: '', isSuccess: false });
 
         try {
-            const צ = parseInt(formData.צ);
+            // צ is only relevant for אכזרית
+            const צ = formData.אמצעי === 'אכזרית' ? parseInt(formData.צ) : null;
             const תקן = getתקן(formData.אמצעי);
             const רמת_מלאי = parseInt(formData.רמת_מלאי);
             
@@ -389,7 +437,21 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
                 />
             )}
 
+            {/* Toggle Form Button for A15 Admins */}
+            {isA15Admin && (
+                <div className="flex justify-center mb-4">
+                    <Button
+                        onClick={() => setShowForm(!showForm)}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                    >
+                        {showForm ? 'הסתר טופס' : 'הצג טופס'}
+                    </Button>
+                </div>
+            )}
+
             {/* Form */}
+            {showForm && (
             <div className="max-w-sm mx-auto space-y-4">
             {/* מסגרת */}
             <div>
@@ -449,17 +511,34 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
             {/* צ */}
             <div>
                 <label className="block text-right font-semibold mb-2">
-                    צ <span className="text-red-500">*</span>
+                    צ {formData.אמצעי === 'אכזרית' && <span className="text-red-500">*</span>}
                 </label>
-                <Input
-                    type="number"
-                    placeholder="הכנס מספר"
-                    value={formData.צ}
-                    onChange={(e) => handleInputChange('צ', e.target.value)}
-                    className="text-right"
-                    dir="rtl"
-                    min="0"
-                />
+                {formData.אמצעי === 'אכזרית' ? (
+                    <Select value={formData.צ} onValueChange={(value) => handleInputChange('צ', value)}>
+                        <SelectTrigger className="text-right" dir="rtl">
+                            <SelectValue placeholder="בחר צ" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="812169">812169</SelectItem>
+                            <SelectItem value="812378">812378</SelectItem>
+                            <SelectItem value="812167">812167</SelectItem>
+                            <SelectItem value="812130">812130</SelectItem>
+                            <SelectItem value="812302">812302</SelectItem>
+                            <SelectItem value="812128">812128</SelectItem>
+                            <SelectItem value="812355">812355</SelectItem>
+                        </SelectContent>
+                    </Select>
+                ) : (
+                    <Input
+                        type="number"
+                        placeholder="רלוונטי רק לאכזרית"
+                        value={formData.צ}
+                        onChange={(e) => handleInputChange('צ', e.target.value)}
+                        className="text-right"
+                        dir="rtl"
+                        disabled={true}
+                    />
+                )}
             </div>
 
             {/* תקן - display only */}
@@ -477,18 +556,44 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
             {/* רמת מלאי */}
             <div>
                 <label className="block text-right font-semibold mb-2">
-                    רמת מלאי (%) <span className="text-red-500">*</span>
+                    {formData.אמצעי === 'בלון גז 48 ק"ג' ? 'רמת מלאי (מספר)' : 'רמת מלאי (%)'} <span className="text-red-500">*</span>
                 </label>
-                <Select value={formData.רמת_מלאי} onValueChange={(value) => handleInputChange('רמת_מלאי', value)}>
-                    <SelectTrigger className="text-right" dir="rtl">
-                        <SelectValue placeholder="בחר אחוז מלאי" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {רמתמלאיOptions.map((option) => (
-                            <SelectItem key={option} value={option}>{option}%</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                {formData.אמצעי === 'בלון גז 48 ק"ג' ? (
+                    <>
+                        <Input
+                            type="number"
+                            placeholder="הכנס מספר (0-18)"
+                            value={formData.רמת_מלאי}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                const numValue = parseInt(value);
+                                if (value === '' || (numValue >= 0 && numValue <= 18)) {
+                                    handleInputChange('רמת_מלאי', value);
+                                }
+                            }}
+                            className="text-right"
+                            dir="rtl"
+                            min="0"
+                            max="18"
+                        />
+                        {formData.רמת_מלאי && (
+                            <div className="mt-2 text-sm text-gray-600 text-right">
+                                אחוז מלאי: {Math.round((parseInt(formData.רמת_מלאי) / 18) * 100)}%
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <Select value={formData.רמת_מלאי} onValueChange={(value) => handleInputChange('רמת_מלאי', value)}>
+                        <SelectTrigger className="text-right" dir="rtl">
+                            <SelectValue placeholder="בחר אחוז מלאי" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {רמתמלאיOptions.map((option) => (
+                                <SelectItem key={option} value={option}>{option}%</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )}
             </div>
 
             {/* Action Buttons */}
@@ -509,18 +614,20 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
                 </Button>
             </div>
             </div>
+            )}
 
             {/* Data Display Section */}
             <div className="mt-8 pt-8 border-t">
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex gap-2">
                         <Button
-                            onClick={() => setViewMode('card')}
-                            variant={viewMode === 'card' ? 'default' : 'outline'}
+                            onClick={() => setViewMode('summary')}
+                            variant={viewMode === 'summary' ? 'default' : 'outline'}
                             size="sm"
                             className="flex items-center gap-2"
                         >
-                            <LayoutGrid className="w-4 h-4" />
+                            <BarChart3 className="w-4 h-4" />
+                            טבלה מרכזת
                         </Button>
                         <Button
                             onClick={() => setViewMode('table')}
@@ -529,7 +636,19 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
                             className="flex items-center gap-2"
                         >
                             <TableIcon className="w-4 h-4" />
+                            טבלה מלאה
                         </Button>
+                        {isA15Admin && (
+                            <Button
+                                onClick={handleExportToExcel}
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-2"
+                            >
+                                <Download className="w-4 h-4" />
+                                ייצוא ל-Excel
+                            </Button>
+                        )}
                     </div>
                 </div>
 
@@ -537,7 +656,95 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
                     <div className="text-center py-8 text-gray-500">טוען נתונים...</div>
                 ) : tazqiqimData.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">אין נתונים להצגה</div>
-                ) : (isA15Admin || viewMode === 'table') ? (
+                ) : viewMode === 'summary' ? (
+                    <div className="space-y-6">
+                        {/* Bar Chart Visualization */}
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <h4 className="text-lg font-bold mb-4 text-blue-900">תרשים ויזואלי - רמת מלאי</h4>
+                            <div className="flex items-end justify-around gap-4 px-4" style={{height: '400px'}}>
+                                {summaryData.map((item) => {
+                                    const isGasBalloon = item.אמצעי === 'בלון גז 48 ק"ג';
+                                    const fillPercentage = isGasBalloon ? Math.round((item.רמת_מלאי / 18) * 100) : item.רמת_מלאי;
+                                    const displayValue = isGasBalloon ? `${fillPercentage}%` : `${fillPercentage}%`;
+                                    const barHeightPx = Math.max((fillPercentage / 100) * 400, 30);
+                                    return (
+                                        <div key={`chart_${item.מיקום}_${item.אמצעי}`} className="flex flex-col items-center gap-2">
+                                            <div 
+                                                className={`w-20 rounded-lg transition-all duration-500 flex items-start justify-center pt-2 ${
+                                                    fillPercentage >= 70 ? 'bg-green-500' :
+                                                    fillPercentage >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                                }`}
+                                                style={{height: `${barHeightPx}px`}}
+                                            >
+                                                <span className="text-xs font-bold text-white drop-shadow-md">{displayValue}</span>
+                                            </div>
+                                            <div className="text-xs font-medium text-gray-600 text-center break-words w-20">
+                                                {item.מיקום}
+                                            </div>
+                                            <div className="text-xs text-gray-500 text-center break-words w-20">
+                                                {item.אמצעי}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Summary Table */}
+                        <div className="bg-white rounded-lg shadow overflow-x-auto">
+                            <h4 className="text-lg font-bold p-4 bg-blue-50 text-blue-900">טבלה מרכזת - נתונים אחרונים</h4>
+                            <table className="min-w-full divide-y divide-gray-200" dir="rtl">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">מיקום</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">אמצעי</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">צ</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">תקן</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">רמת מלאי (%)</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">תאריך עדכון</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {summaryData.map((item) => {
+                                        const fillPercentage = item.רמת_מלאי;
+                                        const isGasBalloon = item.אמצעי === 'בלון גז 48 ק"ג';
+                                        const getColorClass = () => {
+                                            if (fillPercentage >= 70) return 'bg-green-100';
+                                            if (fillPercentage >= 40) return 'bg-yellow-100';
+                                            return 'bg-red-100';
+                                        };
+                                        
+                                        return (
+                                            <tr key={`${item.מיקום}_${item.אמצעי}`} className={getColorClass()}>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.מיקום}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.אמצעי}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.צ}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.תקן}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    <div className="flex items-center gap-2">
+                                                        {!isGasBalloon && (
+                                                            <div className="flex-1 bg-gray-200 rounded-full h-4 overflow-hidden">
+                                                                <div 
+                                                                    className={`h-full ${
+                                                                        fillPercentage >= 70 ? 'bg-green-500' :
+                                                                        fillPercentage >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                    }`}
+                                                                    style={{width: `${fillPercentage}%`}}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                        <span className="font-semibold">{fillPercentage}{!isGasBalloon && '%'}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatDateTime(item.created_at)}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ) : viewMode === 'table' ? (
                     <div className="bg-white rounded-lg shadow overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200" dir="rtl">
                             <thead className="bg-gray-50">
