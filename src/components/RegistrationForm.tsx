@@ -16,6 +16,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
         ammo: false,
         armory: false,
         hr: false,
+        a15: false,
         א: false,
         ב: false,
         ג: false,
@@ -51,8 +52,21 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
                     otherPermissions.forEach(perm => {
                         (updated as any)[perm] = false;
                     });
+                    updated.a15 = false;
                     return updated;
                 });
+                return;
+            }
+            
+            if (checked && name === 'a15') {
+                setRegistrationData(prev => {
+                    const updated = {...prev, a15: true};
+                    companyPermissions.forEach(perm => {
+                        (updated as any)[perm] = false;
+                    });
+                    return updated;
+                });
+                setCompanyPermission('');
                 return;
             }
             
@@ -132,6 +146,11 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
             return;
         }
         
+        if (registrationData.a15 && selectedCompanies.length > 0) {
+            setRegistrationMessage({text: "לא ניתן לבחור גם א15 וגם פלוגה", type: "error"});
+            return;
+        }
+        
         try {
             const {data, error} = await supabase
                 .from("registration")
@@ -152,6 +171,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
                     ammo: false,
                     armory: false,
                     hr: false,
+                    a15: false,
                     א: false,
                     ב: false,
                     ג: false,
@@ -320,6 +340,19 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
                 </div>
 
                 <div className="mb-4">
+                    <label className="flex items-center space-x-2 text-right">
+                        <input
+                            type="checkbox"
+                            name="a15"
+                            checked={registrationData.a15}
+                            onChange={handleRegistrationChange}
+                            className="ml-2"
+                        />
+                        א15
+                    </label>
+                </div>
+
+                <div className="mb-4">
                     <label className="block text-sm font-medium text-right mb-2">בחר פלוגה (מיועד לחיילי הפלוגות):</label>
                     <select
                         name="companyPermission"
@@ -343,6 +376,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({onBackToLogin}) => {
                                     otherPermissions.forEach(perm => {
                                         (updated as any)[perm] = false;
                                     });
+                                    updated.a15 = false;
                                 }
                                 
                                 return updated;
