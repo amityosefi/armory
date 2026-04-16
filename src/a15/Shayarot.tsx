@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabaseClient';
 import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
-import { TableIcon, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react';
+import { TableIcon, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
     Select,
@@ -44,7 +45,7 @@ interface ShayarotData {
 
 const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
     const permissions = useAuthStore((state) => state.permissions);
-    const isA15Admin = permissions['a15'] === true;
+    const isA15Admin = permissions['a15'];
     
     const [formData, setFormData] = useState<FormData>({
         תאריך_חילוף: '',
@@ -77,6 +78,23 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
     const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
     const [editingCell, setEditingCell] = useState<{rowId: number, field: string} | null>(null);
     const [editValue, setEditValue] = useState<string>('');
+    const [columnWidths, setColumnWidths] = useState<{[key: string]: number}>({
+        תאריך_חילוף: 120,
+        שעת_התייצבות: 120,
+        כמות_חיילים_נכנסים: 140,
+        כמות_חיילים_יוצאים: 140,
+        שם_מפקד_אחראי: 150,
+        מספר_טלפון_מפקד: 130,
+        מסלול_נסיעה: 150,
+        פלוגה: 120,
+        סטטוס: 120,
+        משתמש: 120,
+        created_at: 180
+    });
+    const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+    const [startX, setStartX] = useState<number>(0);
+    const [startWidth, setStartWidth] = useState<number>(0);
+    const [showForm, setShowForm] = useState<boolean>(!isA15Admin);
 
     const formatDateTime = (dateString: string) => {
         if (!dateString) return '';
@@ -210,8 +228,62 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
         setEditValue('');
     };
 
+    const handleMouseDown = (e: React.MouseEvent, columnKey: string) => {
+        setResizingColumn(columnKey);
+        setStartX(e.clientX);
+        setStartWidth(columnWidths[columnKey]);
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (resizingColumn) {
+                const diff = e.clientX - startX;
+                const newWidth = Math.max(80, startWidth + diff);
+                setColumnWidths(prev => ({
+                    ...prev,
+                    [resizingColumn]: newWidth
+                }));
+            }
+        };
+
+        const handleMouseUp = () => {
+            setResizingColumn(null);
+        };
+
+        if (resizingColumn) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [resizingColumn, startX, startWidth]);
+
     const handleInputChange = (field: keyof FormData, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleExportToExcel = () => {
+        const exportData = filteredAndSortedData.map(item => ({
+            'תאריך חילוף': item.תאריך_חילוף,
+            'שעת התייצבות': formatTimeWithoutSeconds(item.שעת_התייצבות),
+            'חיילים נכנסים': item.כמות_חיילים_נכנסים,
+            'חיילים יוצאים': item.כמות_חיילים_יוצאים,
+            'מפקד אחראי': item.שם_מפקד_אחראי,
+            'טלפון': item.מספר_טלפון_מפקד,
+            'מסלול נסיעה': item.מסלול_נסיעה || '',
+            'פלוגה': item.פלוגה,
+            'סטטוס': item.סטטוס || '',
+            'משתמש': item.משתמש || '',
+            'תאריך יצירה': formatDateTime(item.created_at)
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'שיירות כא');
+        XLSX.writeFile(wb, `שיירות_כא_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     const getTodayDateISO = () => {
@@ -279,6 +351,9 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
         setStatusMessage({ text: '', isSuccess: false });
 
         try {
+            const now = new Date();
+            now.setHours(now.getHours() + 2);
+            
             const { data, error } = await supabase.from('a15_shayarot').insert({
                 תאריך_חילוף: formData.תאריך_חילוף,
                 שעת_התייצבות: formData.שעת_התייצבות,
@@ -288,7 +363,7 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
                 מספר_טלפון_מפקד: formData.מספר_טלפון_מפקד,
                 מסלול_נסיעה: formData.מסלול_נסיעה,
                 פלוגה: activePermission || '',
-                created_at: new Date().toLocaleString('he-IL'),
+                created_at: now.toISOString(),
                 משתמש: permissions['name']
             });
 
@@ -320,7 +395,21 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
                 />
             )}
 
+            {/* Toggle Form Button for A15 Admins */}
+            {isA15Admin && (
+                <div className="flex justify-center mb-4">
+                    <Button
+                        onClick={() => setShowForm(!showForm)}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                    >
+                        {showForm ? 'הסתר טופס' : 'הצג טופס'}
+                    </Button>
+                </div>
+            )}
+
             {/* Form */}
+            {showForm && (
             <div className="max-w-sm mx-auto">
             {/* תאריך חילוף */}
             <div>
@@ -458,27 +547,23 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
                 </Button>
             </div>
             </div>
+            )}
 
             {/* Data Display Section */}
             <div className="mt-8 pt-8 border-t">
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex gap-2">
-                        <Button
-                            onClick={() => setViewMode('card')}
-                            variant={viewMode === 'card' ? 'default' : 'outline'}
-                            size="sm"
-                            className="flex items-center gap-2"
-                        >
-                            <LayoutGrid className="w-4 h-4" />
-                        </Button>
-                        <Button
-                            onClick={() => setViewMode('table')}
-                            variant={viewMode === 'table' ? 'default' : 'outline'}
-                            size="sm"
-                            className="flex items-center gap-2"
-                        >
-                            <TableIcon className="w-4 h-4" />
-                        </Button>
+                        {isA15Admin && (
+                            <Button
+                                onClick={handleExportToExcel}
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-2"
+                            >
+                                <Download className="w-4 h-4" />
+                                ייצוא ל-Excel
+                            </Button>
+                        )}
                     </div>
                 </div>
 
@@ -504,7 +589,7 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                         {key: 'משתמש', label: 'משתמש'},
                                         {key: 'created_at', label: 'תאריך יצירה'}
                                     ].map(({key, label}) => (
-                                        <th key={key} className="px-3 py-2">
+                                        <th key={key} className="px-3 py-2 relative" style={{width: columnWidths[key], minWidth: columnWidths[key]}}>
                                             <div className="flex items-center gap-1">
                                                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</span>
                                                 <button
@@ -553,6 +638,11 @@ const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                                     )}
                                                 </div>
                                             </div>
+                                            <div
+                                                className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600"
+                                                onMouseDown={(e) => handleMouseDown(e, key)}
+                                                style={{userSelect: 'none'}}
+                                            />
                                         </th>
                                     ))}
                                 </tr>
