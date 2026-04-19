@@ -688,7 +688,16 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                                         <label className="block mb-1 text-sm">מספר סידורי:</label>
                                         <Combobox
                                             value={selectedId}
-                                            onValueChange={(value) => setSelectedId(Number(value))}
+                                            onValueChange={(value) => {
+                                                const id = Number(value);
+                                                const item = availableItems.find(i => i.id === id);
+                                                if (item && !selectedItems.some(i => i.id === id)) {
+                                                    setSelectedItems(prev => [...prev, item]);
+                                                }
+                                                setSelectedId(null);
+                                                setSelectedKind('');
+                                                setSelectedName('');
+                                            }}
                                             options={ids.map((id) => ({ value: id, label: String(id) }))}
                                             placeholder="-- בחר מספר --"
                                             searchPlaceholder="חפש מספר..."
