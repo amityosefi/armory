@@ -602,16 +602,16 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                         <Download className="w-5 h-5" />
                         {isDownloading ? 'מוריד...' : 'דפי חייל'}
                     </Button>
-                    {permissions['admin'] && (
-                    <Button
-                        onClick={handleDownloadWord}
-                        disabled={isDownloadingWord || peopleData.length === 0}
-                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg flex items-center gap-2"
-                    >
-                        <FileText className="w-5 h-5" />
-                        {isDownloadingWord ? 'מוריד...' : 'כרטיסיות'}
-                    </Button>
-                    )}
+                    {/*{permissions['admin'] && (*/}
+                    {/*<Button*/}
+                    {/*    onClick={handleDownloadWord}*/}
+                    {/*    disabled={isDownloadingWord || peopleData.length === 0}*/}
+                    {/*    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg flex items-center gap-2"*/}
+                    {/*>*/}
+                    {/*    <FileText className="w-5 h-5" />*/}
+                    {/*    {isDownloadingWord ? 'מוריד...' : 'כרטיסיות'}*/}
+                    {/*</Button>*/}
+                    {/*)}*/}
                 </div>
             )}
 
@@ -626,13 +626,13 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                     >
                         <LayoutGrid className="h-4 w-4" />
                     </Button>
-                    <Button
-                        onClick={() => setViewMode("table")}
-                        variant={viewMode === "table" ? "default" : "outline"}
-                        size="icon"
-                    >
-                        <Table className="h-4 w-4" />
-                    </Button>
+                    {/*<Button*/}
+                    {/*    onClick={() => setViewMode("table")}*/}
+                    {/*    variant={viewMode === "table" ? "default" : "outline"}*/}
+                    {/*    size="icon"*/}
+                    {/*>*/}
+                    {/*    <Table className="h-4 w-4" />*/}
+                    {/*</Button>*/}
                     <Button
                         onClick={() => setViewMode("summary")}
                         variant={viewMode === "summary" ? "default" : "outline"}

@@ -271,7 +271,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
             // Prepare items for insertion into unified ammo table
             const itemsToInsert = validItems.map(item => ({
-                תאריך: new Date().toLocaleString('he-IL'),
+                תאריך: new Date().toISOString(),
                 פריט: item.פריט,
                 כמות: item.כמות,
                 צורך: 'ניפוק',
@@ -364,7 +364,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
             // Prepare items for insertion into unified ammo table
             const itemsToInsert = validItems.map(item => ({
-                תאריך: new Date().toLocaleString('he-IL'),
+                תאריך: new Date().toISOString(),
                 פריט: item.פריט,
                 כמות: item.כמות,
                 צורך: 'זיכוי',
@@ -470,7 +470,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                 const isExplosion = item.is_explosion ?? selectedTable;
                 // Credit from current unit (גדוד)
                 itemsToInsert.push({
-                    תאריך: new Date().toLocaleString('he-IL'),
+                    תאריך: new Date().toISOString(),
                     פריט: item.פריט,
                     כמות: item.כמות,
                     צורך: 'זיכוי',
@@ -484,7 +484,7 @@ const AmmoStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
                 // Issue to storage (מחסן)
                 itemsToInsert.push({
-                    תאריך: new Date().toLocaleString('he-IL'),
+                    תאריך: new Date().toISOString(),
                     פריט: item.פריט,
                     כמות: item.כמות,
                     צורך: 'ניפוק',
