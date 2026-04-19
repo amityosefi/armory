@@ -543,7 +543,7 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
                             disabled={loading || !selectedKind || !selectedName || (!isRangeMode && !newId) || (isRangeMode && (!startId || !endId)) || !selectedLocation}
                             className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
                         >
-                            <Plus className="w-4 h-4" />
+                            {loading ? <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span> : <Plus className="w-4 h-4" />}
                             {loading ? "מוסיף..." : (isRangeMode ? "הוסף פריטים" : "הוסף פריט")}
                         </Button>
                     </DialogFooter>

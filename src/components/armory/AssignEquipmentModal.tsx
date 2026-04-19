@@ -33,6 +33,7 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierName
   const [signature, setSignature] = useState<string>('');
   
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const sigPadRef = useRef<SignatureCanvas>(null);
 
   useEffect(() => {
@@ -120,9 +121,10 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierName
       return;
     }
 
+    setSubmitting(true);
     try {
       const currentTime = new Date().toLocaleString('he-IL');
-      
+
       const updateData: any = { location: soldierID };
       
       // Add signature fields for weapons
@@ -156,6 +158,8 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierName
     } catch (error) {
       console.error('Error assigning item:', error);
       onAssignComplete(`שגיאה בהקצאת ${selectedName} (מסד: ${selectedId})`, false);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -241,8 +245,11 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierName
             </div>
 
             <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={onClose}>ביטול</Button>
-              <Button onClick={handleAssign} className="bg-green-500 hover:bg-green-600 text-white">הקצה</Button>
+              <Button variant="outline" onClick={onClose} disabled={submitting}>ביטול</Button>
+              <Button onClick={handleAssign} className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-2" disabled={submitting}>
+                {submitting && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
+                {submitting ? 'מקצה...' : 'הקצה'}
+              </Button>
             </div>
           </>
         )}

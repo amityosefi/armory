@@ -21,6 +21,7 @@ interface WeaponReturnSignatureModalProps {
 const WeaponReturnSignatureModal: React.FC<WeaponReturnSignatureModalProps> = ({ item, soldierID, onClose, onSubmit }) => {
   const sigPadRef = useRef<SignatureCanvas>(null);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [soldierItems, setSoldierItems] = useState<ArmoryItem[]>([]);
   const { permissions } = usePermissions();
 
@@ -54,6 +55,7 @@ const WeaponReturnSignatureModal: React.FC<WeaponReturnSignatureModalProps> = ({
       return;
     }
 
+    setSubmitting(true);
     const signature = sigPadRef.current?.toDataURL();
     if (signature) {
       onSubmit(signature);
@@ -92,14 +94,15 @@ const WeaponReturnSignatureModal: React.FC<WeaponReturnSignatureModalProps> = ({
         </div>
 
         <div className="flex gap-2 justify-end">
-          <Button onClick={handleClear} variant="outline">
+          <Button onClick={handleClear} variant="outline" disabled={submitting}>
             נקה חתימה
           </Button>
-          <Button onClick={onClose} variant="outline">
+          <Button onClick={onClose} variant="outline" disabled={submitting}>
             ביטול
           </Button>
-          <Button onClick={handleSubmit} className="bg-blue-500 hover:bg-blue-600">
-            אישור החזרה
+          <Button onClick={handleSubmit} className="bg-blue-500 hover:bg-blue-600 flex items-center gap-2" disabled={submitting}>
+            {submitting && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
+            {submitting ? 'מחזיר...' : 'אישור החזרה'}
           </Button>
         </div>
       </div>
