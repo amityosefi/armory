@@ -243,8 +243,11 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                                     id="id"
                                     name="id"
                                     type="number"
-                                    value={formData.id}
-                                    onChange={(e) => setFormData({ ...formData, id: parseInt(e.target.value) || itemId })}
+                                    value={formData.id ?? ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setFormData({ ...formData, id: val === '' ? (null as any) : parseInt(val) });
+                                    }}
                                     className="text-right pr-10 text-lg font-semibold"
                                     dir="rtl"
                                     disabled={loading}
@@ -323,7 +326,7 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                             </Button>
                             <Button
                                 type="submit"
-                                disabled={loading}
+                                disabled={loading || !formData.id}
                                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
                             >
                                 {loading ? <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span> : <Save className="w-4 h-4" />}
