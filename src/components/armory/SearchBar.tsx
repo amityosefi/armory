@@ -12,34 +12,18 @@ const SearchBar: React.FC = () => {
   const [allItems, setAllItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Helper function to fetch all rows with pagination
-  const fetchAllRows = async (tableName: string) => {
-    const pageSize = 1000;
-    let allData: any[] = [];
-    let page = 0;
-    let hasMore = true;
+  // Fetch all rows from a table
+  const fetchAllRows = async (tableName: string): Promise<any[]> => {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('*');
 
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from(tableName)
-        .select('*')
-        .range(page * pageSize, (page + 1) * pageSize - 1);
-
-      if (error) {
-        console.error(`Error fetching ${tableName}:`, error);
-        break;
-      }
-
-      if (data && data.length > 0) {
-        allData = [...allData, ...data];
-        hasMore = data.length === pageSize;
-        page++;
-      } else {
-        hasMore = false;
-      }
+    if (error) {
+      console.error(`Error fetching ${tableName}:`, error);
+      return [];
     }
 
-    return allData;
+    return (data as any[]) || [];
   };
 
   // Fetch all data on component mount
