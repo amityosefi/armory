@@ -627,6 +627,23 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         }
     }
 
+    // Handle clicking on פריט cell in החתמה tab - open modal with that item pre-filled
+    const handleItemClicked = (data: any, isExplosion: boolean) => {
+        if (activeTab !== 'החתמה') return;
+        const itemName = data.פריט;
+        const quantity = data.כמות;
+        if (!itemName) return;
+
+        setItems([{
+            פריט: itemName,
+            כמות: Math.abs(quantity) || 1,
+            צורך: 'ניפוק',
+            סוג_תחמושת: isExplosion ? 'נפיצה' : 'קליעית',
+        }]);
+        setDialogMode('החתמה');
+        setFormModalOpen(true);
+    };
+
     // Handle read status change
     const handleReadStatusChange = async (params: any) => {
         const {data} = params;
@@ -1625,7 +1642,9 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                         }}
                         onCellClicked={(event) => {
                             if (permissions['ammo'] && event.colDef && event.colDef.field === 'תאריך')
-                                handleDateClicked(event.data)
+                                handleDateClicked(event.data);
+                            if (permissions['ammo'] && event.colDef && event.colDef.field === 'פריט' && activeTab === 'החתמה')
+                                handleItemClicked(event.data, false);
                         }}
                         onCellValueChanged={(params) => {
                             if (params.colDef.field === 'נקרא') {
@@ -1670,7 +1689,9 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                         }}
                         onCellClicked={(event) => {
                             if (permissions['ammo'] && event.colDef && event.colDef.field === 'תאריך')
-                                handleDateClicked(event.data)
+                                handleDateClicked(event.data);
+                            if (permissions['ammo'] && event.colDef && event.colDef.field === 'פריט' && activeTab === 'החתמה')
+                                handleItemClicked(event.data, true);
                         }}
                         onCellValueChanged={(params) => {
                             if (params.colDef.field === 'נקרא') {
