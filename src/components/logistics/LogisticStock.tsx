@@ -267,7 +267,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
             // Prepare items for insertion
             const itemsToInsert = validItems.map(item => ({
-                תאריך: new Date().toLocaleString('he-IL'),
+                תאריך: new Date().toISOString(),
                 פריט: item.פריט,
                 כמות: item.כמות,
                 צורך: 'ניפוק',
@@ -349,7 +349,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
             // Prepare items for insertion
             const itemsToInsert = validItems.map(item => ({
-                תאריך: new Date().toLocaleString('he-IL'),
+                תאריך: new Date().toISOString(),
                 פריט: item.פריט,
                 כמות: item.כמות,
                 צורך: 'זיכוי',
@@ -445,7 +445,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
             for (const item of validItems) {
                 // Credit from source location
                 itemsToInsert.push({
-                    תאריך: new Date().toLocaleString('he-IL'),
+                    תאריך: new Date().toISOString(),
                     פריט: item.פריט,
                     כמות: item.כמות,
                     צורך: 'זיכוי',
@@ -458,7 +458,7 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
 
                 // Issue to destination location
                 itemsToInsert.push({
-                    תאריך: new Date().toLocaleString('he-IL'),
+                    תאריך: new Date().toISOString(),
                     פריט: item.פריט,
                     כמות: item.כמות,
                     צורך: 'ניפוק',

@@ -4,18 +4,13 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import {supabase} from "@/lib/supabaseClient"
 import {Button} from '@/components/ui/button';
-import {Input} from '@/components/ui/input';
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
-import {Check, ChevronsUpDown, Trash, LayoutGrid, Table, Info} from "lucide-react";
+import {LayoutGrid, Table, Info} from "lucide-react";
 import {ColDef} from "ag-grid-community";
-import CreatableSelect from 'react-select/creatable';
-
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogDescription,
     DialogFooter,
 } from '@/components/ui/dialog';
 import {
@@ -24,8 +19,7 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 import {usePermissions} from "@/contexts/PermissionsContext";
-import SignatureCanvas from "react-signature-canvas";
-import {Label} from "@/components/ui/label";
+import LogisticFormModal from "./LogisticFormModal";
 // import jsPDF from "/../../../jsPDF";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -79,22 +73,17 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     const [cardLoading, setCardLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
     // Dialog states
-    const [open, setOpen] = useState(false);
+    const [formModalOpen, setFormModalOpen] = useState(false);
     const [dataURL, setDataURL] = useState('');
     const [dialogMode, setDialogMode] = useState<'הזמנה' | 'החתמה'>('הזמנה');
-    const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
     const [currentItem, setCurrentItem] = useState<LogisticItem | null>(null);
     const [selectedMatchingRows, setSelectedMatchingRows] = useState<LogisticItem[]>([]);
     const [matchingDateRows, setMatchingDateRows] = useState<LogisticItem[]>([]);
-    const signatureRef = useRef<SignatureCanvas>(null);
     const [selectedRows, setSelectedRows] = useState<LogisticItem[]>([]);
     const gridRef = useRef<any>(null);
-    const [customItemInput, setCustomItemInput] = useState(''); // For tracking custom item input
 
     const [signerName, setSignerName] = useState('');
     const [signerPersonalId, setSignerPersonalId] = useState(0);
-    const [signatureItemPopoverOpen, setSignatureItemPopoverOpen] = useState(false);
-    const sigPadRef = useRef<SignatureCanvas>(null);
     const [activeTab, setActiveTab] = useState<string>('הזמנה'); // Track active tab
     const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards'); // Toggle between table and card view
     const [cardDetailModalOpen, setCardDetailModalOpen] = useState(false);
@@ -270,8 +259,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
         });
 
-        (console.log(hazmanaData))
-        
         return Array.from(uniqueUsers.values()).sort((a, b) => a.משתמש.localeCompare(b.משתמש, 'he'));
     }, [displayDataByStatus, permissions]);
 
@@ -498,7 +485,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         setDialogMode('החתמה');
 
         // Open the signature dialog
-        setSignatureDialogOpen(true);
+        setFormModalOpen(true);
     }
     // Handle AG Grid status change
     const handleStatusChange = async (params: any) => {
@@ -733,22 +720,16 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         }
     };
 
-    const saveSignature = () => {
-        if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
-            setDataURL(sigPadRef.current.getCanvas().toDataURL("image/png"));
-        }
-    };
-
     // Function to add a new logistic item
     const handleAddItem = async () => {
         setStatusMessage({text: "", type: ""});
+        setLoading(true);
 
         // Input validation
         const invalidItems = items.filter(item => !item.פריט || !item.כמות || item.כמות <= 0);
         if (invalidItems.length > 0) {
             setStatusMessage({text: "יש למלא את כל השדות הנדרשים (כולל כמות)", type: "error"});
-            setOpen(false);
-            setSignatureDialogOpen(false);
+            setFormModalOpen(false);
             setLoading(false);
             return;
         }
@@ -756,9 +737,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         // Validate personal ID for החתמה mode
         if (dialogMode === 'החתמה' && !signerPersonalId) {
             setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
-            setOpen(false);
+            setFormModalOpen(false);
             setLoading(false);
-            setSignatureDialogOpen(false);
             return;
         }
 
@@ -767,9 +747,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             const invalidItems = items.filter(item => item.צורך !== 'ניפוק' && item.צורך !== 'זיכוי');
             if (invalidItems.length > 0) {
                 setStatusMessage({text: "בהחתמה ניתן לבחור רק ניפוק או זיכוי", type: "error"});
-                setOpen(false);
+                setFormModalOpen(false);
                 setLoading(false);
-                setSignatureDialogOpen(false);
                 return;
             }
         }
@@ -793,8 +772,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             type: "error"
                         });
                         setLoading(false);
-                        setOpen(false);
-                        setSignatureDialogOpen(false);
+                        setFormModalOpen(false);
                         return;
                     }
                 }
@@ -819,8 +797,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                         type: "error"
                     });
                     setLoading(false);
-                    setOpen(false);
-                    setSignatureDialogOpen(false);
+                    setFormModalOpen(false);
                     return;
                 }
 
@@ -842,8 +819,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             type: "error"
                         });
                         setLoading(false);
-                        setOpen(false);
-                        setSignatureDialogOpen(false);
+                        setFormModalOpen(false);
                         return;
                     }
                 }
@@ -908,8 +884,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 const action = dialogMode === 'הזמנה' ? 'דווחו' : 'הוחתמו/ זוכו';
                 setItems([{...defaultItem}]);
                 await fetchData();
-                setOpen(false);
-                setSignatureDialogOpen(false);
+                setFormModalOpen(false);
                 setSignerName('');
                 setSignerPersonalId(0);
                 setStatusMessage({text: `${action} פריטים בהצלחה: ${itemsList}`, type: "success"});
@@ -918,8 +893,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             console.error("Unexpected error:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
         } finally {
-            setOpen(false);
-            setSignatureDialogOpen(false);
+            setFormModalOpen(false);
             setLoading(false);
         }
     };
@@ -1199,8 +1173,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     }
 
     function handleCloseModal() {
-        setSignatureDialogOpen(false);
-        setOpen(false);
+        setFormModalOpen(false);
         setSignerName('');
         setDataURL('');
         setItems([{...defaultItem}]);
@@ -1226,10 +1199,10 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             onClick={() => {
                                 if (permissions['logistic']) {
                                     setDialogMode('החתמה');
-                                    setSignatureDialogOpen(true);
+                                    setFormModalOpen(true);
                                 } else {
                                     setDialogMode('הזמנה');
-                                    setOpen(true);
+                                    setFormModalOpen(true);
                                 }
                             }}
                             className="bg-blue-500 hover:bg-blue-600"
@@ -1291,14 +1264,14 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                     >
                         <LayoutGrid className="h-4 w-4" />
                     </Button>
-                    <Button
-                        variant={viewMode === 'table' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setViewMode('table')}
-                        className="flex items-center gap-1"
-                    >
-                        <Table className="h-4 w-4" />
-                    </Button>
+                    {/*<Button*/}
+                    {/*    variant={viewMode === 'table' ? 'default' : 'outline'}*/}
+                    {/*    size="sm"*/}
+                    {/*    onClick={() => setViewMode('table')}*/}
+                    {/*    className="flex items-center gap-1"*/}
+                    {/*>*/}
+                    {/*    <Table className="h-4 w-4" />*/}
+                    {/*</Button>*/}
                     {viewMode === 'cards' && (
                         <Popover>
                             <PopoverTrigger asChild>
@@ -1434,507 +1407,26 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 </div>
             )}
 
-            {/* Item form dialog */}
-            <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
-                    <DialogHeader>
-                        <DialogTitle
-                            className="text-right">{dialogMode === 'הזמנה' ? 'דרישות' : 'החתם על פריט'}</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-4 text-right">
-                        {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                                <div className="md:col-span-2">
-                                    <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
-                                    <CreatableSelect
-                                        id={`item-${index}`}
-                                        options={(dialogMode === 'הזמנה' ? allItemNames : uniqueItemNames).map(name => ({ value: name, label: name }))}
-                                        value={item.פריט ? { value: item.פריט, label: item.פריט } : null}
-                                        getOptionLabel={(option: any) => option.label}
-                                        getOptionValue={(option: any) => option.value}
-                                        onChange={(selectedOption) => {
-                                            const newItems = [...items];
-                                            // If no option is selected (user cleared the field)
-                                            if (!selectedOption) {
-                                                newItems[index].פריט = '';
-                                                setItems(newItems);
-                                                return;
-                                            }
-
-                                            // Use the value directly
-                                            newItems[index].פריט = selectedOption.value;
-                                            setItems(newItems);
-                                        }}
-                                        onCreateOption={(inputValue) => {
-                                            // Create a new option when user enters custom text
-                                            const newItems = [...items];
-                                            newItems[index].פריט = inputValue;
-                                            setItems(newItems);
-                                            // Also update custom item input for potential future use
-                                            setCustomItemInput(inputValue);
-                                        }}
-                                        placeholder="בחר או הכנס פריט"
-                                        noOptionsMessage={() => "לא נמצאו פריטים"}
-                                        formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
-                                        classNamePrefix="item-select"
-                                        isClearable
-                                        isSearchable
-                                        styles={{
-                                            control: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            menu: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            option: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            placeholder: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right'
-                                            }),
-                                            singleValue: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right'
-                                            })
-                                        }}
-                                        theme={(theme) => ({
-                                            ...theme,
-                                            colors: {
-                                                ...theme.colors,
-                                                primary: '#3b82f6', // Blue color for selection
-                                                primary25: '#eff6ff' // Light blue for hover
-                                            }
-                                        })}
-                                    />
-                                </div>
-
-                                <div className="w-20">
-                                    <Label htmlFor={`qty-${index}`} className="text-right block mb-2">כמות</Label>
-                                    <Input
-                                        id={`qty-${index}`}
-                                        type="number"
-                                        value={item.כמות || ''}
-                                        onChange={(e) => {
-                                            const newItems = [...items];
-                                            newItems[index].כמות = parseInt(e.target.value, 10) || 0;
-                                            setItems(newItems);
-                                        }}
-                                        className="text-right"
-                                        min="1"
-                                    />
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
-                                    <Select
-                                        value={item.צורך || 'ניפוק'}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].צורך = value;
-                                            setItems(newItems);
-                                        }}
-                                    >
-                                        <SelectTrigger className="text-right" dir="rtl">
-                                            <SelectValue placeholder="בחר צורך"/>
-                                        </SelectTrigger>
-                                        <SelectContent className="text-right">
-                                            <SelectItem value="ניפוק">ניפוק</SelectItem>
-                                            <SelectItem value="בלאי" disabled={dialogMode === 'החתמה'}>בלאי/ החלפה</SelectItem>
-                                            <SelectItem value="זיכוי">זיכוי</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`note-${index}`} className="text-right block mb-2">הערה</Label>
-                                    <Input
-                                        id={`note-${index}`}
-                                        value={item.הערה || ''}
-                                        onChange={(e) => {
-                                            const newItems = [...items];
-                                            newItems[index].הערה = e.target.value;
-                                            setItems(newItems);
-                                        }}
-                                        className="text-right"
-                                    />
-                                </div>
-
-                                {index > 0 && (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => {
-                                            setItems(items.filter((_, i) => i !== index));
-                                        }}
-                                        className="col-span-1 text-red-500 hover:text-red-700"
-                                    >
-                                        <Trash className="h-5 w-5"/>
-                                    </Button>
-                                )}
-                            </div>
-                        ))}
-
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                                setItems([...items, {...defaultItem}]);
-                            }}
-                            className="w-full"
-                        >
-                            הוסף פריט נוסף
-                        </Button>
-                    </div>
-
-                    <DialogFooter>
-                        <Button type="button" onClick={() => setOpen(false)} variant="outline">
-                            ביטול
-                        </Button>
-                        <Button type="button" onClick={handleAddItem} disabled={loading} className="flex items-center gap-2">
-                            {loading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
-                            {loading ? 'שולח...' : (dialogMode === 'הזמנה' ? 'שלח דרישות' : 'שלח טופס')}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Signature dialog */}
-            <Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
-                <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
-                    <DialogHeader>
-                        <DialogTitle className="text-right">טופס החתמה</DialogTitle>
-                        <DialogDescription className="text-right">
-                            {currentItem && `החתמה על ${currentItem.פריט}`}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-4">
-                        {/*<div className="space-y-4 py-4 text-right">*/}
-                        {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                                <div className="md:col-span-2">
-                                    <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
-                                    <CreatableSelect
-                                        id={`item-${index}`}
-                                        options={uniqueItemNames.map(name => ({ value: name, label: name }))}
-                                        value={item.פריט ? { value: item.פריט, label: item.פריט } : null}
-                                        getOptionLabel={(option: any) => option.label}
-                                        getOptionValue={(option: any) => option.value}
-                                        onChange={(selectedOption) => {
-                                            const newItems = [...items];
-                                            // If no option is selected (user cleared the field)
-                                            if (!selectedOption) {
-                                                newItems[index].פריט = '';
-                                                setItems(newItems);
-                                                return;
-                                            }
-
-                                            // Use the value directly
-                                            newItems[index].פריט = selectedOption.value;
-                                            setItems(newItems);
-                                        }}
-                                        onCreateOption={(inputValue) => {
-                                            // Create a new option when user enters custom text
-                                            const newItems = [...items];
-                                            newItems[index].פריט = inputValue;
-                                            setItems(newItems);
-                                            // Also update custom item input for potential future use
-                                            setCustomItemInput(inputValue);
-                                        }}
-                                        placeholder="בחר או הכנס פריט"
-                                        noOptionsMessage={() => "לא נמצאו פריטים"}
-                                        formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
-                                        classNamePrefix="item-select"
-                                        isClearable
-                                        isSearchable
-                                        styles={{
-                                            control: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            menu: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            option: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right',
-                                                direction: 'rtl'
-                                            }),
-                                            placeholder: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right'
-                                            }),
-                                            singleValue: (provided) => ({
-                                                ...provided,
-                                                textAlign: 'right'
-                                            })
-                                        }}
-                                        theme={(theme) => ({
-                                            ...theme,
-                                            colors: {
-                                                ...theme.colors,
-                                                primary: '#3b82f6', // Blue color for selection
-                                                primary25: '#eff6ff' // Light blue for hover
-                                            }
-                                        })}
-                                    />
-                                </div>
-
-                                <div className="w-20">
-                                    <Label htmlFor={`qty-${index}`} className="text-right block mb-2">כמות</Label>
-                                    <Input
-                                        id={`qty-${index}`}
-                                        type="number"
-                                        value={item.כמות || ''}
-                                        onChange={(e) => {
-                                            const newItems = [...items];
-                                            newItems[index].כמות = parseInt(e.target.value, 10) || 0;
-                                            setItems(newItems);
-                                        }}
-                                        className="text-right"
-                                        min="1"
-                                    />
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
-                                    <Select
-                                        value={item.צורך || 'ניפוק'}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].צורך = value;
-                                            setItems(newItems);
-                                        }}
-                                    >
-                                        <SelectTrigger className="text-right" dir="rtl">
-                                            <SelectValue placeholder="בחר צורך"/>
-                                        </SelectTrigger>
-                                        <SelectContent className="text-right">
-                                            <SelectItem value="ניפוק">ניפוק</SelectItem>
-                                            <SelectItem value="בלאי" disabled={dialogMode === 'החתמה'}>בלאי/ החלפה</SelectItem>
-                                            <SelectItem value="זיכוי">זיכוי</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`note-${index}`} className="text-right block mb-2">הערה</Label>
-                                    <Input
-                                        id={`note-${index}`}
-                                        value={item.הערה || ''}
-                                        onChange={(e) => {
-                                            const newItems = [...items];
-                                            newItems[index].הערה = e.target.value;
-                                            setItems(newItems);
-                                        }}
-                                        className="text-right"
-                                    />
-                                </div>
-
-                                {index > 0 && (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => {
-                                            setItems(items.filter((_, i) => i !== index));
-                                        }}
-                                        className="col-span-1 text-red-500 hover:text-red-700"
-                                    >
-                                        <Trash className="h-5 w-5"/>
-                                    </Button>
-                                )}
-                            </div>
-                        ))}
-
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                                setItems([...items, {...defaultItem}]);
-                            }}
-                            className="w-full"
-                        >
-                            הוסף פריט נוסף
-                        </Button>
-
-                        <div>
-                            <Label htmlFor="signer-name" className="text-right block mb-2">שם החותם</Label>
-                            <CreatableSelect
-                                id="signer-name"
-                                options={hazmanaUserGroups.map(user => ({ value: user.משתמש, label: user.משתמש, personalId: user.מספר_אישי_מחתים }))}
-                                value={signerName ? { value: signerName, label: signerName } : null}
-                                onChange={(selectedOption: any) => {
-                                    if (!selectedOption) {
-                                        setSignerName('');
-                                        setSignerPersonalId(0);
-                                        return;
-                                    }
-                                    setSignerName(selectedOption.value);
-                                    if (selectedOption.personalId) {
-                                        setSignerPersonalId(selectedOption.personalId);
-                                    }
-                                }}
-                                onCreateOption={(inputValue) => {
-                                    setSignerName(inputValue);
-                                }}
-                                placeholder="בחר או הכנס שם"
-                                noOptionsMessage={() => "לא נמצאו משתמשים"}
-                                formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
-                                isClearable
-                                isSearchable
-                                styles={{
-                                    control: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl',
-                                        marginBottom: '1rem'
-                                    }),
-                                    menu: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl'
-                                    }),
-                                    option: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl'
-                                    }),
-                                    placeholder: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right'
-                                    }),
-                                    singleValue: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right'
-                                    })
-                                }}
-                                theme={(theme) => ({
-                                    ...theme,
-                                    colors: {
-                                        ...theme.colors,
-                                        primary: '#3b82f6',
-                                        primary25: '#eff6ff'
-                                    }
-                                })}
-                            />
-                        </div>
-
-                        <div>
-                            <Label htmlFor="signer-personal-id" className="text-right block mb-2">מספר אישי של החותם</Label>
-                            <CreatableSelect
-                                id="signer-personal-id"
-                                options={hazmanaUserGroups.map(user => ({ value: user.מספר_אישי_מחתים, label: String(user.מספר_אישי_מחתים), name: user.משתמש }))}
-                                value={signerPersonalId ? { value: signerPersonalId, label: String(signerPersonalId) } : null}
-                                onChange={(selectedOption: any) => {
-                                    if (!selectedOption) {
-                                        setSignerPersonalId(0);
-                                        setSignerName('');
-                                        return;
-                                    }
-                                    setSignerPersonalId(selectedOption.value);
-                                    if (selectedOption.name) {
-                                        setSignerName(selectedOption.name);
-                                    }
-                                }}
-                                onCreateOption={(inputValue) => {
-                                    const parsed = parseInt(inputValue, 10);
-                                    if (!isNaN(parsed)) {
-                                        setSignerPersonalId(parsed);
-                                    }
-                                }}
-                                placeholder="בחר או הכנס מספר אישי"
-                                noOptionsMessage={() => "לא נמצאו משתמשים"}
-                                formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
-                                isClearable
-                                isSearchable
-                                styles={{
-                                    control: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl',
-                                        marginBottom: '1rem'
-                                    }),
-                                    menu: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl'
-                                    }),
-                                    option: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl'
-                                    }),
-                                    placeholder: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right'
-                                    }),
-                                    singleValue: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right'
-                                    })
-                                }}
-                                theme={(theme) => ({
-                                    ...theme,
-                                    colors: {
-                                        ...theme.colors,
-                                        primary: '#3b82f6',
-                                        primary25: '#eff6ff'
-                                    }
-                                })}
-                            />
-                        </div>
-
-                        <div className="border rounded p-2">
-                            <label className="block text-right font-medium mb-1">חתימה</label>
-                            <SignatureCanvas
-                                ref={sigPadRef}
-                                penColor="black"
-                                onEnd={saveSignature}  // Automatically saves when drawing ends
-                                canvasProps={{
-                                    width: 300,
-                                    height: 150,
-                                    className: "border border-gray-300 rounded",
-                                    style: {direction: "ltr"},
-                                }}
-                                clearOnResize={false}
-                                backgroundColor="white"
-                            />
-                        </div>
-
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => sigPadRef.current?.clear()}
-                            className="w-full"
-                        >
-                            נקה חתימה
-                        </Button>
-                    </div>
-
-                    <DialogFooter>
-                        <Button type="button" onClick={handleCloseModal} variant="outline">
-                            ביטול
-                        </Button>
-                        <Button type="button" onClick={handleAddItem} disabled={loading} className="flex items-center gap-2">
-                            {loading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
-                            {loading ? 'שולח...' : (dialogMode === 'הזמנה' ? 'שלח דרישות' : 'שלח טופס')}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {/* Logistic Form Modal (unified for both הזמנה and החתמה) */}
+            <LogisticFormModal
+                isOpen={formModalOpen}
+                onClose={handleCloseModal}
+                mode={dialogMode}
+                items={items}
+                setItems={setItems}
+                defaultItem={defaultItem}
+                allItemNames={allItemNames}
+                uniqueItemNames={uniqueItemNames}
+                signerName={signerName}
+                setSignerName={setSignerName}
+                signerPersonalId={signerPersonalId}
+                setSignerPersonalId={setSignerPersonalId}
+                hazmanaUserGroups={hazmanaUserGroups}
+                dataURL={dataURL}
+                setDataURL={setDataURL}
+                onSubmit={handleAddItem}
+                loading={loading}
+            />
 
             {/* Card Detail Modal */}
             <Dialog open={cardDetailModalOpen} onOpenChange={setCardDetailModalOpen}>

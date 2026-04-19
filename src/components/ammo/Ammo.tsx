@@ -4,9 +4,8 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import {supabase} from "@/lib/supabaseClient"
 import {Button} from '@/components/ui/button';
-import {Input} from '@/components/ui/input';
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
-import {Trash, LayoutGrid, Table, Info} from "lucide-react";
+import {LayoutGrid, Table, Info} from "lucide-react";
+import AmmoFormModal from "./AmmoFormModal";
 import {ColDef} from "ag-grid-community";
 
 import {
@@ -23,13 +22,10 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 import {usePermissions} from "@/contexts/PermissionsContext";
-import SignatureCanvas from "react-signature-canvas";
-import {Label} from "@/components/ui/label";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
 import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
-import CreatableSelect from 'react-select/creatable';
 // Import logo for PDF export
 import logoImg from "@/assets/logo.jpeg";
 
@@ -81,16 +77,13 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
 
     // Dialog states
-    const [open, setOpen] = useState(false);
+    const [formModalOpen, setFormModalOpen] = useState(false);
     const [dataURL, setDataURL] = useState('');
     const [dialogMode, setDialogMode] = useState<'דיווח' | 'החתמה'>('דיווח');
-    const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
-    const [currentItem, setCurrentItem] = useState<LogisticItem | null>(null);
     const [selectedRows, setSelectedRows] = useState<LogisticItem[]>([]);
 
     const [signerName, setSignerName] = useState('');
     const [signerPersonalId, setSignerPersonalId] = useState(0);
-    const sigPadRef = useRef<SignatureCanvas>(null);
     const [activeTab, setActiveTab] = useState<string>('דיווח'); // Track active tab
     const [shatzalViewMode, setShatzalViewMode] = useState<'table' | 'cards'>('cards'); // Toggle for שצל view
     const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards'); // Toggle between table and card view
@@ -137,16 +130,6 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
 
     // Form items state (dynamic rows)
     const [items, setItems] = useState<Partial<LogisticItem>[]>([{...defaultItem}]);
-    const [showSuggestions, setShowSuggestions] = useState<{[key: string]: boolean}>({});
-
-    // Helper function to create an empty item
-    function getEmptyItem(): Partial<LogisticItem> {
-        return {
-            פריט: '',
-            כמות: undefined,
-            צורך: 'ניפוק',
-        };
-    }
 
     // Fetch data from Supabase from unified ammo table
     const fetchData = async () => {
@@ -640,7 +623,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             setDialogMode('החתמה');
 
             // Open the signature dialog
-            setSignatureDialogOpen(true);
+            setFormModalOpen(true);
         }
     }
 
@@ -677,12 +660,6 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             // Revert to old value
             params.node.setDataValue('נקרא', params.oldValue);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
-        }
-    };
-
-    const saveSignature = () => {
-        if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
-            setDataURL(sigPadRef.current.getCanvas().toDataURL("image/png"));
         }
     };
 
@@ -774,13 +751,13 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Function to add a new logistic item
     const handleAddItem = async () => {
         setStatusMessage({text: "", type: ""});
+        setLoading(true);
 
         if (dialogMode === 'דיווח') {
             let invalidItems = items.filter(item => !item.פריט || !item.כמות || item.כמות <= 0);
             if (invalidItems.length > 0) {
                 setStatusMessage({text: "יש למלא את כל השדות הנדרשים (כולל כמות)", type: "error"});
-                setOpen(false);
-                setSignatureDialogOpen(false);
+                setFormModalOpen(false);
                 return;
             }
             
@@ -808,8 +785,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                         type: "error"
                     });
                     setLoading(false);
-                    setOpen(false);
-                    setSignatureDialogOpen(false);
+                    setFormModalOpen(false);
                     return;
                 }
             }
@@ -826,8 +802,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             
             if (invalidItems.length > 0 || (requiresSignature && (!signerName || !signerPersonalId || !dataURL))) {
                 setStatusMessage({text: "יש למלא את כל השדות הנדרשים", type: "error"});
-                setOpen(false);
-                setSignatureDialogOpen(false);
+                setFormModalOpen(false);
                 return;
             }
 
@@ -857,8 +832,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             type: "error"
                         });
                         setLoading(false);
-                        setOpen(false);
-                        setSignatureDialogOpen(false);
+                        setFormModalOpen(false);
                         return;
                     }
                 }
@@ -889,8 +863,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             type: "error"
                         });
                         setLoading(false);
-                        setOpen(false);
-                        setSignatureDialogOpen(false);
+                        setFormModalOpen(false);
                         return;
                     }
                 }
@@ -899,7 +872,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
         }
 
         // Format items for insertion - unified table with is_explosion flag
-        const formattedDate = new Date().toLocaleString('he-IL');
+        const formattedDate = new Date().toISOString();
         const itemsToInsert: any[] = [];
 
         items.forEach(item => {
@@ -968,8 +941,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             const actionType = dialogMode === 'החתמה' ? 'הוחתמו' : 'דווחו';
             setItems([{...defaultItem}]);
             await fetchData();
-            setOpen(false);
-            setSignatureDialogOpen(false);
+            setFormModalOpen(false);
             setSignerName('');
             setSignerPersonalId(0);
             setDataURL('');
@@ -978,8 +950,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
             console.error("Unexpected error:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
         } finally {
-            setOpen(false);
-            setSignatureDialogOpen(false);
+            setFormModalOpen(false);
             setLoading(false);
         }
     };
@@ -1375,8 +1346,7 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
     }
 
     function handleCloseModal() {
-        setSignatureDialogOpen(false);
-        setOpen(false);
+        setFormModalOpen(false);
         setSignerName('');
         setSignerPersonalId(0);
         setDataURL('');
@@ -1424,10 +1394,10 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                             onClick={() => {
                                 if (permissions['ammo']) {
                                     setDialogMode('החתמה');
-                                    setSignatureDialogOpen(true);
+                                    setFormModalOpen(true);
                                 } else {
                                     setDialogMode('דיווח');
-                                    setOpen(true);
+                                    setFormModalOpen(true);
                                 }
                             }}
                             className="bg-blue-500 hover:bg-blue-600"
@@ -1488,14 +1458,14 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                     >
                         <LayoutGrid className="h-4 w-4" />
                     </Button>
-                    <Button
-                        variant={(activeTab === 'דיווח' ? viewMode : shatzalViewMode) === 'table' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => activeTab === 'דיווח' ? setViewMode('table') : setShatzalViewMode('table')}
-                        className="flex items-center gap-1"
-                    >
-                        <Table className="h-4 w-4" />
-                    </Button>
+                    {/*<Button*/}
+                    {/*    variant={(activeTab === 'דיווח' ? viewMode : shatzalViewMode) === 'table' ? 'default' : 'outline'}*/}
+                    {/*    size="sm"*/}
+                    {/*    onClick={() => activeTab === 'דיווח' ? setViewMode('table') : setShatzalViewMode('table')}*/}
+                    {/*    className="flex items-center gap-1"*/}
+                    {/*>*/}
+                    {/*    <Table className="h-4 w-4" />*/}
+                    {/*</Button>*/}
                     {(activeTab === 'דיווח' ? viewMode : shatzalViewMode) === 'cards' && activeTab === 'דיווח' && (
                         <Popover>
                             <PopoverTrigger asChild>
@@ -1722,516 +1692,29 @@ const Ammo: React.FC<LogisticProps> = ({selectedSheet}) => {
                 </>
             )}
 
-            {/* Item form dialog */}
-            <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
-                    <DialogHeader>
-                        <DialogTitle
-                            className="text-right">{dialogMode === 'דיווח' ? 'דיווח שצל' : 'החתם על פריט'}</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-4 text-right">
-                        {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                                <div>
-                                    <Label htmlFor={`ammo-type-${index}`} className="text-right block mb-2">סוג
-                                        תחמושת</Label>
-                                    <Select
-                                        value={item.סוג_תחמושת || 'קליעית'}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].סוג_תחמושת = value;
-                                            // Reset פריט when changing ammo type
-                                            newItems[index].פריט = '';
-                                            setItems(newItems);
-                                        }}
-                                    >
-                                        <SelectTrigger className="text-right" dir="rtl">
-                                            <SelectValue placeholder="בחר סוג"/>
-                                        </SelectTrigger>
-                                        <SelectContent className="text-right" dir="rtl">
-                                            <SelectItem value="קליעית">קליעית</SelectItem>
-                                            <SelectItem value="נפיצה">נפיצה</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="md:col-span-2">
-                                    <Label htmlFor={`item-${index}`} className="text-right block mb-2">פריט</Label>
-                                    <div className="relative">
-                                        <Input
-                                            id={`item-${index}`}
-                                            type="text"
-                                            value={item.פריט || ''}
-                                            onChange={(e) => {
-                                                const newItems = [...items];
-                                                newItems[index].פריט = e.target.value;
-                                                setItems(newItems);
-                                            }}
-                                            onFocus={() => {
-                                                setShowSuggestions(prev => ({...prev, [index]: true}));
-                                            }}
-                                            onClick={() => {
-                                                setShowSuggestions(prev => ({...prev, [index]: true}));
-                                            }}
-                                            onBlur={() => {
-                                                setTimeout(() => {
-                                                    setShowSuggestions(prev => ({...prev, [index]: false}));
-                                                }, 200);
-                                            }}
-                                            placeholder="הקלד או בחר פריט"
-                                            className="text-right pr-8"
-                                            dir="rtl"
-                                        />
-                                        <svg 
-                                            className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
-                                            fill="none" 
-                                            stroke="currentColor" 
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                        {showSuggestions[index] && (
-                                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                                                {(dialogMode === 'דיווח' 
-                                                    ? (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNamesFromHahatama : uniqueBallItemNamesFromHahatama)
-                                                    : (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames)
-                                                ).filter(name => name.toLowerCase().includes((item.פריט || '').toLowerCase()))
-                                                .map((name, i) => (
-                                                    <div
-                                                        key={i}
-                                                        onClick={() => {
-                                                            const newItems = [...items];
-                                                            newItems[index].פריט = name;
-                                                            setItems(newItems);
-                                                            setShowSuggestions(prev => ({...prev, [index]: false}));
-                                                        }}
-                                                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-right"
-                                                    >
-                                                        {name}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`qty-${index}`} className="text-right block mb-2">כמות</Label>
-                                    <Input
-                                        id={`qty-${index}`}
-                                        type="number"
-                                        value={item.כמות || ''}
-                                        onChange={(e) => {
-                                            const newItems = [...items];
-                                            const parsed = parseInt(e.target.value, 10);
-                                            const safe = Number.isNaN(parsed) ? 1 : Math.max(1, parsed);
-                                            newItems[index].כמות = safe;
-                                            setItems(newItems);
-                                        }}
-                                        className="text-right"
-                                        min={1}
-                                        step={1}
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                    />
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`need-${index}`} className="text-right block mb-2">צורך</Label>
-                                    <Select
-                                        value={!permissions['ammo'] ? 'שצל' : (item.צורך || 'ניפוק')}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].צורך = value;
-                                            setItems(newItems);
-                                        }}
-                                        disabled={!permissions['ammo']} // Disable for non-munitions users
-                                    >
-                                        <SelectTrigger className="text-right" dir="rtl">
-                                            <SelectValue placeholder="בחר צורך"/>
-                                        </SelectTrigger>
-                                        <SelectContent className="text-right" dir="rtl">
-                                            <SelectItem value="שצל">שצל</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                {index > 0 && (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => {
-                                            setItems(items.filter((_, i) => i !== index));
-                                        }}
-                                        className="col-span-1 text-red-500 hover:text-red-700"
-                                    >
-                                        <Trash className="h-5 w-5"/>
-                                    </Button>
-                                )}
-                            </div>
-                        ))}
-
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                                setItems([...items, {...defaultItem}]);
-                            }}
-                            className="w-full"
-                        >
-                            הוסף פריט נוסף
-                        </Button>
-                    </div>
-
-                    <DialogFooter>
-                        <Button type="button" onClick={() => setOpen(false)} variant="outline">
-                            ביטול
-                        </Button>
-                        <Button type="button" onClick={handleAddItem}>
-                            {dialogMode === 'דיווח' ? 'שלח דרישות' : 'החתם על פריטים'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Signature dialog */}
-            <Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
-                <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto" dir="rtl">
-                    <DialogHeader>
-                        <DialogTitle className="text-right">החתם על פריטים</DialogTitle>
-                        <DialogDescription className="text-right">
-                            {currentItem && `החתמה על ${currentItem.פריט} `}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-4">
-                        {/*<div className="space-y-4 py-4 text-right">*/}
-                        {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                                <div>
-                                    <Label htmlFor={`sig-ammo-type-${index}`} className="text-right block mb-2">סוג
-                                        תחמושת</Label>
-                                    <Select
-                                        value={item.סוג_תחמושת || 'קליעית'}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].סוג_תחמושת = value;
-                                            // Reset פריט when changing ammo type
-                                            newItems[index].פריט = '';
-                                            setItems(newItems);
-                                        }}
-                                    >
-                                        <SelectTrigger className="text-right" dir="rtl">
-                                            <SelectValue placeholder="בחר סוג"/>
-                                        </SelectTrigger>
-                                        <SelectContent className="text-right" dir="rtl">
-                                            <SelectItem value="קליעית">קליעית</SelectItem>
-                                            <SelectItem value="נפיצה">נפיצה</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="md:col-span-2">
-                                    <Label htmlFor={`sig-item-${index}`} className="text-right block mb-2">פריט</Label>
-                                    <div className="relative">
-                                        <Input
-                                            id={`sig-item-${index}`}
-                                            type="text"
-                                            value={item.פריט || ''}
-                                            onChange={(e) => {
-                                                const newItems = [...items];
-                                                newItems[index].פריט = e.target.value;
-                                                setItems(newItems);
-                                            }}
-                                            onFocus={() => {
-                                                setShowSuggestions(prev => ({...prev, [`sig-${index}`]: true}));
-                                            }}
-                                            onClick={() => {
-                                                setShowSuggestions(prev => ({...prev, [`sig-${index}`]: true}));
-                                            }}
-                                            onBlur={() => {
-                                                setTimeout(() => {
-                                                    setShowSuggestions(prev => ({...prev, [`sig-${index}`]: false}));
-                                                }, 200);
-                                            }}
-                                            placeholder="הקלד או בחר פריט"
-                                            className="text-right pr-8"
-                                            dir="rtl"
-                                        />
-                                        <svg 
-                                            className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
-                                            fill="none" 
-                                            stroke="currentColor" 
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                        {showSuggestions[`sig-${index}`] && (
-                                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                                                {(dialogMode === 'דיווח' 
-                                                    ? (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNamesFromHahatama : uniqueBallItemNamesFromHahatama)
-                                                    : (item.סוג_תחמושת === 'נפיצה' ? uniqueExplosionItemNames : uniqueBallItemNames)
-                                                ).filter(name => name.toLowerCase().includes((item.פריט || '').toLowerCase()))
-                                                .map((name, i) => (
-                                                    <div
-                                                        key={i}
-                                                        onClick={() => {
-                                                            const newItems = [...items];
-                                                            newItems[index].פריט = name;
-                                                            setItems(newItems);
-                                                            setShowSuggestions(prev => ({...prev, [`sig-${index}`]: false}));
-                                                        }}
-                                                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-right"
-                                                    >
-                                                        {name}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`sig-qty-${index}`} className="text-right block mb-2">כמות</Label>
-                                    <Input
-                                        id={`sig-qty-${index}`}
-                                        type="number"
-                                        value={item.כמות || ''}
-                                        onChange={(e) => {
-                                            const newItems = [...items];
-                                            const parsed = parseInt(e.target.value, 10);
-                                            const safe = Number.isNaN(parsed) ? 1 : Math.max(1, parsed);
-                                            newItems[index].כמות = safe;
-                                            setItems(newItems);
-                                        }}
-                                        className="text-right"
-                                        min={1}
-                                        step={1}
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                    />
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`sig-need-${index}`} className="text-right block mb-2">צורך</Label>
-                                    <Select
-                                        value={item.צורך || 'ניפוק'}
-                                        onValueChange={(value) => {
-                                            const newItems = [...items];
-                                            newItems[index].צורך = value;
-                                            setItems(newItems);
-                                        }}
-                                    >
-                                        <SelectTrigger className="text-right" dir="rtl">
-                                            <SelectValue placeholder="בחר צורך"/>
-                                        </SelectTrigger>
-                                        <SelectContent className="text-right" dir="rtl">
-                                            <SelectItem value="ניפוק">ניפוק</SelectItem>
-                                            <SelectItem value="שצל">שצל</SelectItem>
-                                            <SelectItem value="זיכוי">זיכוי</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                {index > 0 && (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => {
-                                            setItems(items.filter((_, i) => i !== index));
-                                        }}
-                                        className="col-span-1 text-red-500 hover:text-red-700"
-                                    >
-                                        <Trash className="h-5 w-5"/>
-                                    </Button>
-                                )}
-                            </div>
-                        ))}
-
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                                setItems([...items, {...defaultItem}]);
-                            }}
-                            className="w-full"
-                        >
-                            הוסף פריט נוסף
-                        </Button>
-
-                        <div>
-                            <Label htmlFor="signer-name" className="text-right block mb-2">שם החותם</Label>
-                            <CreatableSelect
-                                id="signer-name"
-                                options={divuchUserGroups.map(user => ({ value: user.משתמש, label: user.משתמש, personalId: user.מספר_אישי_מחתים }))}
-                                value={signerName ? { value: signerName, label: signerName } : null}
-                                onChange={(selectedOption: any) => {
-                                    if (!selectedOption) {
-                                        setSignerName('');
-                                        setSignerPersonalId(0);
-                                        return;
-                                    }
-                                    setSignerName(selectedOption.value);
-                                    if (selectedOption.personalId) {
-                                        setSignerPersonalId(selectedOption.personalId);
-                                    }
-                                }}
-                                onCreateOption={(inputValue) => {
-                                    setSignerName(inputValue);
-                                }}
-                                placeholder="בחר או הכנס שם"
-                                noOptionsMessage={() => "לא נמצאו משתמשים"}
-                                formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
-                                isClearable
-                                isSearchable
-                                isDisabled={items.some(item => item.צורך === 'שצל')}
-                                styles={{
-                                    control: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl',
-                                        marginBottom: '1rem'
-                                    }),
-                                    menu: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl'
-                                    }),
-                                    option: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl'
-                                    }),
-                                    placeholder: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right'
-                                    }),
-                                    singleValue: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right'
-                                    })
-                                }}
-                                theme={(theme) => ({
-                                    ...theme,
-                                    colors: {
-                                        ...theme.colors,
-                                        primary: '#3b82f6',
-                                        primary25: '#eff6ff'
-                                    }
-                                })}
-                            />
-                        </div>
-
-                        <div>
-                            <Label htmlFor="signer-personal-id" className="text-right block mb-2">מספר אישי של החותם</Label>
-                            <CreatableSelect
-                                id="signer-personal-id"
-                                options={divuchUserGroups.map(user => ({ value: user.מספר_אישי_מחתים, label: String(user.מספר_אישי_מחתים), name: user.משתמש }))}
-                                value={signerPersonalId ? { value: signerPersonalId, label: String(signerPersonalId) } : null}
-                                onChange={(selectedOption: any) => {
-                                    if (!selectedOption) {
-                                        setSignerPersonalId(0);
-                                        setSignerName('');
-                                        return;
-                                    }
-                                    setSignerPersonalId(selectedOption.value);
-                                    if (selectedOption.name) {
-                                        setSignerName(selectedOption.name);
-                                    }
-                                }}
-                                onCreateOption={(inputValue) => {
-                                    const parsed = parseInt(inputValue, 10);
-                                    if (!isNaN(parsed)) {
-                                        setSignerPersonalId(parsed);
-                                    }
-                                }}
-                                placeholder="בחר או הכנס מספר אישי"
-                                noOptionsMessage={() => "לא נמצאו משתמשים"}
-                                formatCreateLabel={(inputValue) => `הוסף "${inputValue}"`}
-                                isClearable
-                                isSearchable
-                                isDisabled={items.some(item => item.צורך === 'שצל')}
-                                styles={{
-                                    control: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl',
-                                        marginBottom: '1rem'
-                                    }),
-                                    menu: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl'
-                                    }),
-                                    option: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right',
-                                        direction: 'rtl'
-                                    }),
-                                    placeholder: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right'
-                                    }),
-                                    singleValue: (provided) => ({
-                                        ...provided,
-                                        textAlign: 'right'
-                                    })
-                                }}
-                                theme={(theme) => ({
-                                    ...theme,
-                                    colors: {
-                                        ...theme.colors,
-                                        primary: '#3b82f6',
-                                        primary25: '#eff6ff'
-                                    }
-                                })}
-                            />
-                        </div>
-
-                        {!items.some(item => item.צורך === 'שצל') && (
-                            <>
-                                <div className="border rounded p-2">
-                                    <label className="block text-right font-medium mb-1">חתימה</label>
-                                    <SignatureCanvas
-                                        ref={sigPadRef}
-                                        penColor="black"
-                                        onEnd={saveSignature}  // Automatically saves when drawing ends
-                                        canvasProps={{
-                                            width: 300,
-                                            height: 150,
-                                            className: "border border-gray-300 rounded",
-                                            style: {direction: "ltr"},
-                                        }}
-                                        clearOnResize={false}
-                                        backgroundColor="white"
-                                    />
-                                </div>
-
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => sigPadRef.current?.clear()}
-                                    className="w-full"
-                                >
-                                    נקה חתימה
-                                </Button>
-                            </>
-                        )}
-                    </div>
-
-                    <DialogFooter>
-                        <Button type="button" onClick={handleCloseModal} variant="outline">
-                            ביטול
-                        </Button>
-                        <Button type="button" onClick={handleAddItem}>
-                            {dialogMode === 'דיווח' ? 'שלח דרישות' : 'החתם על פריטים'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {/* Ammo Form Modal (unified for both דיווח and החתמה) */}
+            <AmmoFormModal
+                isOpen={formModalOpen}
+                onClose={handleCloseModal}
+                mode={dialogMode}
+                items={items}
+                setItems={setItems}
+                defaultItem={defaultItem}
+                uniqueBallItemNames={uniqueBallItemNames}
+                uniqueExplosionItemNames={uniqueExplosionItemNames}
+                uniqueBallItemNamesFromHahatama={uniqueBallItemNamesFromHahatama}
+                uniqueExplosionItemNamesFromHahatama={uniqueExplosionItemNamesFromHahatama}
+                signerName={signerName}
+                setSignerName={setSignerName}
+                signerPersonalId={signerPersonalId}
+                setSignerPersonalId={setSignerPersonalId}
+                divuchUserGroups={divuchUserGroups}
+                dataURL={dataURL}
+                setDataURL={setDataURL}
+                onSubmit={handleAddItem}
+                loading={loading}
+                permissions={permissions}
+            />
 
             {/* Card Action Modal */}
             <Dialog open={cardActionModalOpen} onOpenChange={setCardActionModalOpen}>
