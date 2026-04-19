@@ -774,8 +774,9 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                         <Button
                             type="submit"
                             disabled={loading}
-                            className="bg-blue-600 hover:bg-blue-700"
+                            className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
                         >
+                            {loading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
                             {loading ? "מוסיף..." : "הוסף חייל"}
                         </Button>
                     </DialogFooter>

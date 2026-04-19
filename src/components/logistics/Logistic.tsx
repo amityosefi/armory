@@ -51,7 +51,7 @@ interface LogisticProps {
     };
 }
 
-// Define the structure for our Ammo items in Supabase
+// Define the structure for our logistic items in Supabase
 type LogisticItem = {
     id?: string;
     תאריך: string;
@@ -76,6 +76,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     const {permissions} = usePermissions();
     const [rowData, setRowData] = useState<LogisticItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [cardLoading, setCardLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState({text: "", type: ""});
     // Dialog states
     const [open, setOpen] = useState(false);
@@ -555,6 +556,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             return;
         }
 
+        setCardLoading(true);
         try {
             const {error} = await supabase
                 .from("logistic")
@@ -578,6 +580,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         } catch (err: any) {
             console.error("Unexpected error during delete:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
+        } finally {
+            setCardLoading(false);
         }
     };
 
@@ -591,6 +595,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         const currentStatus = selectedCardItem.נקרא;
         const newStatus = currentStatus === 'כן' ? 'לא' : 'כן';
 
+        setCardLoading(true);
         try {
             const {error} = await supabase
                 .from("logistic")
@@ -614,6 +619,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         } catch (err: any) {
             console.error("Unexpected error during read status update:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
+        } finally {
+            setCardLoading(false);
         }
     };
 
@@ -627,6 +634,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         const currentStatus = selectedCardItem.סטטוס;
         const newStatus = currentStatus === 'הזמנה' ? 'התעצמות' : 'הזמנה';
 
+        setCardLoading(true);
         try {
             const {error} = await supabase
                 .from("logistic")
@@ -650,6 +658,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         } catch (err: any) {
             console.error("Unexpected error during status update:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
+        } finally {
+            setCardLoading(false);
         }
     };
 
@@ -732,7 +742,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
     // Function to add a new logistic item
     const handleAddItem = async () => {
         setStatusMessage({text: "", type: ""});
-
 
         // Input validation
         const invalidItems = items.filter(item => !item.פריט || !item.כמות || item.כמות <= 0);
@@ -1231,10 +1240,11 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                         {(activeTab === 'הזמנה' || activeTab === 'התעצמות') && (
                             <Button
                                 onClick={handleDeleteSelectedItems}
-                                className="bg-red-500 hover:bg-red-600"
-                                disabled={selectedRows.length === 0}
+                                className="bg-red-500 hover:bg-red-600 flex items-center gap-2"
+                                disabled={selectedRows.length === 0 || loading}
                             >
-                                מחק דרישה ({selectedRows.length})
+                                {loading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
+                                {loading ? 'מוחק...' : `מחק דרישה (${selectedRows.length})`}
                             </Button>
                         )}
 
@@ -1589,8 +1599,9 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                         <Button type="button" onClick={() => setOpen(false)} variant="outline">
                             ביטול
                         </Button>
-                        <Button type="button" onClick={handleAddItem}>
-                            {dialogMode === 'הזמנה' ? 'שלח דרישות' : 'שלח טופס'}
+                        <Button type="button" onClick={handleAddItem} disabled={loading} className="flex items-center gap-2">
+                            {loading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
+                            {loading ? 'שולח...' : (dialogMode === 'הזמנה' ? 'שלח דרישות' : 'שלח טופס')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1917,8 +1928,9 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                         <Button type="button" onClick={handleCloseModal} variant="outline">
                             ביטול
                         </Button>
-                        <Button type="button" onClick={handleAddItem}>
-                            {dialogMode === 'הזמנה' ? 'שלח דרישות' : 'שלח טופס'}
+                        <Button type="button" onClick={handleAddItem} disabled={loading} className="flex items-center gap-2">
+                            {loading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
+                            {loading ? 'שולח...' : (dialogMode === 'הזמנה' ? 'שלח דרישות' : 'שלח טופס')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1965,31 +1977,37 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         type="button"
                                         variant="destructive"
                                         onClick={handleDeleteCardItem}
-                                        className="w-full"
+                                        disabled={cardLoading}
+                                        className="w-full flex items-center justify-center gap-2"
                                     >
-                                        מחק פריט
+                                        {cardLoading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
+                                        {cardLoading ? 'מוחק...' : 'מחק פריט'}
                                     </Button>
                                 )}
 
-                                {/* Toggle read status - only for permission['ammo'] */}
-                                {permissions['ammo'] && (
+                                {/* Toggle read status - only for permission['logistic'] */}
+                                {permissions['logistic'] && (
                                     <Button
                                         type="button"
                                         onClick={handleToggleCardReadStatus}
-                                        className="w-full bg-blue-600 hover:bg-blue-700"
+                                        disabled={cardLoading}
+                                        className="w-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2"
                                     >
-                                        שנה נקרא ל-{selectedCardItem.נקרא === 'כן' ? 'לא' : 'כן'}
+                                        {cardLoading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
+                                        {cardLoading ? 'מעדכן...' : `שנה נקרא ל-${selectedCardItem.נקרא === 'כן' ? 'לא' : 'כן'}`}
                                     </Button>
                                 )}
 
-                                {/* Toggle status - only for permission['ammo'] */}
-                                {permissions['ammo'] && (
+                                {/* Toggle status - only for permission['logistic'] */}
+                                {permissions['logistic'] && (
                                     <Button
                                         type="button"
                                         onClick={handleToggleCardStatus}
-                                        className="w-full bg-green-600 hover:bg-green-700"
+                                        disabled={cardLoading}
+                                        className="w-full bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2"
                                     >
-                                        שנה סטטוס ל-{selectedCardItem.סטטוס === 'הזמנה' ? 'התעצמות' : 'דרישה'}
+                                        {cardLoading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
+                                        {cardLoading ? 'מעדכן...' : `שנה סטטוס ל-${selectedCardItem.סטטוס === 'הזמנה' ? 'התעצמות' : 'דרישה'}`}
                                     </Button>
                                 )}
                             </div>

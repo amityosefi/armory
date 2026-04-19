@@ -33,6 +33,7 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
   const [people, setPeople] = useState<Person[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const sigPadRef = useRef<SignatureCanvas>(null);
 
@@ -77,7 +78,8 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
       setError('נא לחתום לפני ההעברה');
       return;
     }
-    
+
+    setSubmitting(true);
     try {
       const selectedPerson = people.find(p => p.id === selectedPersonId);
       const currentTime = new Date().toLocaleString('he-IL');
@@ -121,6 +123,8 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
     } catch (error) {
       console.error('Error transferring item:', error);
       onTransferComplete(`שגיאה בהעברת ${item.name} (מסד: ${item.id})`, false);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -179,8 +183,11 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
             )}
 
             <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={onClose}>ביטול</Button>
-              <Button onClick={handleTransfer} className="bg-green-500 hover:bg-green-600 text-white">העבר</Button>
+              <Button variant="outline" onClick={onClose} disabled={submitting}>ביטול</Button>
+              <Button onClick={handleTransfer} className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-2" disabled={submitting}>
+                {submitting && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
+                {submitting ? 'מעביר...' : 'העבר'}
+              </Button>
             </div>
           </>
         )}

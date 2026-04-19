@@ -758,7 +758,9 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             type="button"
                             onClick={handleAddItems}
                             disabled={loading || addItems.every(item => !item.פריט)}
+                            className="flex items-center gap-2"
                         >
+                            {loading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
                             {loading ? "מוסיף..." : "הוסף פריטים"}
                         </Button>
                     </DialogFooter>
@@ -881,7 +883,9 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             type="button"
                             onClick={handleCreditItems}
                             disabled={loading || creditItems.every(item => !item.פריט)}
+                            className="flex items-center gap-2"
                         >
+                            {loading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
                             {loading ? "מזכה..." : "זכה פריטים"}
                         </Button>
                     </DialogFooter>
@@ -1013,7 +1017,9 @@ const LogisticStock: React.FC<EquipmentStockProps> = ({selectedSheet}) => {
                             type="button"
                             onClick={handleTransferItems}
                             disabled={loading || transferItems.every(item => !item.פריט)}
+                            className="flex items-center gap-2"
                         >
+                            {loading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
                             {loading ? "מעביר..." : "העבר"}
                         </Button>
                     </DialogFooter>

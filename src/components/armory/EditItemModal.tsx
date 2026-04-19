@@ -318,15 +318,15 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                                 disabled={loading}
                                 className="flex items-center gap-2 bg-red-600 hover:bg-red-700"
                             >
-                                <Trash2 className="w-4 h-4" />
-                                מחק פריט
+                                {loading ? <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span> : <Trash2 className="w-4 h-4" />}
+                                {loading ? "מוחק..." : "מחק פריט"}
                             </Button>
                             <Button
                                 type="submit"
                                 disabled={loading}
                                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
                             >
-                                <Save className="w-4 h-4" />
+                                {loading ? <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span> : <Save className="w-4 h-4" />}
                                 {loading ? "שומר..." : "שמור שינויים"}
                             </Button>
                         </DialogFooter>

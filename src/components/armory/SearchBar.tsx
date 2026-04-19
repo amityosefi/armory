@@ -165,8 +165,9 @@ const SearchBar: React.FC = () => {
           <button
             onClick={handleSearch}
             disabled={loading}
-            className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
           >
+            {loading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
             {loading ? 'מחפש...' : 'חפש'}
           </button>
         </div>
