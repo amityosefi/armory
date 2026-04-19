@@ -65,6 +65,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
     const [allItems, setAllItems] = useState<ArmoryItem[]>([]);
     const [examineSearchQuery, setExamineSearchQuery] = useState("");
     const [examineGroupsSearchQuery, setExamineGroupsSearchQuery] = useState("");
+    const [soldierEquipmentSummary, setSoldierEquipmentSummary] = useState<{name: string; total: number}[]>([]);
 
     // Check permissions
     const hasPermission = permissions[selectedSheet.range] || permissions['armory'];
@@ -270,6 +271,40 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
     useEffect(() => {
         fetchData();
     }, [selectedSheet.range, hasPermission, isPermissionsLoaded]);
+
+    // Fetch soldier equipment summary in background
+    useEffect(() => {
+        const fetchEquipmentSummary = async () => {
+            try {
+                // Get all soldier IDs in this sheet
+                const soldierIds = peopleData.map(p => p.id);
+                if (soldierIds.length === 0) {
+                    setSoldierEquipmentSummary([]);
+                    return;
+                }
+                const { data, error } = await supabase
+                    .from('armory_soldier_equipment')
+                    .select('name, quantity')
+                    .in('soldier_id', soldierIds);
+                if (error) throw error;
+                // Sum by name
+                const summary: Record<string, number> = {};
+                ((data as any[]) || []).forEach(row => {
+                    summary[row.name] = (summary[row.name] || 0) + (row.quantity || 0);
+                });
+                setSoldierEquipmentSummary(
+                    Object.entries(summary)
+                        .map(([name, total]) => ({ name, total }))
+                        .sort((a, b) => a.name.localeCompare(b.name, 'he'))
+                );
+            } catch (err) {
+                console.error('Error fetching soldier equipment summary:', err);
+            }
+        };
+        if (peopleData.length > 0) {
+            fetchEquipmentSummary();
+        }
+    }, [peopleData]);
 
     // Create display data with items as string for UI
     const peopleWithItems = useMemo<PersonWithItems[]>(() => {
@@ -763,6 +798,29 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                                     </div>
                                 </div>
                             ))}
+
+                            {/* Soldier Equipment Summary */}
+                            {soldierEquipmentSummary.length > 0 && (
+                                <div className="border-2 border-purple-300 rounded-lg p-4 bg-purple-50">
+                                    <h3 className="text-xl font-bold text-right text-purple-800 mb-4">
+                                        ציוד אישי
+                                    </h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                        {soldierEquipmentSummary.map((item, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="border border-purple-300 rounded-lg p-2 bg-white shadow-sm text-right"
+                                                dir="rtl"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-semibold text-gray-800">{item.name}</span>
+                                                    <span className="text-base font-bold text-purple-600">({item.total})</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
