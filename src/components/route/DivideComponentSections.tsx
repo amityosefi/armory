@@ -18,7 +18,7 @@ import ArmoryDocumentation from "@/components/armory/ArmoryDocumentation";
 import LogisticDocumentation from "@/components/logistics/LogisticDocumentation";
 import AmmoDocumentation from "@/components/ammo/AmmoDocumentation";
 import HrPermission from "@/components/hr/hrPermission";
-import A15 from "@/a15/A15";
+import A15 from "@/components/a15/A15";
 
 
 const DivideComponents: React.FC = () => {

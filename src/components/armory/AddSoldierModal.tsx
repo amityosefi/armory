@@ -415,10 +415,10 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                 setLoading(false);
                 return;
             }
-            
+            const currentTime = new Date().toLocaleString('he-IL');
             // Assign selected items to the soldier
             if (selectedItems.length > 0) {
-                const currentTime = new Date().toLocaleString('he-IL');
+
                 const soldierID = idStr;
                 
                 // Update each item individually
@@ -455,7 +455,7 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
             // Log to armory_document
             await supabase.from('armory_document').insert({
                 'משתמש': permissions['name'] ? String(permissions['name']) : 'Unknown',
-                'תאריך': new Date().toLocaleString('he-IL'),
+                'תאריך': currentTime,
                 'הודעה': successMsg
             });
             
