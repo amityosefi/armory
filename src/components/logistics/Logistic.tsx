@@ -487,6 +487,24 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         // Open the signature dialog
         setFormModalOpen(true);
     }
+
+    // Handle clicking on פריט cell in החתמה tab - open modal with that item pre-filled
+    const handleItemClicked = (data: any) => {
+        if (activeTab !== 'החתמה') return;
+        const itemName = data.פריט;
+        const quantity = data.כמות;
+        if (!itemName) return;
+
+        setItems([{
+            פריט: itemName,
+            כמות: Math.abs(quantity) || 1,
+            צורך: 'ניפוק',
+            הערה: '',
+        }]);
+        setDialogMode('החתמה');
+        setFormModalOpen(true);
+    };
+
     // Handle AG Grid status change
     const handleStatusChange = async (params: any) => {
         const {data} = params;
@@ -1387,7 +1405,9 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             }}
                             onCellClicked={(event) => {
                                 if (permissions['logistic'] && event.colDef && event.colDef.field === 'תאריך')
-                                    handleDateClicked(event.data)
+                                    handleDateClicked(event.data);
+                                if (permissions['logistic'] && event.colDef && event.colDef.field === 'פריט' && activeTab === 'החתמה')
+                                    handleItemClicked(event.data);
                             }}
                             getRowStyle={(params) => {
                                 // For החתמה tab, apply light blue to odd rows
