@@ -177,7 +177,6 @@ const AddNewItemModal: React.FC<AddNewItemModalProps> = ({
                                     {kind}
                                 </option>
                             ))}
-                            <option value="ציוד">ציוד</option>
                         </select>
                     </div>
 

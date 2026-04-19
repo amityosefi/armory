@@ -38,38 +38,6 @@ const ArmoryDocumentation: React.FC = () => {
     const [newMessage, setNewMessage] = useState('');
     const [statusMessage, setStatusMessage] = useState({ text: '', isSuccess: false });
 
-    // Helper function to parse Hebrew locale date string to Date object
-    const parseHebrewDate = (dateStr: string): Date => {
-        try {
-            // Hebrew format: "hh:mm:ss, dd.mm.yyyy" or "hh:mm:ss, dd/mm/yyyy"
-            const parts = dateStr.split(', ');
-            if (parts.length !== 2) return new Date(0);
-            
-            const timePart = parts[0]; // "hh:mm:ss"
-            const datePart = parts[1]; // "dd.mm.yyyy" or "dd/mm/yyyy"
-            
-            // Parse date part (handle both . and / separators)
-            const dateComponents = datePart.split(/[\.\/ ]/);
-            if (dateComponents.length !== 3) return new Date(0);
-            
-            const day = parseInt(dateComponents[0], 10);
-            const month = parseInt(dateComponents[1], 10) - 1; // Month is 0-indexed
-            const year = parseInt(dateComponents[2], 10);
-            
-            // Parse time part
-            const timeComponents = timePart.split(':');
-            if (timeComponents.length !== 3) return new Date(year, month, day);
-            
-            const hours = parseInt(timeComponents[0], 10);
-            const minutes = parseInt(timeComponents[1], 10);
-            const seconds = parseInt(timeComponents[2], 10);
-            
-            return new Date(year, month, day, hours, minutes, seconds);
-        } catch (e) {
-            return new Date(0);
-        }
-    };
-
     // Fetch data from Supabase
     const fetchData = async () => {
         try {
@@ -86,6 +54,7 @@ const ArmoryDocumentation: React.FC = () => {
                 const {data, error} = await supabase
                     .from("armory_document")
                     .select("*")
+                    .order('תאריך', { ascending: false })
                     .range(offset, offset + chunkSize - 1);
 
                 if (error) {
@@ -102,13 +71,7 @@ const ArmoryDocumentation: React.FC = () => {
                 }
             }
 
-            // Sort data by date in ascending order (oldest first)
-            const sortedData = allData.sort((a, b) => {
-                const dateA = parseHebrewDate((a['תאריך'] as string) || '');
-                const dateB = parseHebrewDate((b['תאריך'] as string) || '');
-                return dateA.getTime() - dateB.getTime(); // Ascending order
-            });
-            setRowData([...sortedData].reverse());
+            setRowData(allData);
 
         } catch (err: any) {
             console.error("Unexpected error:", err);
@@ -223,15 +186,6 @@ const ArmoryDocumentation: React.FC = () => {
                 },
             };
 
-            // Add custom comparator for date column
-            if (key === 'תאריך') {
-                baseConfig.comparator = (valueA: string, valueB: string) => {
-                    const dateA = parseHebrewDate(valueA);
-                    const dateB = parseHebrewDate(valueB);
-                    return dateA.getTime() - dateB.getTime();
-                };
-            }
-
             // Set specific widths for different columns
             if (key === 'משתמש') {
                 return { ...baseConfig, width: 110 };
@@ -290,15 +244,6 @@ const ArmoryDocumentation: React.FC = () => {
                     suppressAndOrCondition: true,
                 },
             };
-
-            // Add custom comparator for date column
-            if (key === 'date') {
-                baseConfig.comparator = (valueA: string, valueB: string) => {
-                    const dateA = parseHebrewDate(valueA);
-                    const dateB = parseHebrewDate(valueB);
-                    return dateA.getTime() - dateB.getTime();
-                };
-            }
 
             // Set specific widths for different columns
             if (key === 'user') {

@@ -394,9 +394,6 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
             const תקן = getתקן(formData.אמצעי);
             const רמת_מלאי = parseInt(formData.רמת_מלאי);
             
-            const now = new Date();
-            now.setHours(now.getHours() + 2);
-
             const { data, error } = await supabase.from('a15_tazqiqim').insert({
                 מסגרת: formData.מסגרת,
                 מיקום: formData.מיקום,
@@ -406,7 +403,7 @@ const Tazqiqim: React.FC<TazqiqimFormProps> = ({ activePermission }) => {
                 רמת_מלאי: רמת_מלאי,
                 פלוגה: activePermission || '',
                 משתמש: permissions['name'],
-                created_at: now.toISOString()
+                created_at: new Date().toISOString()
             });
 
             if (error) {

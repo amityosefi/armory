@@ -19,64 +19,75 @@ interface BinuyFormProps {
 }
 
 interface FormData {
-    מיקום: string;
-    סוג_תקלה: string;
-    פירוט_התקלה: string;
-    רמת_דחיפות: string;
-    הערה?: string;
+    תאריך_חילוף: string;
+    שעת_התייצבות: string;
+    כמות_חיילים_נכנסים: string;
+    כמות_חיילים_יוצאים: string;
+    שם_מפקד_אחראי: string;
+    מספר_טלפון_מפקד: string;
+    מסלול_נסיעה: string;
 }
 
-interface BinuyData {
+interface ShayarotData {
     id: number;
-    מיקום: string;
-    סוג_תקלה: string;
-    פירוט_התקלה: string;
-    רמת_דחיפות: string;
-    הערה?: string | null;
+    תאריך_חילוף: string;
+    שעת_התייצבות: string;
+    כמות_חיילים_נכנסים: number;
+    כמות_חיילים_יוצאים: number;
+    שם_מפקד_אחראי: string;
+    מספר_טלפון_מפקד: string;
     פלוגה: string;
     סטטוס?: string | null;
     משתמש?: string | null;
+    מסלול_נסיעה?: string | null;
     created_at: string;
 }
 
-const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
+const Shayarot: React.FC<BinuyFormProps> = ({ activePermission }) => {
     const permissions = useAuthStore((state) => state.permissions);
     const isA15Admin = permissions['a15'];
     
     const [formData, setFormData] = useState<FormData>({
-        מיקום: '',
-        סוג_תקלה: '',
-        פירוט_התקלה: '',
-        רמת_דחיפות: '',
+        תאריך_חילוף: '',
+        שעת_התייצבות: '08:00',
+        כמות_חיילים_נכנסים: '',
+        כמות_חיילים_יוצאים: '',
+        שם_מפקד_אחראי: '',
+        מספר_טלפון_מפקד: '',
+        מסלול_נסיעה: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [statusMessage, setStatusMessage] = useState({ text: '', isSuccess: false });
-    const [binuyData, setBinuyData] = useState<BinuyData[]>([]);
+    const [shayarotData, setShayarotData] = useState<ShayarotData[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(false);
     const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
-    const [sortConfig, setSortConfig] = useState<{key: keyof BinuyData | null, direction: 'asc' | 'desc' | null}>({key: null, direction: null});
+    const [sortConfig, setSortConfig] = useState<{key: keyof ShayarotData | null, direction: 'asc' | 'desc' | null}>({key: null, direction: null});
     const [columnFilters, setColumnFilters] = useState<{[key: string]: string}>({
-        מיקום: '',
-        סוג_תקלה: '',
-        פירוט_התקלה: '',
-        רמת_דחיפות: '',
-        הערה: '',
+        תאריך_חילוף: '',
+        שעת_התייצבות: '',
+        כמות_חיילים_נכנסים: '',
+        כמות_חיילים_יוצאים: '',
+        שם_מפקד_אחראי: '',
+        מספר_טלפון_מפקד: '',
         פלוגה: '',
         סטטוס: '',
         משתמש: '',
+        מסלול_נסיעה: '',
         created_at: ''
     });
     const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
     const [editingCell, setEditingCell] = useState<{rowId: number, field: string} | null>(null);
     const [editValue, setEditValue] = useState<string>('');
     const [columnWidths, setColumnWidths] = useState<{[key: string]: number}>({
-        מיקום: 120,
-        סוג_תקלה: 200,
-        פירוט_התקלה: 200,
-        רמת_דחיפות: 120,
+        תאריך_חילוף: 120,
+        שעת_התייצבות: 120,
+        כמות_חיילים_נכנסים: 140,
+        כמות_חיילים_יוצאים: 140,
+        שם_מפקד_אחראי: 150,
+        מספר_טלפון_מפקד: 130,
+        מסלול_נסיעה: 150,
         פלוגה: 120,
         סטטוס: 120,
-        הערה: 150,
         משתמש: 120,
         created_at: 180
     });
@@ -105,7 +116,7 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
         return timeString;
     };
 
-    const handleSort = (key: keyof BinuyData) => {
+    const handleSort = (key: keyof ShayarotData) => {
         let direction: 'asc' | 'desc' | null = 'asc';
         if (sortConfig.key === key) {
             if (sortConfig.direction === 'asc') {
@@ -118,7 +129,7 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
     };
 
     const filteredAndSortedData = useMemo(() => {
-        let filtered = [...binuyData];
+        let filtered = [...shayarotData];
 
         // Apply filters
         Object.keys(columnFilters).forEach(key => {
@@ -126,8 +137,8 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
             if (filterValue) {
                 filtered = filtered.filter(item => {
                     const value = key === 'created_at' 
-                        ? formatDateTime(item[key as keyof BinuyData] as string)
-                        : String(item[key as keyof BinuyData] || '');
+                        ? formatDateTime(item[key as keyof ShayarotData] as string)
+                        : String(item[key as keyof ShayarotData] || '');
                     return value.toLowerCase().includes(filterValue);
                 });
             }
@@ -158,7 +169,7 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
         }
 
         return filtered;
-    }, [binuyData, columnFilters, sortConfig]);
+    }, [shayarotData, columnFilters, sortConfig]);
 
     const handleCellEdit = (rowId: number, field: string, currentValue: any) => {
         if (!isA15Admin || field === 'created_at') return;
@@ -168,14 +179,20 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
 
     const handleCellSave = async (rowId: number, field: string) => {
         try {
-            const currentItem = binuyData.find(item => item.id === rowId);
+            const currentItem = shayarotData.find(item => item.id === rowId);
             if (!currentItem) return;
 
             const updateData: any = {};
-            updateData[field] = editValue;
+            
+            // Convert value based on field type
+            if (field === 'כמות_חיילים_נכנסים' || field === 'כמות_חיילים_יוצאים') {
+                updateData[field] = parseInt(editValue) || 0;
+            } else {
+                updateData[field] = editValue;
+            }
 
             // Check if value has actually changed
-            const oldValue = String(currentItem[field as keyof BinuyData] || '');
+            const oldValue = String(currentItem[field as keyof ShayarotData] || '');
             const newValue = String(updateData[field]);
             
 
@@ -186,14 +203,14 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
             }
 
             const { error } = await supabase
-                .from('a15_binuy')
+                .from('a15_shayarot')
                 .update(updateData)
                 .eq('id', rowId);
 
             if (error) throw error;
 
             // Update local state
-            setBinuyData(prev => prev.map(item => 
+            setShayarotData(prev => prev.map(item => 
                 item.id === rowId ? { ...item, [field]: updateData[field] } : item
             ));
 
@@ -250,32 +267,34 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
 
     const handleExportToExcel = () => {
         const exportData = filteredAndSortedData.map(item => ({
-            'מיקום': item.מיקום,
-            'סוג תקלה': item.סוג_תקלה,
-            'פירוט התקלה': item.פירוט_התקלה,
-            'רמת דחיפות': item.רמת_דחיפות,
+            'תאריך חילוף': item.תאריך_חילוף,
+            'שעת התייצבות': formatTimeWithoutSeconds(item.שעת_התייצבות),
+            'חיילים נכנסים': item.כמות_חיילים_נכנסים,
+            'חיילים יוצאים': item.כמות_חיילים_יוצאים,
+            'מפקד אחראי': item.שם_מפקד_אחראי,
+            'טלפון': item.מספר_טלפון_מפקד,
+            'מסלול נסיעה': item.מסלול_נסיעה || '',
             'פלוגה': item.פלוגה,
             'סטטוס': item.סטטוס || '',
-            'הערה': item.הערה || '',
             'משתמש': item.משתמש || '',
             'תאריך יצירה': formatDateTime(item.created_at)
         }));
 
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'פערי בינוי');
-        XLSX.writeFile(wb, `פערי_בינוי_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, 'שיירות כא');
+        XLSX.writeFile(wb, `שיירות_כא_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
-    const מיקוםOptions = ['מטאור 3', 'נגב 88', 'נחל עוז', 'פגה'];
-    const סוגתקלהOptions = ['חשמל', 'אינסטלציה', 'מיזוג אוויר', 'שיפוץ כללי', 'תשתיות'];
-    const רמתדחיפותOptions = ['נמוכה', 'בינונית', 'גבוהה'];
+    const getTodayDateISO = () => {
+        return new Date().toISOString().split('T')[0];
+    };
 
     const fetchData = async () => {
         setIsLoadingData(true);
         try {
             let query = supabase
-                .from('a15_binuy')
+                .from('a15_shayarot')
                 .select('*');
             
             // If user has a15 permission, fetch all data. Otherwise filter by activePermission
@@ -286,7 +305,7 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
             const { data, error } = await query.order('created_at', { ascending: false });
 
             if (error) throw error;
-            setBinuyData((data as unknown as BinuyData[]) || []);
+            setShayarotData((data as unknown as ShayarotData[]) || []);
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
@@ -300,20 +319,25 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
 
     const clearForm = () => {
         setFormData({
-            מיקום: '',
-            סוג_תקלה: '',
-            פירוט_התקלה: '',
-            רמת_דחיפות: '',
-            הערה: ''
+            תאריך_חילוף: '',
+            שעת_התייצבות: '08:00',
+            כמות_חיילים_נכנסים: '',
+            כמות_חיילים_יוצאים: '',
+            שם_מפקד_אחראי: '',
+            מספר_טלפון_מפקד: '',
+            מסלול_נסיעה: ''
         });
     };
 
     const isFormValid = () => {
         return (
-            formData.מיקום &&
-            formData.סוג_תקלה &&
-            formData.פירוט_התקלה &&
-            formData.רמת_דחיפות
+            formData.תאריך_חילוף &&
+            formData.שעת_התייצבות &&
+            formData.כמות_חיילים_נכנסים &&
+            formData.כמות_חיילים_יוצאים &&
+            formData.שם_מפקד_אחראי &&
+            formData.מספר_טלפון_מפקד &&
+            formData.מסלול_נסיעה
         );
     };
 
@@ -327,17 +351,16 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
         setStatusMessage({ text: '', isSuccess: false });
 
         try {
-            const now = new Date();
-            now.setHours(now.getHours() + 2);
-            
-            const { data, error } = await supabase.from('a15_binuy').insert({
-                מיקום: formData.מיקום,
-                סוג_תקלה: formData.סוג_תקלה,
-                פירוט_התקלה: formData.פירוט_התקלה,
-                רמת_דחיפות: formData.רמת_דחיפות,
-                הערה: '',
+            const { data, error } = await supabase.from('a15_shayarot').insert({
+                תאריך_חילוף: formData.תאריך_חילוף,
+                שעת_התייצבות: formData.שעת_התייצבות,
+                כמות_חיילים_נכנסים: parseInt(formData.כמות_חיילים_נכנסים),
+                כמות_חיילים_יוצאים: parseInt(formData.כמות_חיילים_יוצאים),
+                שם_מפקד_אחראי: formData.שם_מפקד_אחראי,
+                מספר_טלפון_מפקד: formData.מספר_טלפון_מפקד,
+                מסלול_נסיעה: formData.מסלול_נסיעה,
                 פלוגה: activePermission || '',
-                created_at: now.toISOString(),
+                created_at: new Date().toISOString(),
                 משתמש: permissions['name']
             });
 
@@ -358,7 +381,7 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
 
     return (
         <div className="bg-white p-10 rounded-lg shadow-lg space-y-4" dir="rtl">
-            <h3 className="text-xl font-bold text-right mb-4 text-blue-700">פערי בינוי</h3>
+            <h3 className="text-xl font-bold text-right mb-4 text-blue-700">שיירות כ״א</h3>
 
             {/* Status Message */}
             {statusMessage.text && (
@@ -384,91 +407,123 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
 
             {/* Form */}
             {showForm && (
-            <div className="max-w-sm mx-auto space-y-4">
-            {/* מיקום */}
+            <div className="max-w-sm mx-auto">
+            {/* תאריך חילוף */}
             <div>
                 <label className="block text-right font-semibold mb-2">
-                    מיקום <span className="text-red-500">*</span>
-                </label>
-                <Select value={formData.מיקום} onValueChange={(value) => handleInputChange('מיקום', value)}>
-                    <SelectTrigger className="text-right" dir="rtl">
-                        <SelectValue placeholder="בחר מיקום" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {מיקוםOptions.map((option) => (
-                            <SelectItem key={option} value={option}>{option}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-
-            {/* סוג תקלה */}
-            <div>
-                <label className="block text-right font-semibold mb-2">
-                    סוג תקלה <span className="text-red-500">*</span>
-                </label>
-                <Select 
-                    value={סוגתקלהOptions.includes(formData.סוג_תקלה) ? formData.סוג_תקלה : 'other'} 
-                    onValueChange={(value) => {
-                        if (value === 'other') {
-                            handleInputChange('סוג_תקלה', '');
-                        } else {
-                            handleInputChange('סוג_תקלה', value);
-                        }
-                    }}
-                >
-                    <SelectTrigger className="text-right" dir="rtl">
-                        <SelectValue placeholder="בחר סוג תקלה" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {סוגתקלהOptions.map((option) => (
-                            <SelectItem key={option} value={option}>{option}</SelectItem>
-                        ))}
-                        <SelectItem value="other">אחר (טקסט חופשי)</SelectItem>
-                    </SelectContent>
-                </Select>
-                {!סוגתקלהOptions.includes(formData.סוג_תקלה) && (
-                    <Input
-                        type="text"
-                        placeholder="הכנס סוג תקלה"
-                        value={formData.סוג_תקלה}
-                        onChange={(e) => handleInputChange('סוג_תקלה', e.target.value)}
-                        className="text-right mt-2"
-                        dir="rtl"
-                    />
-                )}
-            </div>
-
-            {/* פירוט התקלה */}
-            <div>
-                <label className="block text-right font-semibold mb-2">
-                    פירוט התקלה <span className="text-red-500">*</span>
+                    תאריך חילוף <span className="text-red-500">*</span>
                 </label>
                 <Input
-                    type="text"
-                    placeholder="פרט את התקלה"
-                    value={formData.פירוט_התקלה}
-                    onChange={(e) => handleInputChange('פירוט_התקלה', e.target.value)}
+                    type="date"
+                    value={formData.תאריך_חילוף}
+                    onChange={(e) => handleInputChange('תאריך_חילוף', e.target.value)}
+                    min={getTodayDateISO()}
                     className="text-right"
                     dir="rtl"
                 />
             </div>
 
-            {/* רמת דחיפות */}
+            {/* שעת התייצבות - כוח נכנס */}
             <div>
                 <label className="block text-right font-semibold mb-2">
-                    רמת דחיפות <span className="text-red-500">*</span>
+                    שעת התייצבות - כוח נכנס <span className="text-red-500">*</span>
                 </label>
-                <Select value={formData.רמת_דחיפות} onValueChange={(value) => handleInputChange('רמת_דחיפות', value)}>
-                    <SelectTrigger className="text-right" dir="rtl">
-                        <SelectValue placeholder="בחר רמת דחיפות" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {רמתדחיפותOptions.map((option) => (
-                            <SelectItem key={option} value={option}>{option}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <Input
+                    type="time"
+                    value={formData.שעת_התייצבות}
+                    onChange={(e) => handleInputChange('שעת_התייצבות', e.target.value)}
+                    className="text-right"
+                    dir="rtl"
+                />
+            </div>
+
+            {/* כמות חיילים נכנסים למוצב */}
+            <div>
+                <label className="block text-right font-semibold mb-2">
+                    כמות חיילים נכנסים למוצב <span className="text-red-500">*</span>
+                </label>
+                <Input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="הכנס מספר"
+                    value={formData.כמות_חיילים_נכנסים}
+                    onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, '');
+                        handleInputChange('כמות_חיילים_נכנסים', value);
+                    }}
+                    min="0"
+                    className="text-right"
+                    dir="rtl"
+                />
+            </div>
+
+            {/* כמות חיילים שיוצאים הביתה */}
+            <div>
+                <label className="block text-right font-semibold mb-2">
+                    כמות חיילים שיוצאים הביתה <span className="text-red-500">*</span>
+                </label>
+                <Input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="הכנס מספר"
+                    value={formData.כמות_חיילים_יוצאים}
+                    onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, '');
+                        handleInputChange('כמות_חיילים_יוצאים', value);
+                    }}
+                    min="0"
+                    className="text-right"
+                    dir="rtl"
+                />
+            </div>
+
+            {/* שם מפקד אחראי - כוח נכנס */}
+            <div>
+                <label className="block text-right font-semibold mb-2">
+                    שם מפקד אחראי - כוח נכנס <span className="text-red-500">*</span>
+                </label>
+                <Input
+                    type="text"
+                    placeholder="שם מפקד"
+                    value={formData.שם_מפקד_אחראי}
+                    onChange={(e) => handleInputChange('שם_מפקד_אחראי', e.target.value)}
+                    className="text-right"
+                    dir="rtl"
+                />
+            </div>
+
+            {/* מס' טלפון- מפקד אחראי */}
+            <div>
+                <label className="block text-right font-semibold mb-2">
+                    מס' טלפון - מפקד אחראי <span className="text-red-500">*</span>
+                </label>
+                <Input
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="מספר פלפון"
+                    value={formData.מספר_טלפון_מפקד}
+                    onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, '');
+                        handleInputChange('מספר_טלפון_מפקד', value);
+                    }}
+                    className="text-right"
+                    dir="rtl"
+                />
+            </div>
+
+            {/* מסלול נסיעה */}
+            <div>
+                <label className="block text-right font-semibold mb-2">
+                    מסלול נסיעה <span className="text-red-500">*</span>
+                </label>
+                <Input
+                    type="text"
+                    placeholder="מסלול נסיעה"
+                    value={formData.מסלול_נסיעה}
+                    onChange={(e) => handleInputChange('מסלול_נסיעה', e.target.value)}
+                    className="text-right"
+                    dir="rtl"
+                />
             </div>
 
             {/* Action Buttons */}
@@ -511,7 +566,7 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
 
                 {isLoadingData ? (
                     <div className="text-center py-8 text-gray-500">טוען נתונים...</div>
-                ) : binuyData.length === 0 ? (
+                ) : shayarotData.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">אין נתונים להצגה</div>
                 ) : (isA15Admin || viewMode === 'table') ? (
                     <div className="bg-white rounded-lg shadow overflow-x-auto">
@@ -519,13 +574,15 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                             <thead className="bg-gray-50">
                                 <tr>
                                     {[
-                                        {key: 'מיקום', label: 'מיקום'},
-                                        {key: 'סוג_תקלה', label: 'סוג תקלה'},
-                                        {key: 'פירוט_התקלה', label: 'פירוט התקלה'},
-                                        {key: 'רמת_דחיפות', label: 'רמת דחיפות'},
+                                        {key: 'תאריך_חילוף', label: 'תאריך חילוף'},
+                                        {key: 'שעת_התייצבות', label: 'שעת התייצבות'},
+                                        {key: 'כמות_חיילים_נכנסים', label: 'חיילים נכנסים'},
+                                        {key: 'כמות_חיילים_יוצאים', label: 'חיילים יוצאים'},
+                                        {key: 'שם_מפקד_אחראי', label: 'מפקד אחראי'},
+                                        {key: 'מספר_טלפון_מפקד', label: 'טלפון'},
+                                        {key: 'מסלול_נסיעה', label: 'מסלול נסיעה'},
                                         {key: 'פלוגה', label: 'פלוגה'},
                                         {key: 'סטטוס', label: 'סטטוס'},
-                                        {key: 'הערה', label: 'הערה'},
                                         {key: 'משתמש', label: 'משתמש'},
                                         {key: 'created_at', label: 'תאריך יצירה'}
                                     ].map(({key, label}) => (
@@ -533,7 +590,7 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                             <div className="flex items-center gap-1">
                                                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</span>
                                                 <button
-                                                    onClick={() => handleSort(key as keyof BinuyData)}
+                                                    onClick={() => handleSort(key as keyof ShayarotData)}
                                                     className="p-1 rounded hover:bg-gray-200 transition-colors"
                                                     title="מיון"
                                                 >
@@ -590,24 +647,24 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {filteredAndSortedData.map((item, index) => {
                                     const getRowBackgroundColor = () => {
-                                        if (item.סטטוס === 'טופל') return 'bg-green-100 hover:bg-green-200';
-                                        if (item.סטטוס === 'בטיפול') return 'bg-yellow-100 hover:bg-green-200';
+                                        if (item.סטטוס === 'בוצע') return 'bg-green-100 hover:bg-green-200';
+                                        if (item.סטטוס === 'מאושר') return 'bg-yellow-100 hover:bg-yellow-200';
                                         if (item.סטטוס === 'בוטל') return 'bg-red-100 hover:bg-red-200';
                                         return index % 2 === 1 ? 'bg-blue-50 hover:bg-gray-50' : 'hover:bg-gray-50';
                                     };
                                     
                                     return (
                                     <tr key={item.id} className={getRowBackgroundColor()}>
-                                        {/* מיקום */}
+                                        {/* תאריך חילוף */}
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'מיקום' ? (
+                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'תאריך_חילוף' ? (
                                                 <Input
-                                                    type="text"
+                                                    type="date"
                                                     value={editValue}
                                                     onChange={(e) => setEditValue(e.target.value)}
-                                                    onBlur={() => handleCellSave(item.id, 'מיקום')}
+                                                    onBlur={() => handleCellSave(item.id, 'תאריך_חילוף')}
                                                     onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleCellSave(item.id, 'מיקום');
+                                                        if (e.key === 'Enter') handleCellSave(item.id, 'תאריך_חילוף');
                                                         if (e.key === 'Escape') handleCellCancel();
                                                     }}
                                                     className="w-full text-sm"
@@ -615,24 +672,24 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                                 />
                                             ) : (
                                                 <span 
-                                                    onClick={() => handleCellEdit(item.id, 'מיקום', item.מיקום)}
+                                                    onClick={() => handleCellEdit(item.id, 'תאריך_חילוף', item.תאריך_חילוף)}
                                                     className={isA15Admin ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' : ''}
                                                 >
-                                                    {item.מיקום}
+                                                    {item.תאריך_חילוף}
                                                 </span>
                                             )}
                                         </td>
                                         
-                                        {/* סוג תקלה */}
+                                        {/* שעת התייצבות */}
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'סוג_תקלה' ? (
+                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'שעת_התייצבות' ? (
                                                 <Input
-                                                    type="text"
+                                                    type="time"
                                                     value={editValue}
                                                     onChange={(e) => setEditValue(e.target.value)}
-                                                    onBlur={() => handleCellSave(item.id, 'סוג_תקלה')}
+                                                    onBlur={() => handleCellSave(item.id, 'שעת_התייצבות')}
                                                     onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleCellSave(item.id, 'סוג_תקלה');
+                                                        if (e.key === 'Enter') handleCellSave(item.id, 'שעת_התייצבות');
                                                         if (e.key === 'Escape') handleCellCancel();
                                                     }}
                                                     className="w-full text-sm"
@@ -640,24 +697,24 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                                 />
                                             ) : (
                                                 <span 
-                                                    onClick={() => handleCellEdit(item.id, 'סוג_תקלה', item.סוג_תקלה)}
+                                                    onClick={() => handleCellEdit(item.id, 'שעת_התייצבות', item.שעת_התייצבות)}
                                                     className={isA15Admin ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' : ''}
                                                 >
-                                                    {item.סוג_תקלה}
+                                                    {formatTimeWithoutSeconds(item.שעת_התייצבות)}
                                                 </span>
                                             )}
                                         </td>
                                         
-                                        {/* פירוט התקלה */}
-                                        <td className="px-6 py-4 text-sm text-gray-900">
-                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'פירוט_התקלה' ? (
+                                        {/* כמות חיילים נכנסים */}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'כמות_חיילים_נכנסים' ? (
                                                 <Input
-                                                    type="text"
+                                                    type="number"
                                                     value={editValue}
                                                     onChange={(e) => setEditValue(e.target.value)}
-                                                    onBlur={() => handleCellSave(item.id, 'פירוט_התקלה')}
+                                                    onBlur={() => handleCellSave(item.id, 'כמות_חיילים_נכנסים')}
                                                     onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleCellSave(item.id, 'פירוט_התקלה');
+                                                        if (e.key === 'Enter') handleCellSave(item.id, 'כמות_חיילים_נכנסים');
                                                         if (e.key === 'Escape') handleCellCancel();
                                                     }}
                                                     className="w-full text-sm"
@@ -665,24 +722,24 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                                 />
                                             ) : (
                                                 <span 
-                                                    onClick={() => handleCellEdit(item.id, 'פירוט_התקלה', item.פירוט_התקלה)}
+                                                    onClick={() => handleCellEdit(item.id, 'כמות_חיילים_נכנסים', item.כמות_חיילים_נכנסים)}
                                                     className={isA15Admin ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' : ''}
                                                 >
-                                                    {item.פירוט_התקלה}
+                                                    {item.כמות_חיילים_נכנסים}
                                                 </span>
                                             )}
                                         </td>
                                         
-                                        {/* רמת דחיפות */}
+                                        {/* כמות חיילים יוצאים */}
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'רמת_דחיפות' ? (
+                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'כמות_חיילים_יוצאים' ? (
                                                 <Input
-                                                    type="text"
+                                                    type="number"
                                                     value={editValue}
                                                     onChange={(e) => setEditValue(e.target.value)}
-                                                    onBlur={() => handleCellSave(item.id, 'רמת_דחיפות')}
+                                                    onBlur={() => handleCellSave(item.id, 'כמות_חיילים_יוצאים')}
                                                     onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleCellSave(item.id, 'רמת_דחיפות');
+                                                        if (e.key === 'Enter') handleCellSave(item.id, 'כמות_חיילים_יוצאים');
                                                         if (e.key === 'Escape') handleCellCancel();
                                                     }}
                                                     className="w-full text-sm"
@@ -690,10 +747,85 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                                 />
                                             ) : (
                                                 <span 
-                                                    onClick={() => handleCellEdit(item.id, 'רמת_דחיפות', item.רמת_דחיפות)}
+                                                    onClick={() => handleCellEdit(item.id, 'כמות_חיילים_יוצאים', item.כמות_חיילים_יוצאים)}
                                                     className={isA15Admin ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' : ''}
                                                 >
-                                                    {item.רמת_דחיפות}
+                                                    {item.כמות_חיילים_יוצאים}
+                                                </span>
+                                            )}
+                                        </td>
+                                        
+                                        {/* שם מפקד אחראי */}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'שם_מפקד_אחראי' ? (
+                                                <Input
+                                                    type="text"
+                                                    value={editValue}
+                                                    onChange={(e) => setEditValue(e.target.value)}
+                                                    onBlur={() => handleCellSave(item.id, 'שם_מפקד_אחראי')}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleCellSave(item.id, 'שם_מפקד_אחראי');
+                                                        if (e.key === 'Escape') handleCellCancel();
+                                                    }}
+                                                    className="w-full text-sm"
+                                                    autoFocus
+                                                />
+                                            ) : (
+                                                <span 
+                                                    onClick={() => handleCellEdit(item.id, 'שם_מפקד_אחראי', item.שם_מפקד_אחראי)}
+                                                    className={isA15Admin ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' : ''}
+                                                >
+                                                    {item.שם_מפקד_אחראי}
+                                                </span>
+                                            )}
+                                        </td>
+                                        
+                                        {/* מספר טלפון מפקד */}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'מספר_טלפון_מפקד' ? (
+                                                <Input
+                                                    type="tel"
+                                                    value={editValue}
+                                                    onChange={(e) => setEditValue(e.target.value)}
+                                                    onBlur={() => handleCellSave(item.id, 'מספר_טלפון_מפקד')}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleCellSave(item.id, 'מספר_טלפון_מפקד');
+                                                        if (e.key === 'Escape') handleCellCancel();
+                                                    }}
+                                                    className="w-full text-sm"
+                                                    autoFocus
+                                                />
+                                            ) : (
+                                                <span 
+                                                    onClick={() => handleCellEdit(item.id, 'מספר_טלפון_מפקד', item.מספר_טלפון_מפקד)}
+                                                    className={isA15Admin ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' : ''}
+                                                >
+                                                    {item.מספר_טלפון_מפקד}
+                                                </span>
+                                            )}
+                                        </td>
+                                        
+                                        {/* מסלול נסיעה */}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'מסלול_נסיעה' ? (
+                                                <Input
+                                                    type="text"
+                                                    value={editValue}
+                                                    onChange={(e) => setEditValue(e.target.value)}
+                                                    onBlur={() => handleCellSave(item.id, 'מסלול_נסיעה')}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleCellSave(item.id, 'מסלול_נסיעה');
+                                                        if (e.key === 'Escape') handleCellCancel();
+                                                    }}
+                                                    className="w-full text-sm"
+                                                    autoFocus
+                                                />
+                                            ) : (
+                                                <span 
+                                                    onClick={() => handleCellEdit(item.id, 'מסלול_נסיעה', item.מסלול_נסיעה)}
+                                                    className={isA15Admin ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' : ''}
+                                                >
+                                                    {item.מסלול_נסיעה || '-'}
                                                 </span>
                                             )}
                                         </td>
@@ -732,13 +864,13 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                                         try {
                                                             const statusValue = value === 'none' ? null : value;
                                                             const { error } = await supabase
-                                                                .from('a15_binuy')
+                                                                .from('a15_shayarot')
                                                                 .update({ סטטוס: statusValue })
                                                                 .eq('id', item.id);
 
                                                             if (error) throw error;
 
-                                                            setBinuyData(prev => prev.map(i => 
+                                                            setShayarotData(prev => prev.map(i => 
                                                                 i.id === item.id ? { ...i, סטטוס: statusValue } : i
                                                             ));
                                                             setStatusMessage({ text: 'סטטוס עודכן בהצלחה', isSuccess: true });
@@ -752,38 +884,13 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="none">ללא סטטוס</SelectItem>
-                                                        <SelectItem value="טופל">טופל</SelectItem>
-                                                        <SelectItem value="בטיפול">בטיפול</SelectItem>
+                                                        <SelectItem value="בוצע">בוצע</SelectItem>
+                                                        <SelectItem value="מאושר">מאושר</SelectItem>
                                                         <SelectItem value="בוטל">בוטל</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             ) : (
                                                 <span>{item.סטטוס || '-'}</span>
-                                            )}
-                                        </td>
-                                        
-                                        {/* הערה */}
-                                        <td className="px-6 py-4 text-sm text-gray-900">
-                                            {isA15Admin && editingCell?.rowId === item.id && editingCell?.field === 'הערה' ? (
-                                                <Input
-                                                    type="text"
-                                                    value={editValue}
-                                                    onChange={(e) => setEditValue(e.target.value)}
-                                                    onBlur={() => handleCellSave(item.id, 'הערה')}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleCellSave(item.id, 'הערה');
-                                                        if (e.key === 'Escape') handleCellCancel();
-                                                    }}
-                                                    className="w-full text-sm"
-                                                    autoFocus
-                                                />
-                                            ) : (
-                                                <span 
-                                                    onClick={() => handleCellEdit(item.id, 'הערה', item.הערה)}
-                                                    className={isA15Admin ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' : ''}
-                                                >
-                                                    {item.הערה || '-'}
-                                                </span>
                                             )}
                                         </td>
                                         
@@ -824,35 +931,37 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
                     </div>
                 ) : (
                     <div className="grid gap-4">
-                        {binuyData.map((item) => (
+                        {shayarotData.map((item) => (
                             <div key={item.id} className="border rounded-lg p-4 bg-gray-50 shadow-sm">
                                 <div className="grid grid-cols-2 gap-3 text-sm">
                                     <div className="text-right">
-                                        <span className="font-semibold text-blue-700">מיקום:</span>
-                                        <div className="mt-1">{item.מיקום}</div>
+                                        <span className="font-semibold text-blue-700">תאריך חילוף:</span>
+                                        <div className="mt-1">{item.תאריך_חילוף}</div>
                                     </div>
                                     <div className="text-right">
-                                        <span className="font-semibold text-blue-700">סוג תקלה:</span>
-                                        <div className="mt-1">{item.סוג_תקלה}</div>
+                                        <span className="font-semibold text-blue-700">שעת התייצבות:</span>
+                                        <div className="mt-1">{formatTimeWithoutSeconds(item.שעת_התייצבות)}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="font-semibold text-blue-700">חיילים נכנסים:</span>
+                                        <div className="mt-1">{item.כמות_חיילים_נכנסים}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="font-semibold text-blue-700">חיילים יוצאים:</span>
+                                        <div className="mt-1">{item.כמות_חיילים_יוצאים}</div>
                                     </div>
                                     <div className="text-right col-span-2">
-                                        <span className="font-semibold text-blue-700">פירוט התקלה:</span>
-                                        <div className="mt-1">{item.פירוט_התקלה}</div>
+                                        <span className="font-semibold text-blue-700">מפקד אחראי:</span>
+                                        <div className="mt-1">{item.שם_מפקד_אחראי}</div>
                                     </div>
-                                    <div className="text-right">
-                                        <span className="font-semibold text-blue-700">רמת דחיפות:</span>
-                                        <div className="mt-1">{item.רמת_דחיפות}</div>
+                                    <div className="text-right col-span-2">
+                                        <span className="font-semibold text-blue-700">טלפון:</span>
+                                        <div className="mt-1">{item.מספר_טלפון_מפקד}</div>
                                     </div>
-                                    <div className="text-right">
-                                        <span className="font-semibold text-blue-700">פלוגה:</span>
-                                        <div className="mt-1">{item.פלוגה}</div>
+                                    <div className="text-right col-span-2">
+                                        <span className="font-semibold text-blue-700">מסלול נסיעה:</span>
+                                        <div className="mt-1">{item.מסלול_נסיעה || '-'}</div>
                                     </div>
-                                    {item.הערה && (
-                                        <div className="text-right col-span-2">
-                                            <span className="font-semibold text-blue-700">הערה:</span>
-                                            <div className="mt-1">{item.הערה}</div>
-                                        </div>
-                                    )}
                                     <div className="text-right col-span-2 pt-2 border-t mt-2">
                                         <span className="font-semibold text-gray-600">תאריך יצירה:</span>
                                         <div className="mt-1 text-gray-600">{formatDateTime(item.created_at)}</div>
@@ -867,4 +976,4 @@ const Binuy: React.FC<BinuyFormProps> = ({ activePermission }) => {
     );
 };
 
-export default Binuy;
+export default Shayarot;

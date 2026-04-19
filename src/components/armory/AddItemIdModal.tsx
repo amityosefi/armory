@@ -348,7 +348,6 @@ const AddItemIdModal: React.FC<AddItemIdModalProps> = ({
                                     {kind}
                                 </option>
                             ))}
-                            <option value="ציוד">ציוד</option>
                         </select>
                     </div>
 

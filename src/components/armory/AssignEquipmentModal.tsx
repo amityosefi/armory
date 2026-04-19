@@ -148,7 +148,7 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierName
       // Log to armory_document
       await supabase.from('armory_document').insert({
         'משתמש': permissions['name'] ? String(permissions['name']) : 'Unknown',
-        'תאריך': new Date().toLocaleString('he-IL'),
+        'תאריך': currentTime,
         'הודעה': message
       });
       

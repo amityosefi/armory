@@ -2,9 +2,9 @@ import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/stores/useAuthStore";
 import Shayarot from "./Shayarot";
-import Binuy from "@/a15/binuy";
-import Tazqiqim from "@/a15/Tazqiqim";
-import Otzma from "@/a15/Otzma";
+import Binuy from "@/components/a15/binuy";
+import Tazqiqim from "@/components/a15/Tazqiqim";
+import Otzma from "@/components/a15/Otzma";
 
 interface A15Props {
     selectedSheet: {

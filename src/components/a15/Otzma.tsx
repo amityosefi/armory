@@ -417,9 +417,6 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
         try {
             const צ = parseInt(formData.צ);
             
-            const now = new Date();
-            now.setHours(now.getHours() + 2);
-
             const { data, error } = await supabase.from('a15_otzma').insert({
                 צ: צ,
                 אמצעי: formData.אמצעי,
@@ -432,7 +429,7 @@ const Otzma: React.FC<OtzmaFormProps> = ({ activePermission }) => {
                 בעלות: formData.בעלות,
                 סוג_דלק: formData.סוג_דלק,
                 משתמש: permissions['name'],
-                created_at: now.toISOString()
+                created_at: new Date().toISOString()
             });
 
             if (error) {
