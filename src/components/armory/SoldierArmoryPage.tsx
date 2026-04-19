@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
-import { Pencil, ArrowRightLeft, Download, Ban, PenLine, Home, Wrench } from 'lucide-react';
+import { Pencil, ArrowRightLeft, Download, Ban, PenLine, Home, Wrench, Plus, Trash } from 'lucide-react';
 import TransferItemModal from './TransferItemModal';
 import AssignEquipmentModal from './AssignEquipmentModal';
 import WeaponReturnSignatureModal from './WeaponReturnSignatureModal';
@@ -10,6 +10,7 @@ import { exportSoldierPDF } from './SoldierPDFExport';
 import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
 import useIsMobile from '@/hooks/useIsMobile';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import equipmentJson from '@/assets/equipment.json';
 
 interface Person {
   id: number;
@@ -54,6 +55,85 @@ const SoldierArmoryPage: React.FC = () => {
 
   const plugotOptions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'מכלול', 'פלסם'];
 
+  // Soldier equipment state (for non-armory users)
+  interface SoldierEquipment {
+    id?: number;
+    soldier_id: number;
+    name: string;
+    quantity: number;
+  }
+  const [soldierEquipment, setSoldierEquipment] = useState<SoldierEquipment[]>([]);
+  const [equipmentLoading, setEquipmentLoading] = useState(false);
+  const [addingEquipment, setAddingEquipment] = useState(false);
+  const [newEquipName, setNewEquipName] = useState('');
+  const [newEquipQty, setNewEquipQty] = useState(1);
+  const equipmentNames = Object.keys(equipmentJson).sort((a, b) => a.localeCompare(b, 'he'));
+
+  const fetchSoldierEquipment = async () => {
+    if (!soldierID) return;
+    setEquipmentLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('armory_soldier_equipment')
+        .select('*')
+        .eq('soldier_id', soldierID);
+      if (error) throw error;
+      setSoldierEquipment((data as unknown as SoldierEquipment[]) || []);
+    } catch (err) {
+      console.error('Error fetching soldier equipment:', err);
+    } finally {
+      setEquipmentLoading(false);
+    }
+  };
+
+  const handleAddEquipment = async () => {
+    if (!newEquipName || !soldierID || newEquipQty < 1) return;
+    setAddingEquipment(true);
+    try {
+      const { error } = await supabase
+        .from('armory_soldier_equipment')
+        .insert({ soldier_id: Number(soldierID), name: newEquipName, quantity: newEquipQty });
+      if (error) throw error;
+      setNewEquipName('');
+      setNewEquipQty(1);
+      await fetchSoldierEquipment();
+    } catch (err) {
+      console.error('Error adding equipment:', err);
+      setStatusMessage({ text: 'שגיאה בהוספת ציוד', isSuccess: false });
+    } finally {
+      setAddingEquipment(false);
+    }
+  };
+
+  const handleUpdateEquipmentQty = async (id: number, quantity: number) => {
+    if (quantity < 1) return;
+    try {
+      const { error } = await supabase
+        .from('armory_soldier_equipment')
+        .update({ quantity })
+        .eq('id', id);
+      if (error) throw error;
+      setSoldierEquipment(prev => prev.map(e => e.id === id ? { ...e, quantity } : e));
+    } catch (err) {
+      console.error('Error updating equipment quantity:', err);
+      setStatusMessage({ text: 'שגיאה בעדכון כמות', isSuccess: false });
+    }
+  };
+
+  const handleRemoveEquipment = async (id: number) => {
+    try {
+      const { error } = await supabase
+        .from('armory_soldier_equipment')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      setSoldierEquipment(prev => prev.filter(e => e.id !== id));
+    } catch (err) {
+      console.error('Error removing equipment:', err);
+      setStatusMessage({ text: 'שגיאה במחיקת ציוד', isSuccess: false });
+    }
+  };
+
   // Helper function to log successful actions to armory_document
   const logToArmoryDocument = async (message: string) => {
     try {
@@ -70,6 +150,9 @@ const SoldierArmoryPage: React.FC = () => {
   useEffect(() => {
     if (soldierID) {
       fetchSoldierData();
+      if (!permissions['armory']) {
+        fetchSoldierEquipment();
+      }
     }
   }, [soldierID]);
 
@@ -574,6 +657,103 @@ const SoldierArmoryPage: React.FC = () => {
           </div>
         </div>
       ))}
+
+      {/* Soldier Equipment Section - only for non-armory users */}
+      {(!permissions['armory'] || true) && (
+        <div className="mb-6">
+          <div className="bg-purple-600 text-white font-bold text-lg p-2 rounded-t-lg">ציוד אישי</div>
+          <div className="bg-white rounded-b-lg shadow-md p-4">
+            {equipmentLoading ? (
+              <div className="flex justify-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-purple-500"></div>
+              </div>
+            ) : (
+              <>
+                {soldierEquipment.length > 0 ? (
+                  <table className="w-full text-sm mb-4">
+                    <thead className="bg-purple-100">
+                      <tr>
+                        <th className="p-2 text-right">שם פריט</th>
+                        <th className="p-2 text-right w-20">כמות</th>
+                        <th className="p-2 text-right w-16"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {soldierEquipment.map((equip, index) => (
+                        <tr key={equip.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                          <td className="p-2">{equip.name}</td>
+                          <td className="p-2">
+                            <input
+                              type="number"
+                              min={1}
+                              value={equip.quantity}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 1;
+                                setSoldierEquipment(prev => prev.map(eq => eq.id === equip.id ? { ...eq, quantity: val } : eq));
+                              }}
+                              onBlur={() => equip.id && handleUpdateEquipmentQty(equip.id, equip.quantity)}
+                              className="w-16 border border-gray-300 rounded px-2 py-1 text-right"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <button
+                              onClick={() => equip.id && handleRemoveEquipment(equip.id)}
+                              className="text-red-500 hover:text-red-700 p-1"
+                            >
+                              <Trash className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-gray-500 text-center py-3 mb-4">אין ציוד אישי</p>
+                )}
+
+                {/* Add equipment form */}
+                <div className="flex gap-2 items-end flex-wrap">
+                  <div className="flex-1 min-w-[140px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">פריט</label>
+                    <select
+                      value={newEquipName}
+                      onChange={(e) => setNewEquipName(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-right"
+                    >
+                      <option value="">-- בחר פריט --</option>
+                      {equipmentNames.map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-20">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">כמות</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={newEquipQty}
+                      onChange={(e) => setNewEquipQty(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-right"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleAddEquipment}
+                    disabled={!newEquipName || addingEquipment}
+                    className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1"
+                  >
+                    {addingEquipment ? (
+                      <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
+                    ) : (
+                      <Plus className="w-4 h-4" />
+                    )}
+                    הוסף
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {transferModalOpen && selectedItemForTransfer && (
         <TransferItemModal 
