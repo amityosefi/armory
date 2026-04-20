@@ -389,7 +389,7 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
         }
 
         // Format items for insertion
-        const formattedDate = new Date().toLocaleString('he-IL');
+        const formattedDate = new Date().toISOString();
         let formattedItems = items.map(item => ({
             תאריך: formattedDate,
             פריט: item.פריט,
