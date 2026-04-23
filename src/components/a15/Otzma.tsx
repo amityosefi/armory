@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabaseClient';
 import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
 import { TableIcon, ArrowUpDown, ArrowUp, ArrowDown, Filter, Trash2, Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import * as XLSX from '@e965/xlsx';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
     Select,

@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select';
 import CreatableSelect from 'react-select/creatable';
 import {Trash, LayoutGrid, Table as TableIcon, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download} from 'lucide-react';
-import * as XLSX from 'xlsx';
+import * as XLSX from '@e965/xlsx';
 
 interface LogisticDemandsProps {
     selectedSheet: {
@@ -389,7 +389,7 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
         }
 
         // Format items for insertion
-        const formattedDate = new Date().toLocaleString('he-IL');
+        const formattedDate = new Date().toISOString();
         let formattedItems = items.map(item => ({
             תאריך: formattedDate,
             פריט: item.פריט,

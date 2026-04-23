@@ -37,6 +37,15 @@ const STATUS_DISPLAY_MAP: Record<string, string> = {
     'התעצמות': 'התעצמות'
 };
 
+const NIKRA_OPTIONS = ['עלה', 'מוכן', 'סופק', 'נגרע'] as const;
+
+const NIKRA_COLORS: Record<string, { bg: string; hover: string; hex: string; dot: string }> = {
+    'עלה':  { bg: '',              hover: '',                   hex: '#ffffff', dot: 'bg-white border border-gray-300' },
+    'מוכן': { bg: 'bg-yellow-50',  hover: 'hover:bg-yellow-100', hex: '#fefce8', dot: 'bg-yellow-400' },
+    'סופק': { bg: 'bg-green-50',   hover: 'hover:bg-green-100',  hex: '#f0fdf4', dot: 'bg-green-500' },
+    'נגרע': { bg: 'bg-red-50',     hover: 'hover:bg-red-100',    hex: '#fef2f2', dot: 'bg-red-500' },
+};
+
 interface LogisticProps {
     selectedSheet: {
         name: string;
@@ -437,7 +446,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 width: 80,
                 editable: permissions['logistic'],
                 cellEditor: 'agSelectCellEditor',
-                cellEditorParams: {values: ['כן', 'לא']},
+                cellEditorParams: {values: [...NIKRA_OPTIONS]},
                 onCellValueChanged: async (params: any) => {
                     await handleReadStatusChange(params);
                 }
@@ -556,8 +565,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             return;
         }
 
-        if (selectedCardItem.נקרא === 'כן') {
-            setStatusMessage({text: "לא ניתן למחוק פריט שנקרא כבר", type: "error"});
+        if (selectedCardItem.נקרא && selectedCardItem.נקרא !== 'עלה') {
+            setStatusMessage({text: "לא ניתן למחוק פריט שסטטוס שלו אינו עלה", type: "error"});
             return;
         }
 
@@ -590,15 +599,15 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         }
     };
 
-    // Handle toggle read status from card detail modal
-    const handleToggleCardReadStatus = async () => {
+    // Handle setting card נקרא status
+    const handleSetCardStatus = async (newStatus: string) => {
         if (!selectedCardItem?.id) {
             setStatusMessage({text: "שגיאה: לא ניתן לעדכן פריט ללא מזהה", type: "error"});
             return;
         }
 
         const currentStatus = selectedCardItem.נקרא;
-        const newStatus = currentStatus === 'כן' ? 'לא' : 'כן';
+        if (currentStatus === newStatus) return;
 
         setCardLoading(true);
         try {
@@ -608,21 +617,20 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                 .eq("id", selectedCardItem.id);
 
             if (error) {
-                console.error("Error updating read status:", error);
-                setStatusMessage({text: `שגיאה בעדכון סטטוס קריאה: ${error.message}`, type: "error"});
+                console.error("Error updating status:", error);
+                setStatusMessage({text: `שגיאה בעדכון סטטוס: ${error.message}`, type: "error"});
                 return;
             }
 
-            // Refresh data after update
             await fetchData();
             setStatusMessage({
-                text: `סטטוס קריאה עודכן - תאריך: ${selectedCardItem.תאריך}, פריט: ${selectedCardItem.פריט}, כמות: ${selectedCardItem.כמות}, נקרא: ${currentStatus} -> ${newStatus}`,
+                text: `סטטוס עודכן - ${selectedCardItem.פריט}: ${currentStatus} -> ${newStatus}`,
                 type: "success"
             });
             setCardDetailModalOpen(false);
             setSelectedCardItem(null);
         } catch (err: any) {
-            console.error("Unexpected error during read status update:", err);
+            console.error("Unexpected error during status update:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
         } finally {
             setCardLoading(false);
@@ -668,33 +676,31 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         }
     };
 
-    // Handle read status toggle for card view (kept for backward compatibility)
-    const handleCardReadStatusToggle = async (item: LogisticItem) => {
+    // Handle setting נקרא status for a specific item (used by card view)
+    const handleCardReadStatusToggle = async (item: LogisticItem, newStatus?: string) => {
         if (!item.id) {
             setStatusMessage({text: "שגיאה: לא ניתן לעדכן פריט ללא מזהה", type: "error"});
             return;
         }
 
-        const currentStatus = item.נקרא;
-        const newStatus = currentStatus === 'כן' ? 'לא' : 'כן';
+        const status = newStatus || 'עלה';
 
         try {
             const {error} = await supabase
                 .from("logistic")
-                .update({"נקרא": newStatus})
+                .update({"נקרא": status})
                 .eq("id", item.id);
 
             if (error) {
-                console.error("Error updating read status:", error);
-                setStatusMessage({text: `שגיאה בעדכון סטטוס קריאה: ${error.message}`, type: "error"});
+                console.error("Error updating status:", error);
+                setStatusMessage({text: `שגיאה בעדכון סטטוס: ${error.message}`, type: "error"});
                 return;
             }
 
-            // Refresh data after update
             await fetchData();
-            setStatusMessage({text: `סטטוס קריאה עודכן בהצלחה - ${item.פריט} שונה ל-"${newStatus}"`, type: "success"});
+            setStatusMessage({text: `סטטוס עודכן - ${item.פריט} שונה ל-"${status}"`, type: "success"});
         } catch (err: any) {
-            console.error("Unexpected error during read status update:", err);
+            console.error("Unexpected error during status update:", err);
             setStatusMessage({text: `שגיאה לא צפויה: ${err.message}`, type: "error"});
         }
     };
@@ -844,7 +850,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
             }
         }
         // Format items for insertion
-        const formattedDate = new Date().toLocaleString('he-IL');
+        const formattedDate = new Date().toISOString();
         let formattedItems = items.map(item => ({
             תאריך: formattedDate,
             פריט: item.פריט,
@@ -921,8 +927,8 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         try {
             setLoading(true);
 
-            if (selectedRows.filter(row => row.נקרא === 'כן').length > 0) {
-                setStatusMessage({text: `לא ניתן למחוק פריטים שנקראו`, type: "error"});
+            if (selectedRows.filter(row => row.נקרא && row.נקרא !== 'עלה').length > 0) {
+                setStatusMessage({text: `לא ניתן למחוק פריטים שסטטוס שלהם אינו עלה`, type: "error"});
                 return;
             }
             // Extract IDs from selected rows
@@ -1307,16 +1313,27 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     {permissions['logistic'] && (
                                         <>
                                             <li>העברת דרישות להחתמה על ידי לחיצה על התאריך והשלמת פרטים.</li>
-                                            <li>לחיצה על כרטיסיה פנימית (פריט אחד) וסימון שנקרא (כלומר דיווח טופל), והפוך.</li>
+                                            <li>לחיצה על כרטיסיה פנימית ושינוי סטטוס הפריט.</li>
                                         </>
                                     )}
-                                    <li>כרטיסיה עם רקע אדום נחשבת ככרטיסיה שנקראה וטופלה.</li>
-                                    <li>לחיצה על כרטיסיה פנימית (פריט אחד) ומחיקת הפריט במידה ולא נקראה. (במידה וישנו טעות בדרישה).</li>
+                                    <li>לחיצה על כרטיסיה פנימית ומחיקת הפריט (רק אם בסטטוס עלה).</li>
                                     <li>מעבר לטבלה על מנת לסנן ולהגיע לתוצאה רצויה.</li>
                                 </ul>
                             </PopoverContent>
                         </Popover>
                     )}
+                </div>
+            )}
+
+            {/* Status legend */}
+            {(activeTab === 'הזמנה' || activeTab === 'התעצמות') && viewMode === 'cards' && (
+                <div className="flex items-center gap-4 mb-3 p-2 bg-gray-100 rounded-lg flex-wrap justify-center" dir="rtl">
+                    {NIKRA_OPTIONS.map(status => (
+                        <div key={status} className="flex items-center gap-1.5">
+                            <span className={`w-3 h-3 rounded-full ${NIKRA_COLORS[status].dot}`}></span>
+                            <span className="text-sm text-gray-700">{status}</span>
+                        </div>
+                    ))}
                 </div>
             )}
 
@@ -1349,7 +1366,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     {items.map((item, idx) => (
                                         <div
                                             key={item.id || idx}
-                                            className={`p-4 hover:bg-gray-100 cursor-pointer transition-colors ${item.נקרא === 'כן' ? 'bg-red-50 hover:bg-red-100' : ''}`}
+                                            className={`p-4 cursor-pointer transition-colors ${NIKRA_COLORS[item.נקרא || 'עלה']?.bg || ''} ${NIKRA_COLORS[item.נקרא || 'עלה']?.hover || 'hover:bg-gray-100'}`}
                                             onClick={() => handleCardClick(item)}
                                         >
                                             <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1417,9 +1434,10 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     }
                                     return undefined;
                                 }
-                                // For other tabs, keep the red background for נקרא=כן
-                                if (params.data && params.data.נקרא === 'כן') {
-                                    return {backgroundColor: '#ffcccc'}; // Light red background
+                                // For other tabs, color by נקרא status
+                                if (params.data && params.data.נקרא && NIKRA_COLORS[params.data.נקרא]) {
+                                    const hex = NIKRA_COLORS[params.data.נקרא].hex;
+                                    if (hex !== '#ffffff') return {backgroundColor: hex};
                                 }
                             }}
                         />
@@ -1483,8 +1501,37 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                             </div>
 
                             <div className="flex flex-col gap-2 pt-4">
-                                {/* Delete button - only if נקרא=לא */}
-                                {selectedCardItem.נקרא !== 'כן' && (
+                                {/* Status buttons - for permission['logistic'] */}
+                                {permissions['logistic'] && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2 text-right">סטטוס דרישה:</label>
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {NIKRA_OPTIONS.map(status => (
+                                                <button
+                                                    key={status}
+                                                    onClick={() => handleSetCardStatus(status)}
+                                                    disabled={cardLoading}
+                                                    className={`px-2 py-2 rounded-lg text-sm font-medium border-2 transition-all flex items-center justify-center gap-1 ${
+                                                        selectedCardItem.נקרא === status
+                                                            ? 'ring-2 ring-offset-1 ring-blue-500 border-blue-500 font-bold'
+                                                            : 'border-gray-200 hover:border-gray-400'
+                                                    } ${NIKRA_COLORS[status].bg || 'bg-white'}`}
+                                                >
+                                                    <span className={`w-2.5 h-2.5 rounded-full ${NIKRA_COLORS[status].dot}`}></span>
+                                                    {status}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {cardLoading && (
+                                            <div className="flex justify-center mt-2">
+                                                <span className="animate-spin inline-block h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Delete button - only if status is עלה */}
+                                {(!selectedCardItem.נקרא || selectedCardItem.נקרא === 'עלה') && (
                                     <Button
                                         type="button"
                                         variant="destructive"
@@ -1494,19 +1541,6 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                     >
                                         {cardLoading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
                                         {cardLoading ? 'מוחק...' : 'מחק פריט'}
-                                    </Button>
-                                )}
-
-                                {/* Toggle read status - only for permission['logistic'] */}
-                                {permissions['logistic'] && (
-                                    <Button
-                                        type="button"
-                                        onClick={handleToggleCardReadStatus}
-                                        disabled={cardLoading}
-                                        className="w-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2"
-                                    >
-                                        {cardLoading && <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>}
-                                        {cardLoading ? 'מעדכן...' : `שנה נקרא ל-${selectedCardItem.נקרא === 'כן' ? 'לא' : 'כן'}`}
                                     </Button>
                                 )}
 

@@ -12,6 +12,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'), // <--- this line is important
+      'xlsx': '@e965/xlsx',
     },
   },
 })

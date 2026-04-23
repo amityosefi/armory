@@ -20,6 +20,11 @@
     "outDir": "./dist",
 
     "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "xlsx": ["node_modules/@e965/xlsx"]
+    },
 
     "strict": true,
     "noUnusedLocals": true,

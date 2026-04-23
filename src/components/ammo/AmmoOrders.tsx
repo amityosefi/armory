@@ -5,7 +5,7 @@ import { AgGridReact } from "ag-grid-react";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { ColDef } from "ag-grid-community";
-import * as XLSX from 'xlsx';
+import * as XLSX from '@e965/xlsx';
 import { Button } from "@/components/ui/button";
 import { Download } from 'lucide-react';
 
