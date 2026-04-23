@@ -5,7 +5,7 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 import {supabase} from "@/lib/supabaseClient";
 import {ColDef} from "ag-grid-community";
 import {usePermissions} from "@/contexts/PermissionsContext";
-import * as XLSX from 'xlsx';
+import * as XLSX from '@e965/xlsx';
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet } from 'lucide-react';
 import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";

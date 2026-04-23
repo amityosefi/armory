@@ -23,7 +23,8 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "xlsx": ["node_modules/@e965/xlsx"]
     },
   }
 }

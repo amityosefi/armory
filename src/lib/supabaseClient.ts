@@ -3,14 +3,17 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY!
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Database = any
+
 // Prevent multiple clients during hot reload (important in dev)
 const globalForSupabase = globalThis as unknown as {
-    supabase?: ReturnType<typeof createClient>
+    supabase?: ReturnType<typeof createClient<Database>>
 }
 
 export const supabase =
     globalForSupabase.supabase ??
-    createClient(supabaseUrl, supabaseAnonKey, {
+    createClient<Database>(supabaseUrl, supabaseAnonKey, {
         auth: {
             persistSession: true,
             autoRefreshToken: true,
