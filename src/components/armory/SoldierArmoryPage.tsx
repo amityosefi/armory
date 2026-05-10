@@ -26,7 +26,6 @@ interface ArmoryItem {
   is_save: boolean;
   name: string;
   people_sign?: string;
-  sign_time?: string;
   logistic_sign?: string;
   logistic_name?: string;
   logistic_id?: string;
@@ -134,12 +133,10 @@ const SoldierArmoryPage: React.FC = () => {
     }
   };
 
-  // Helper function to log successful actions to armory_document
   const logToArmoryDocument = async (message: string) => {
     try {
       await supabase.from('armory_document').insert({
         'משתמש': permissions['name'] || 'Unknown',
-        'תאריך': new Date().toLocaleString('he-IL'),
         'הודעה': message
       });
     } catch (error) {
@@ -294,13 +291,12 @@ const SoldierArmoryPage: React.FC = () => {
     if (!selectedWeaponForReturn) return;
 
     try {
-      const currentTime = new Date().toLocaleString('he-IL');
+      const currentTime = new Date().toISOString();
       
       const { error } = await supabase
         .from('armory_items')
         .update({ 
           is_save: false,
-          sign_time: currentTime,
           people_sign: signature,
           logistic_sign: permissions['signature'] ? String(permissions['signature']) : '',
           logistic_name: permissions['name'] ? String(permissions['name']) : '',
@@ -316,7 +312,6 @@ const SoldierArmoryPage: React.FC = () => {
         i.id === selectedWeaponForReturn.id ? { 
           ...i, 
           is_save: false,
-          sign_time: currentTime,
           people_sign: signature,
           logistic_sign: permissions['signature'] ? String(permissions['signature']) : '',
           logistic_name: permissions['name'] ? String(permissions['name']) : '',
@@ -343,7 +338,7 @@ const SoldierArmoryPage: React.FC = () => {
     try {
       const { error } = await supabase
         .from('armory_items')
-        .update({ location: newLocation , is_save: false, people_sign: '', sign_time: '', logistic_sign: '', logistic_name: '', logistic_id: 0, is_examine: false, is_examine_groups: false})
+        .update({ location: newLocation , is_save: false, people_sign: '', logistic_sign: '', logistic_name: '', logistic_id: 0, is_examine: false, is_examine_groups: false})
         .eq('id', item.id)
         .eq('kind', item.kind)
           .eq('name', item.name);
@@ -369,7 +364,7 @@ const SoldierArmoryPage: React.FC = () => {
       
       const { error: itemsError } = await supabase
         .from('armory_items')
-        .update({ location: 'גדוד' , is_save: false, people_sign: '', sign_time: '', logistic_sign: '', logistic_name: '', logistic_id: 0, is_examine: false, is_examine_groups: false})
+        .update({ location: 'גדוד' , is_save: false, people_sign: '', logistic_sign: '', logistic_name: '', logistic_id: 0, is_examine: false, is_examine_groups: false})
         .eq('location', soldierID!);
 
       if (itemsError) throw itemsError;

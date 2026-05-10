@@ -371,7 +371,6 @@ const AdminPage = () => {
                 // Log to armory_document
                 await supabase.from('armory_document').insert({
                     'משתמש': permissions['name'] ? String(permissions['name']) : 'Admin',
-                    'תאריך': new Date().toLocaleString('he-IL'),
                     'הודעה': successMsg
                 });
                 
@@ -442,7 +441,6 @@ const AdminPage = () => {
                     // Log to armory_document
                     await supabase.from('armory_document').insert({
                         'משתמש': permissions['name'] ? String(permissions['name']) : 'Admin',
-                        'תאריך': new Date().toLocaleString('he-IL'),
                         'הודעה': successMsg
                     });
                     
@@ -497,7 +495,6 @@ const AdminPage = () => {
             // Log to armory_document
             await supabase.from('armory_document').insert({
                 'משתמש': permissions['name'] ? String(permissions['name']) : 'Admin',
-                'תאריך': new Date().toLocaleString('he-IL'),
                 'הודעה': successMsg
             });
 
@@ -534,7 +531,6 @@ const AdminPage = () => {
                 // Log to armory_document
                 await supabase.from('armory_document').insert({
                     'משתמש': permissions['name'] ? String(permissions['name']) : 'Admin',
-                    'תאריך': new Date().toLocaleString('he-IL'),
                     'הודעה': successMsg
                 });
 

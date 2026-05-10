@@ -3,7 +3,7 @@ import {AgGridReact} from "ag-grid-react";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import {supabase} from "@/lib/supabaseClient";
-import {ColDef} from "ag-grid-community";
+import {ColDef, ValueFormatterParams} from "ag-grid-community";
 import {usePermissions} from "@/contexts/PermissionsContext";
 import {Button} from "@/components/ui/button";
 import {X, ClipboardCheck} from "lucide-react";
@@ -144,7 +144,6 @@ const ArmoryDocumentation: React.FC = () => {
             const { error } = await supabase
                 .from("armory_document")
                 .insert([{
-                    תאריך: new Date().toLocaleString('he-IL'),
                     משתמש: permissions['name'],
                     הודעה: 'הודעה מאפליקציה: ' + newMessage
                 }]);
@@ -190,7 +189,17 @@ const ArmoryDocumentation: React.FC = () => {
             if (key === 'משתמש') {
                 return { ...baseConfig, width: 110 };
             } else if (key === 'תאריך') {
-                return { ...baseConfig, width: 180 };
+                return {
+                    ...baseConfig,
+                    width: 180,
+                    valueFormatter: (params: ValueFormatterParams<DocumentItem>) => {
+                        if (!params.value) return '';
+                        const m = String(params.value).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+                        if (!m) return String(params.value);
+                        const [, y, mo, d, h, mi] = m;
+                        return `${d}.${mo}.${y}, ${h}:${mi}`;
+                    },
+                };
             } else if (key === 'הודעה') {
                 return { ...baseConfig, width: 1000, cellStyle: {textAlign: 'right'} };
             } else {

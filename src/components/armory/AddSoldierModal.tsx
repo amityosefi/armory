@@ -415,7 +415,7 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
                 setLoading(false);
                 return;
             }
-            const currentTime = new Date().toLocaleString('he-IL');
+            const currentTime = new Date().toISOString();
             // Assign selected items to the soldier
             if (selectedItems.length > 0) {
 
@@ -452,10 +452,8 @@ const AddSoldierModal: React.FC<AddSoldierModalProps> = ({
             const itemsList = selectedItems.map(item => `${item.kind} ${item.name} (#${item.id})`).join(', ');
             const successMsg = `חייל ${nameStr} (מספר אישי: ${idStr}) נוסף בהצלחה ל${locationRange} ${selectedItems.length > 0 ? ` עם ${selectedItems.length} פריטי ציוד: ${itemsList}` : ''}`;
             
-            // Log to armory_document
             await supabase.from('armory_document').insert({
                 'משתמש': permissions['name'] ? String(permissions['name']) : 'Unknown',
-                'תאריך': currentTime,
                 'הודעה': successMsg
             });
             

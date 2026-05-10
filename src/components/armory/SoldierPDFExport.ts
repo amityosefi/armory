@@ -29,6 +29,15 @@ const mirrorHebrew = (str: string): string => {
     return [...str].reverse().join('');
 };
 
+// Format an ISO/timestamp string as dd.mm.yyyy, hh:mm without timezone conversion
+const formatSignTime = (value: string | undefined): string => {
+    if (!value) return '';
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    if (!m) return String(value);
+    const [, y, mo, d, h, mi] = m;
+    return `${d}.${mo}.${y}, ${h}:${mi}`;
+};
+
 // Smart Hebrew mirroring that handles mixed content
 const mirrorHebrewSmart = (str: string): string => {
     if (!str) return '';
@@ -155,7 +164,7 @@ const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryIte
         const isWeaponTable = kind === 'נשק';
         const kvPairs = items.map(item => {
             const row = isWeaponTable ? [
-                item.sign_time || '',
+                formatSignTime(item.sign_time),
                 mirrorHebrewSmart(item.id.toString()),
                 mirrorHebrewSmart(item.name)
             ] : [

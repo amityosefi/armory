@@ -11,6 +11,7 @@ interface ComboboxProps {
     emptyText?: string
     disabled?: boolean
     className?: string
+    listClassName?: string
 }
 
 export function Combobox({
@@ -22,6 +23,7 @@ export function Combobox({
     emptyText = "No results found.",
     disabled = false,
     className,
+    listClassName,
 }: ComboboxProps) {
     const [open, setOpen] = React.useState(false)
     const [searchQuery, setSearchQuery] = React.useState("")
@@ -86,7 +88,7 @@ export function Combobox({
                             autoFocus
                         />
                     </div>
-                    <div className="max-h-[300px] overflow-y-auto overflow-x-hidden p-1">
+                    <div className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden p-1", listClassName)}>
                         {filteredOptions.length === 0 ? (
                             <div className="py-6 text-center text-sm">{emptyText}</div>
                         ) : (

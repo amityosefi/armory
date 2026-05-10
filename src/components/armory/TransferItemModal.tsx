@@ -82,12 +82,10 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
     setSubmitting(true);
     try {
       const selectedPerson = people.find(p => p.id === selectedPersonId);
-      const currentTime = new Date().toLocaleString('he-IL');
-      
+
       // Prepare update data
       const updateData: any = {
         location: selectedPersonId,
-        sign_time: currentTime
       };
 
       // Add signature data for weapons
@@ -112,10 +110,8 @@ const TransferItemModal: React.FC<TransferItemModalProps> = ({ item, currentLoca
       const prevPersonInfo = ` מהחייל ${currentPersonName} (מספר אישי ${currentPersonId})`;
       const message = `הועבר ${item.name} (מסד: ${item.id}) לחייל ${selectedPerson?.name} (מספר אישי ${selectedPersonId})${prevPersonInfo}`;
       
-      // Log to armory_document
       await supabase.from('armory_document').insert({
         'משתמש': permissions['name'] || 'Unknown',
-        'תאריך': currentTime,
         'הודעה': message
       });
       
