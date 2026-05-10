@@ -421,7 +421,7 @@ const ArmoryGroups: React.FC<ArmoryGroupsProps> = ({ selectedSheet }) => {
                 const item = allItems.find(i => i.id === itemId);
                 const { error } = await supabase
                     .from("armory_examine_documentation")
-                    .insert({user: permissions['name'], item_id: itemId, name: item?.name || '', date: new Date().toLocaleString('he-IL'), location: selectedSheet.range})
+                    .insert({user: permissions['name'], item_id: itemId, name: item?.name || '', date: new Date().toISOString(), location: selectedSheet.range})
             }
 
         } catch (err: any) {

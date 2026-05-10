@@ -129,19 +129,16 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierName
 
     setSubmitting(true);
     try {
-      const currentTime = new Date().toLocaleString('he-IL');
       const messages: string[] = [];
 
       for (const item of validItems) {
         const updateData: any = { location: soldierID };
 
-        if (item.kind === 'נשק') {
           updateData.logistic_name = permissions['name'] ? String(permissions['name']) : '';
           updateData.logistic_sign = permissions['signature'] ? String(permissions['signature']) : '';
           updateData.people_sign = signature;
-          updateData.sign_time = currentTime;
           updateData.logistic_id = permissions['id'] ? String(permissions['id']) : '';
-        }
+
 
         const { error } = await supabase
           .from('armory_items')
@@ -157,10 +154,8 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierName
 
       const message = `החייל ${soldierName} מספר אישי ${soldierID} חתם על: ${messages.join(', ')}`;
 
-      // Log to armory_document
       await supabase.from('armory_document').insert({
         'משתמש': permissions['name'] ? String(permissions['name']) : 'Unknown',
-        'תאריך': currentTime,
         'הודעה': message
       });
 
@@ -244,6 +239,7 @@ const AssignEquipmentModal: React.FC<AssignEquipmentModalProps> = ({ soldierName
                         placeholder="-- בחר מספר --"
                         searchPlaceholder="חפש מספר..."
                         emptyText="לא נמצאו תוצאות"
+                        listClassName="max-h-[500px]"
                       />
                     </div>
                   )}
