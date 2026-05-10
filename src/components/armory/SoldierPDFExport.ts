@@ -64,7 +64,7 @@ const mirrorHebrewSmart = (str: string): string => {
 const addSoldierPageToPDF = (doc: jsPDF, soldier: Person, armoryItems: ArmoryItem[], isFirstPage: boolean = false) => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 30;
-    let y = 10; // check
+    let y = 10; //
 
     // Track the starting page for this soldier
     const startingPage = doc.getNumberOfPages();
