@@ -33,7 +33,7 @@ interface ArmoryItem {
 
 const SoldierArmoryPage: React.FC = () => {
   const { soldierID } = useParams<{ soldierID: string }>();
-  const navigate = useNavigate();
+  const navigate = useNavigate(); //
   
   const [soldier, setSoldier] = useState<Person | null>(null);
   const [armoryItems, setArmoryItems] = useState<ArmoryItem[]>([]);
