@@ -7,10 +7,11 @@ import LogisticStock from "@/components/logistics/LogisticStock";
 import LogisticSum from "@/components/logistics/LogisticSum";
 import LogisticDemands from "@/components/logistics/LogisticDemands";
 import Ammo from "@/components/ammo/Ammo";
-import AmmoStock from "@/components/ammo/AmmoStock";
-import AmmoSum from "@/components/ammo/AmmoSum";
 import { sheetGroups } from "@/constants";
 import AmmoOrders from "@/components/ammo/AmmoOrders";
+import GroupTab from "@/components/ammo/tabs/GroupTab";
+import StockTab from "@/components/ammo/tabs/StockTab";
+import { GROUP_LOCATIONS, GroupLocation } from "@/components/ammo/types";
 import ArmoryGroups from "@/components/armory/ArmoryGroups";
 import ArmoryStocks from "@/components/armory/ArmoryStocks";
 import ArmorySum from "@/components/armory/ArmorySum";
@@ -19,6 +20,7 @@ import LogisticDocumentation from "@/components/logistics/LogisticDocumentation"
 import AmmoDocumentation from "@/components/ammo/AmmoDocumentation";
 import HrPermission from "@/components/hr/hrPermission";
 import A15 from "@/components/a15/A15";
+import AmmoSum from "@/components/ammo/AmmoSum";
 
 
 const DivideComponents: React.FC = () => {
@@ -93,22 +95,22 @@ const DivideComponents: React.FC = () => {
                 />
             ))}
 
-            {/* ammo section */}
-            {(groupIndex === 2 && (selectedSheet.range === 'גדוד' ) ? (
-                <AmmoStock selectedSheet={selectedSheet}
-                />
-            ) : (groupIndex === 2 && selectedSheet.range === 'סיכום') ? (
-                <AmmoSum selectedSheet={selectedSheet}
-                />
-            ) : (groupIndex === 2 && selectedSheet.range === 'שצל') ? (
-                <AmmoOrders selectedSheet={selectedSheet}
-                />
-            ) : (groupIndex === 2 && selectedSheet.range === 'תיעוד') ? (
-                <AmmoDocumentation/>
-            ) : (groupIndex === 2) && (
-                <Ammo selectedSheet={selectedSheet}
-                />
-            ))}
+            {/* ammo section (v2 — new inventory & request flow) */}
+            {groupIndex === 2 && (
+                (GROUP_LOCATIONS as readonly string[]).includes(selectedSheet.range) ? (
+                    <GroupTab location={selectedSheet.range as GroupLocation} />
+                ) : selectedSheet.range === 'גדוד' ? (
+                    <StockTab />
+                ) : selectedSheet.range === 'סיכום' ? (
+                    <AmmoSum/>
+                ) : selectedSheet.range === 'שצל' ? (
+                    <AmmoOrders selectedSheet={selectedSheet} />
+                ) : selectedSheet.range === 'תיעוד' ? (
+                    <AmmoDocumentation />
+                ) : (
+                    <Ammo selectedSheet={selectedSheet} />
+                )
+            )}
 
             {(groupIndex === 3) && (
                 <HrPermission selectedSheet={selectedSheet}
