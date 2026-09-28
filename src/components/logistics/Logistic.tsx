@@ -20,8 +20,6 @@ import {
 } from '@/components/ui/popover';
 import {usePermissions} from "@/contexts/PermissionsContext";
 import LogisticFormModal from "./LogisticFormModal";
-// import jsPDF from "/../../../jsPDF";
-import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import StatusMessage from "@/components/feedbackFromBackendOrUser/StatusMessageProps";
 // Import logo for PDF export
@@ -960,6 +958,27 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
         }
     };
 
+    // Format a raw תאריך value (ISO string or "dd.mm.yyyy, hh:mm:ss") for display as dd-mm-yyyy hh:mm
+    const formatCardDate = (dateStr: string) => {
+        if (!dateStr) return '';
+
+        let date = new Date(dateStr);
+
+        if (isNaN(date.getTime())) {
+            const [datePart, timePart] = dateStr.split(', ');
+            if (datePart) {
+                const [day, month, year] = datePart.split('.').map(Number);
+                const [hours = 0, minutes = 0] = (timePart || '').split(':').map(Number);
+                date = new Date(year, month - 1, day, hours, minutes);
+            }
+        }
+
+        if (isNaN(date.getTime())) return dateStr;
+
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    };
+
     const mirrorHebrewSmart = (str: string) => {
         if (str === null || str === undefined || str === '') return '';
         return str
@@ -1357,7 +1376,7 @@ const Logistic: React.FC<LogisticProps> = ({selectedSheet}) => {
                                         }
                                     }}
                                 >
-                                    <h3 className="font-bold text-lg text-blue-900">{date}</h3>
+                                    <h3 className="font-bold text-lg text-blue-900">{formatCardDate(date)}</h3>
                                     <span className="text-sm text-blue-700">דורש: {items[0].משתמש}</span>
                                 </div>
 

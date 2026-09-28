@@ -110,16 +110,35 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
         }
     };
 
-    // Helper function to parse Hebrew date
+    // Parse a stored תאריך value. Rows are inserted with new Date().toISOString(),
+    // so try that first; fall back to the legacy "DD.MM.YYYY, HH:MM:SS" format.
     const parseHebrewDate = (dateStr: string) => {
         if (!dateStr) return null;
+
+        const isoDate = new Date(dateStr);
+        if (!isNaN(isoDate.getTime())) return isoDate;
+
         const [datePart] = dateStr.split(', ');
         if (!datePart) return null;
-        
+
         const [day, month, year] = datePart.split('.').map(Number);
         if (!day || !month || !year) return null;
-        
+
         return new Date(year, month - 1, day);
+    };
+
+    // Format a stored תאריך value as "HH:MM:SS DD-MM-YYYY" for display in cards
+    const formatDateTime = (dateStr: string): string => {
+        const parsed = parseHebrewDate(dateStr);
+        if (!parsed) return dateStr;
+
+        const hh = String(parsed.getHours()).padStart(2, '0');
+        const mm = String(parsed.getMinutes()).padStart(2, '0');
+        const ss = String(parsed.getSeconds()).padStart(2, '0');
+        const dd = String(parsed.getDate()).padStart(2, '0');
+        const mo = String(parsed.getMonth() + 1).padStart(2, '0');
+        const yyyy = parsed.getFullYear();
+        return `${hh}:${mm}:${ss} ${dd}-${mo}-${yyyy}`;
     };
 
     // Fetch data from Supabase
@@ -141,7 +160,7 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
             } else {
                 const fetchedData = (data || []) as LogisticItem[];
                 setAllData(fetchedData);
-                
+
                 // Filter items to only show those from the last 7 days for cards view
                 const now = new Date();
                 const sevenDaysAgo = new Date(now);
@@ -294,15 +313,19 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
             byLocation[location][date].push(item);
         });
         
-        // Helper function to parse Hebrew date
+        // Parse a stored תאריך value, same rules as parseHebrewDate above
         const parseHebrewDate = (dateStr: string) => {
             if (!dateStr) return 0;
+
+            const isoDate = new Date(dateStr);
+            if (!isNaN(isoDate.getTime())) return isoDate.getTime();
+
             const [datePart, timePart] = dateStr.split(', ');
             if (!datePart) return 0;
-            
+
             const [day, month, year] = datePart.split('.').map(Number);
             const [hours = 0, minutes = 0, seconds = 0] = (timePart || '').split(':').map(Number);
-            
+
             return new Date(year, month - 1, day, hours, minutes, seconds).getTime();
         };
         
@@ -664,7 +687,7 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
                                                 }
                                             }}
                                         >
-                                            <h3 className="font-bold text-lg text-blue-900">{date}</h3>
+                                            <h3 className="font-bold text-lg text-blue-900">{formatDateTime(date)}</h3>
                                             <span className="text-sm text-blue-700">דורש: {items[0].משתמש}</span>
                                         </div>
 
@@ -872,7 +895,7 @@ const LogisticDemands: React.FC<LogisticDemandsProps> = ({selectedSheet}) => {
                             <div className="grid grid-cols-2 gap-4 text-right">
                                 <div>
                                     <span className="font-semibold text-gray-600">תאריך:</span>
-                                    <p className="text-gray-900">{selectedCardItem.תאריך}</p>
+                                    <p className="text-gray-900">{formatDateTime(selectedCardItem.תאריך)}</p>
                                 </div>
                                 <div>
                                     <span className="font-semibold text-gray-600">פלוגה:</span>
