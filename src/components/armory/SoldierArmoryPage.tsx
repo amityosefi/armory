@@ -10,6 +10,7 @@ import { exportSoldierPDF } from './SoldierPDFExport';
 import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
 import useIsMobile from '@/hooks/useIsMobile';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { Combobox } from '@/components/ui/combobox';
 import equipmentJson from '@/assets/equipment.json';
 
 interface Person {
@@ -64,9 +65,15 @@ const SoldierArmoryPage: React.FC = () => {
   const [soldierEquipment, setSoldierEquipment] = useState<SoldierEquipment[]>([]);
   const [equipmentLoading, setEquipmentLoading] = useState(false);
   const [addingEquipment, setAddingEquipment] = useState(false);
+  const [addingEquipmentToLocation, setAddingEquipmentToLocation] = useState(false);
+  const [creatingItemName, setCreatingItemName] = useState(false);
   const [newEquipName, setNewEquipName] = useState('');
   const [newEquipQty, setNewEquipQty] = useState(1);
   const equipmentNames = Object.keys(equipmentJson).sort((a, b) => a.localeCompare(b, 'he'));
+  const [extraEquipmentNames, setExtraEquipmentNames] = useState<string[]>([]);
+  const combinedEquipmentNames = [...equipmentNames, ...extraEquipmentNames].sort((a, b) =>
+    a.localeCompare(b, 'he')
+  );
 
   const fetchSoldierEquipment = async () => {
     if (!soldierID) return;
@@ -82,6 +89,44 @@ const SoldierArmoryPage: React.FC = () => {
       console.error('Error fetching soldier equipment:', err);
     } finally {
       setEquipmentLoading(false);
+    }
+  };
+
+  const fetchExtraEquipmentNames = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('armoryGroupsEquipment')
+        .select('name');
+      if (error) throw error;
+      const existing = new Set(equipmentNames);
+      const names = ((data as unknown as { name: string }[]) || [])
+        .map(row => row.name)
+        .filter(name => !existing.has(name));
+      const uniqueNames = Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, 'he'));
+      setExtraEquipmentNames(uniqueNames);
+    } catch (err) {
+      console.error('Error fetching extra equipment names:', err);
+    }
+  };
+
+  const handleCreateNewItemName = async (rawName: string) => {
+    const name = rawName.trim();
+    if (!name) return;
+    setCreatingItemName(true);
+    try {
+      const { error } = await supabase
+        .from('armoryGroupsEquipment')
+        .insert({ name, added_by: permissions['name'] || 'Unknown' });
+      if (error && error.code !== '23505') throw error;
+      setExtraEquipmentNames(prev =>
+        prev.includes(name) ? prev : [...prev, name].sort((a, b) => a.localeCompare(b, 'he'))
+      );
+      setNewEquipName(name);
+    } catch (err) {
+      console.error('Error creating new item name:', err);
+      setStatusMessage({ text: 'שגיאה ביצירת פריט חדש', isSuccess: false });
+    } finally {
+      setCreatingItemName(false);
     }
   };
 
@@ -101,6 +146,53 @@ const SoldierArmoryPage: React.FC = () => {
       setStatusMessage({ text: 'שגיאה בהוספת ציוד', isSuccess: false });
     } finally {
       setAddingEquipment(false);
+    }
+  };
+
+  const handleAddEquipmentToLocation = async () => {
+    if (!newEquipName || !soldierID || newEquipQty < 1 || !soldier?.location) return;
+    setAddingEquipmentToLocation(true);
+    try {
+      const { data: peopleAtLocation, error: peopleError } = await supabase
+        .from('people')
+        .select('id')
+        .eq('location', soldier.location);
+      if (peopleError) throw peopleError;
+      const peopleIds = ((peopleAtLocation as unknown as { id: number }[]) || []).map(p => p.id);
+      if (peopleIds.length === 0) return;
+
+      const { data: existingRows, error: existingError } = await supabase
+        .from('armory_soldier_equipment')
+        .select('soldier_id')
+        .eq('name', newEquipName)
+        .in('soldier_id', peopleIds);
+      if (existingError) throw existingError;
+      const alreadyHaveIt = new Set(
+        ((existingRows as unknown as { soldier_id: number }[]) || []).map(r => r.soldier_id)
+      );
+
+      const idsToInsert = peopleIds.filter(id => !alreadyHaveIt.has(id));
+      if (idsToInsert.length === 0) {
+        setStatusMessage({ text: 'לכולם במיקום זה יש כבר פריט זה', isSuccess: true });
+        return;
+      }
+
+      const { error: insertError } = await supabase
+        .from('armory_soldier_equipment')
+        .insert(idsToInsert.map(id => ({ soldier_id: id, name: newEquipName, quantity: newEquipQty })));
+      if (insertError) throw insertError;
+
+      setNewEquipName('');
+      setNewEquipQty(1);
+      if (idsToInsert.includes(Number(soldierID))) {
+        await fetchSoldierEquipment();
+      }
+      setStatusMessage({ text: `הפריט נוסף ל-${idsToInsert.length} אנשים במיקום`, isSuccess: true });
+    } catch (err) {
+      console.error('Error adding equipment to location:', err);
+      setStatusMessage({ text: 'שגיאה בהוספת ציוד לכל מי שבמיקום', isSuccess: false });
+    } finally {
+      setAddingEquipmentToLocation(false);
     }
   };
 
@@ -149,6 +241,7 @@ const SoldierArmoryPage: React.FC = () => {
       fetchSoldierData();
       if (!permissions['armory']) {
         fetchSoldierEquipment();
+        fetchExtraEquipmentNames();
       }
     }
   }, [soldierID]);
@@ -291,8 +384,7 @@ const SoldierArmoryPage: React.FC = () => {
     if (!selectedWeaponForReturn) return;
 
     try {
-      const currentTime = new Date().toISOString();
-      
+
       const { error } = await supabase
         .from('armory_items')
         .update({ 
@@ -654,7 +746,7 @@ const SoldierArmoryPage: React.FC = () => {
       ))}
 
       {/* Soldier Equipment Section - only for non-armory users */}
-      {(!permissions['armory'] || true) && (
+      {(!permissions['armory']) && (
         <div className="mb-6">
           <div className="bg-purple-600 text-white font-bold text-lg p-2 rounded-t-lg">ציוד אישי</div>
           <div className="bg-white rounded-b-lg shadow-md p-4">
@@ -710,16 +802,17 @@ const SoldierArmoryPage: React.FC = () => {
                 <div className="flex gap-2 items-end flex-wrap">
                   <div className="flex-1 min-w-[140px]">
                     <label className="block text-sm font-medium text-gray-700 mb-1">פריט</label>
-                    <select
-                      value={newEquipName}
-                      onChange={(e) => setNewEquipName(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-right"
-                    >
-                      <option value="">-- בחר פריט --</option>
-                      {equipmentNames.map(name => (
-                        <option key={name} value={name}>{name}</option>
-                      ))}
-                    </select>
+                    <Combobox
+                      value={newEquipName || null}
+                      onValueChange={(value) => setNewEquipName(String(value))}
+                      options={combinedEquipmentNames.map(name => ({ value: name, label: name }))}
+                      placeholder="-- בחר פריט --"
+                      searchPlaceholder="חפש פריט..."
+                      emptyText="לא נמצאו תוצאות"
+                      disabled={creatingItemName}
+                      onCreateOption={handleCreateNewItemName}
+                      createOptionLabel={(query) => `➕ הוסף "${query}" כפריט חדש`}
+                    />
                   </div>
                   <div className="w-20">
                     <label className="block text-sm font-medium text-gray-700 mb-1">כמות</label>
@@ -742,6 +835,18 @@ const SoldierArmoryPage: React.FC = () => {
                       <Plus className="w-4 h-4" />
                     )}
                     הוסף
+                  </Button>
+                  <Button
+                    onClick={handleAddEquipmentToLocation}
+                    disabled={!newEquipName || addingEquipmentToLocation}
+                    className="bg-purple-200 hover:bg-purple-300 text-purple-900 flex items-center gap-1"
+                  >
+                    {addingEquipmentToLocation ? (
+                      <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
+                    ) : (
+                      <Plus className="w-4 h-4" />
+                    )}
+                    הוסף לכל הפלוגה
                   </Button>
                 </div>
               </>
