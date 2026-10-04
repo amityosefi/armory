@@ -12,6 +12,8 @@ interface ComboboxProps {
     disabled?: boolean
     className?: string
     listClassName?: string
+    onCreateOption?: (query: string) => void
+    createOptionLabel?: (query: string) => string
 }
 
 export function Combobox({
@@ -24,6 +26,8 @@ export function Combobox({
     disabled = false,
     className,
     listClassName,
+    onCreateOption,
+    createOptionLabel = (query) => `+ Add "${query}"`,
 }: ComboboxProps) {
     const [open, setOpen] = React.useState(false)
     const [searchQuery, setSearchQuery] = React.useState("")
@@ -59,6 +63,19 @@ export function Combobox({
         setSearchQuery("")
     }
 
+    const trimmedQuery = searchQuery.trim()
+    const canCreate =
+        !!onCreateOption &&
+        trimmedQuery.length > 0 &&
+        !options.some((option) => option.label.toLowerCase() === trimmedQuery.toLowerCase())
+
+    const handleCreate = () => {
+        if (!onCreateOption || !trimmedQuery) return
+        onCreateOption(trimmedQuery)
+        setOpen(false)
+        setSearchQuery("")
+    }
+
     return (
         <div className={cn("relative w-full", className)} ref={dropdownRef}>
             <button
@@ -89,7 +106,7 @@ export function Combobox({
                         />
                     </div>
                     <div className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden p-1", listClassName)}>
-                        {filteredOptions.length === 0 ? (
+                        {filteredOptions.length === 0 && !canCreate ? (
                             <div className="py-6 text-center text-sm">{emptyText}</div>
                         ) : (
                             filteredOptions.map((option) => (
@@ -110,6 +127,14 @@ export function Combobox({
                                     {option.label}
                                 </div>
                             ))
+                        )}
+                        {canCreate && (
+                            <div
+                                onClick={handleCreate}
+                                className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm font-medium text-primary outline-none hover:bg-accent"
+                            >
+                                {createOptionLabel(trimmedQuery)}
+                            </div>
                         )}
                     </div>
                 </div>
