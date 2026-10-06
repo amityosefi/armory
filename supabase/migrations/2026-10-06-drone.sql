@@ -158,7 +158,7 @@ BEGIN
     RAISE EXCEPTION 'לא ניתן להחתים רחפן על גדוד';
   END IF;
   IF NOT EXISTS (
-    SELECT 1 FROM people WHERE id::text = p_holder_id AND location = p_sheet_range
+    SELECT 1 FROM people WHERE id::text = p_holder_id AND location::text = p_sheet_range
   ) THEN
     RAISE EXCEPTION 'המחזיק חייב להיות מפלוגה %', p_sheet_range;
   END IF;
@@ -298,7 +298,7 @@ BEGIN
   IF p_holder_id = d.location THEN RETURN; END IF;
 
   IF NOT EXISTS (
-    SELECT 1 FROM people WHERE id::text = p_holder_id AND location = d.sheet_range
+    SELECT 1 FROM people WHERE id::text = p_holder_id AND location::text = d.sheet_range
   ) THEN
     RAISE EXCEPTION 'המחזיק החדש חייב להיות מאותה פלוגה (%)', d.sheet_range;
   END IF;
@@ -334,7 +334,7 @@ BEGIN
     ), '[]'::jsonb),
     'people', COALESCE((
       SELECT jsonb_agg(jsonb_build_object('id', p.id, 'name', p.name) ORDER BY p.name)
-        FROM people p WHERE p.location = p_sheet_range
+        FROM people p WHERE p.location::text = p_sheet_range
     ), '[]'::jsonb)
   );
 END; $$;

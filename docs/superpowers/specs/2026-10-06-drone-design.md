@@ -70,6 +70,14 @@ Two kinds of row share the `drone` table, distinguished by `location`:
 `people.id` is `BIGINT` (the soldier's personal number); `permissions['id']` is used
 stringified elsewhere in the app, so actor columns are `TEXT`.
 
+`drone.sheet_range` is also `TEXT`, deliberately, even though `people.location` is a
+`פלוגה_enum`. Keeping it text means the drone tables carry no dependency on that enum's
+value list. The cost is that every comparison against `people.location` must cast the enum -
+`people.location::text = p_sheet_range` - because Postgres has no `enum = text` operator.
+All three such comparisons (in `get_drone_sheet_data`, `sign_drone` and
+`change_drone_holder`) do this; omitting the cast fails at runtime with
+`operator does not exist: "פלוגה_enum" = text`.
+
 `drone_document` carries **no foreign key** to `drone` — the history of a deleted drone must
 outlive the row.
 
@@ -409,7 +417,11 @@ SELECT v.t, 'גדוד', '{}'::jsonb
    SELECT 1 FROM drone d WHERE d.location = 'גדוד' AND d.drone_type = v.t
  );
 
--- 5. Helper: add/subtract an item map, refusing to go below zero -----
+-- 5. Permission column -----------------------------------------------
+-- Permissions are boolean columns on `users`, read wholesale at login.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS "רחפנים" BOOLEAN NOT NULL DEFAULT false;
+
+-- 6. Helper: add/subtract an item map, refusing to go below zero -----
 CREATE OR REPLACE FUNCTION _drone_jsonb_merge_add(
   a JSONB, b JSONB, p_sign INT
 ) RETURNS JSONB LANGUAGE plpgsql AS $$
@@ -426,7 +438,7 @@ BEGIN
   RETURN res;
 END; $$;
 
--- 6. Stock add / remove (kit-based) ----------------------------------
+-- 7. Stock add / remove (kit-based) ----------------------------------
 CREATE OR REPLACE FUNCTION drone_stock_change(
   p_drone_type drone_type_enum,
   p_items      JSONB,
@@ -461,7 +473,7 @@ BEGIN
   END LOOP;
 END; $$;
 
--- 7. Sign a drone -----------------------------------------------------
+-- 8. Sign a drone -----------------------------------------------------
 CREATE OR REPLACE FUNCTION sign_drone(
   p_drone_type  drone_type_enum,
   p_serial      TEXT,
@@ -485,7 +497,7 @@ BEGIN
     RAISE EXCEPTION 'לא ניתן להחתים רחפן על גדוד';
   END IF;
   IF NOT EXISTS (
-    SELECT 1 FROM people WHERE id::text = p_holder_id AND location = p_sheet_range
+    SELECT 1 FROM people WHERE id::text = p_holder_id AND location::text = p_sheet_range
   ) THEN
     RAISE EXCEPTION 'המחזיק חייב להיות מפלוגה %', p_sheet_range;
   END IF;
@@ -521,7 +533,7 @@ BEGIN
   RETURN v_new_id;
 END; $$;
 
--- 8. Delete a drone — items return to גדוד ---------------------------
+-- 9. Delete a drone — items return to גדוד ---------------------------
 CREATE OR REPLACE FUNCTION delete_drone(
   p_drone_id   BIGINT,
   p_actor_id   TEXT,
@@ -554,7 +566,7 @@ BEGIN
   DELETE FROM drone WHERE id = p_drone_id;
 END; $$;
 
--- 9. Change one item's quantity on a drone ---------------------------
+-- 10. Change one item's quantity on a drone ---------------------------
 CREATE OR REPLACE FUNCTION set_drone_item_qty(
   p_drone_id   BIGINT,
   p_item_name  TEXT,
@@ -607,7 +619,7 @@ BEGIN
   );
 END; $$;
 
--- 10. Reassign a drone within the same company -----------------------
+-- 11. Reassign a drone within the same company -----------------------
 CREATE OR REPLACE FUNCTION change_drone_holder(
   p_drone_id    BIGINT,
   p_holder_id   TEXT,
@@ -625,7 +637,7 @@ BEGIN
   IF p_holder_id = d.location THEN RETURN; END IF;
 
   IF NOT EXISTS (
-    SELECT 1 FROM people WHERE id::text = p_holder_id AND location = d.sheet_range
+    SELECT 1 FROM people WHERE id::text = p_holder_id AND location::text = d.sheet_range
   ) THEN
     RAISE EXCEPTION 'המחזיק החדש חייב להיות מאותה פלוגה (%)', d.sheet_range;
   END IF;
@@ -645,7 +657,7 @@ BEGIN
   );
 END; $$;
 
--- 11. Reads -----------------------------------------------------------
+-- 12. Reads -----------------------------------------------------------
 CREATE OR REPLACE FUNCTION get_drone_sheet_data(p_sheet_range TEXT)
 RETURNS JSONB LANGUAGE plpgsql AS $$
 BEGIN
@@ -661,7 +673,7 @@ BEGIN
     ), '[]'::jsonb),
     'people', COALESCE((
       SELECT jsonb_agg(jsonb_build_object('id', p.id, 'name', p.name) ORDER BY p.name)
-        FROM people p WHERE p.location = p_sheet_range
+        FROM people p WHERE p.location::text = p_sheet_range
     ), '[]'::jsonb)
   );
 END; $$;
@@ -717,6 +729,11 @@ BEGIN
       ) c
   ), '[]'::jsonb);
 END; $$;
+
+-- 13. Refresh the PostgREST schema cache -----------------------------
+-- Without this the new RPCs can stay invisible to the client until the API
+-- restarts, surfacing as "Could not find the function ... in the schema cache".
+NOTIFY pgrst, 'reload schema';
 
 -- Done.
 ```
