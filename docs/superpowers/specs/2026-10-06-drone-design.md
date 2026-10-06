@@ -721,13 +721,15 @@ END; $$;
 -- Done.
 ```
 
-### RLS note
+### RLS — deliberately untouched
 
-Earlier migrations in `supabase/migrations/` set no row-level security policies, so `drone`
-and `drone_document` are created to match whatever the existing `inventory` / `changes_log`
-tables do. **Verify** that the anon role can reach the new tables and RPCs the same way it
-reaches the ammo ones; if RLS is enabled project-wide, add policies mirroring those tables
-before the UI will work.
+No row-level security policies or grants are added, by decision: the new tables inherit
+whatever the project already does, exactly as the `inventory` / `changes_log` tables do.
+Earlier migrations in `supabase/migrations/` set none either. Do not add policies here.
+
+The `users."רחפנים"` column was added by hand on the live project; section 5 of the migration
+restates it with `ADD COLUMN IF NOT EXISTS` so a fresh environment is self-contained, and is
+a no-op where it already exists.
 
 ## Error handling
 
@@ -759,6 +761,8 @@ The project has no test runner configured, so verification is `npx tsc --noEmit`
     `permissions['א']` sees no רחפנים section and is blocked on a hand-typed URL.
 11. Sign in as a user holding `admin` but not `רחפנים`: confirm every tab renders its data,
     no action button is present, and quantities show as text rather than inputs.
+12. Grant `רחפנים` from the admin screen; confirm it is checkable on the add-user form and
+    that the users grid's הרשאות column lists it for that user.
 
 ## Out of scope
 

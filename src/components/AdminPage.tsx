@@ -140,6 +140,7 @@ const AdminPage = () => {
                 if (user.ammo) permissions.push('תחמושת');
                 if (user.hr) permissions.push('שלישות');
                 if (user.a15) permissions.push('א15');
+                if (user.רחפנים) permissions.push('רחפנים');
                 if (user.א) permissions.push('א');
                 if (user.ב) permissions.push('ב');
                 if (user.ג) permissions.push('ג');
