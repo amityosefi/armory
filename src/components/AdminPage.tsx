@@ -45,6 +45,7 @@ const AdminPage = () => {
         armory: false,
         hr: false,
         a15: false,
+        רחפנים: false,
         א: false,
         ב: false,
         ג: false,
@@ -227,7 +228,7 @@ const AdminPage = () => {
         const checked = (e.target as HTMLInputElement).checked;
         
         const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'פלסם', 'מכלול'];
-        const otherPermissions = ['admin', 'armory', 'logistic', 'ammo'];
+        const otherPermissions = ['admin', 'armory', 'logistic', 'ammo', 'רחפנים'];
         
         let finalValue: any;
         if (type === 'checkbox') {
@@ -330,7 +331,7 @@ const AdminPage = () => {
         
         // Validate company permissions - only one allowed and cannot be combined with other permissions
         const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'פלסם', 'מכלול'];
-        const otherPermissions = ['admin', 'armory', 'logistic', 'ammo', 'hr'];
+        const otherPermissions = ['admin', 'armory', 'logistic', 'ammo', 'hr', 'רחפנים'];
         const selectedCompanies = companyPermissions.filter(perm => newUser[perm as keyof typeof newUser]);
         const selectedOthers = otherPermissions.filter(perm => newUser[perm as keyof typeof newUser]);
         
@@ -384,6 +385,7 @@ const AdminPage = () => {
                     armory: false,
                     hr: false,
                     a15: false,
+                    רחפנים: false,
                     א: false,
                     ב: false,
                     ג: false,
@@ -740,6 +742,20 @@ const AdminPage = () => {
                             </label>
                         </div>
 
+                        {/* Drone Checkbox */}
+                        <div className="mb-4">
+                            <label className="flex items-center space-x-2 text-right">
+                                <input
+                                    type="checkbox"
+                                    name="רחפנים"
+                                    checked={newUser.רחפנים}
+                                    onChange={handleNewUserChange}
+                                    className="ml-2"
+                                />
+                                רחפנים
+                            </label>
+                        </div>
+
                         {/* A15 Checkbox */}
                         <div className="mb-4">
                             <label className="flex items-center space-x-2 text-right">
@@ -763,7 +779,7 @@ const AdminPage = () => {
                                 onChange={(e) => {
                                     const value = e.target.value;
                                     const companyPermissions = ['א', 'ב', 'ג', 'מסייעת', 'אלון', 'פלסם', 'מכלול'];
-                                    const otherPermissions = ['admin', 'armory', 'logistic', 'ammo', 'hr'];
+                                    const otherPermissions = ['admin', 'armory', 'logistic', 'ammo', 'hr', 'רחפנים'];
                                     
                                     setNewUser(prev => {
                                         const updated = {...prev, companyPermission: value};
