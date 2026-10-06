@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
 import { DroneGuard } from '../DroneGuard';
 import { StockKitForm } from '../forms/StockKitForm';
+import { DroneImagesBar } from '../DroneImagesBar';
 import { useGadudTabData } from '../hooks/useDroneData';
 import { useDronePermissions } from '../hooks/useDronePermissions';
 import { DRONE_LABEL, DRONE_TYPES, itemNamesFor, stockFor } from '../types';
@@ -107,6 +108,8 @@ function GadudTabBody() {
   return (
     <div className="container mx-auto p-4 space-y-6" dir="rtl">
       <h2 className="text-xl font-bold">מלאי גדוד — רחפנים</h2>
+
+      <DroneImagesBar />
 
       <StatusMessage
         isSuccess={status.isSuccess}

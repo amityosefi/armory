@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { DroneGuard } from '../DroneGuard';
+import { DroneImagesBar } from '../DroneImagesBar';
 import { useSumTabData } from '../hooks/useDroneData';
 import { DRONE_LABEL, DRONE_TYPES, itemNamesFor } from '../types';
 import type { DroneRow, DroneType, SumTotalRow } from '../types';
@@ -131,6 +132,8 @@ function SumTabBody() {
   return (
     <div className="container mx-auto p-4 space-y-6" dir="rtl">
       <h2 className="text-xl font-bold">סיכום רחפנים</h2>
+
+      <DroneImagesBar />
       {DRONE_TYPES.map((type) => (
         <TypeSection key={type} droneType={type} totals={totals} drones={drones} />
       ))}

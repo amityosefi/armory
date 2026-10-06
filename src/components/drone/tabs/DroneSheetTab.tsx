@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import StatusMessage from '@/components/feedbackFromBackendOrUser/StatusMessageProps';
 import { DroneGuard } from '../DroneGuard';
 import { DroneTypeCards } from '../DroneTypeCards';
+import { DroneImagesBar } from '../DroneImagesBar';
 import { DroneCard } from '../DroneCard';
 import { SignDroneForm } from '../forms/SignDroneForm';
 import { ChangeHolderForm } from '../forms/ChangeHolderForm';
@@ -69,6 +70,8 @@ function SheetTabBody({ sheetRange }: Props) {
         message={status.message}
         onClose={() => setStatus({ message: '', isSuccess: true })}
       />
+
+      <DroneImagesBar />
 
       {selected === null ? (
         <>

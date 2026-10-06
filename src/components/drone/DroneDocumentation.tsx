@@ -4,6 +4,7 @@ import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import type { ColDef } from 'ag-grid-community';
 import { DroneGuard } from './DroneGuard';
+import { DroneImagesBar } from './DroneImagesBar';
 import { useDroneDocument } from './hooks/useDroneData';
 import { DRONE_ACTION_LABEL } from './types';
 import type { DroneAction, DroneDocumentRow, ItemMap } from './types';
@@ -87,6 +88,8 @@ function DocumentationBody() {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-right">תיעוד רחפנים</h2>
       </div>
+
+      <DroneImagesBar />
 
       {query.isLoading ? (
         <div className="flex flex-col items-center justify-center h-[40vh]">

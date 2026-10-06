@@ -2,6 +2,8 @@ import evoDefaults from '@/assets/evo.json';
 import avataDefaults from '@/assets/avata.json';
 import evoImage from '@/assets/evo.png';
 import avataImage from '@/assets/avata.png';
+import evoChargerImage from '@/assets/evo_charger.png';
+import avataChargerImage from '@/assets/avata_charger.png';
 
 export const DRONE_TYPES = ['EVO', 'AVATA'] as const;
 export type DroneType = typeof DRONE_TYPES[number];
@@ -21,6 +23,23 @@ export const DRONE_DEFAULTS: Record<DroneType, ItemMap> = {
 export const DRONE_IMAGE: Record<DroneType, string> = {
   EVO: evoImage,
   AVATA: avataImage,
+};
+
+export const DRONE_CHARGER_IMAGE: Record<DroneType, string> = {
+  EVO: evoChargerImage,
+  AVATA: avataChargerImage,
+};
+
+/** The reference photos behind each model's default item list. */
+export const DRONE_REFERENCE_IMAGES: Record<DroneType, { src: string; caption: string }[]> = {
+  EVO: [
+    { src: evoImage, caption: 'ערכת רחפן EVO' },
+    { src: evoChargerImage, caption: 'ערכת מטען משולש לסוללות EVO' },
+  ],
+  AVATA: [
+    { src: avataImage, caption: 'ערכת רחפן AVATA' },
+    { src: avataChargerImage, caption: 'ערכת מטען טורי מרובע AVATA' },
+  ],
 };
 
 export const DRONE_LABEL: Record<DroneType, string> = {

@@ -391,4 +391,9 @@ BEGIN
   ), '[]'::jsonb);
 END; $$;
 
+-- 13. Refresh the PostgREST schema cache -----------------------------
+-- Without this the new RPCs can stay invisible to the client until the API
+-- restarts, surfacing as "Could not find the function ... in the schema cache".
+NOTIFY pgrst, 'reload schema';
+
 -- Done.
