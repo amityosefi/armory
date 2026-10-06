@@ -37,7 +37,7 @@ deleting a drone returns them. The pool can never go negative.
 | Reassignment | Allowed in place, restricted to people in the same `sheet_range`. |
 | Restocking | Kit-based form on the גדוד tab, defaults from JSON, each quantity editable. |
 | Permission key | `permissions['רחפנים']` — the Hebrew name, as stored. |
-| Admin | Sees the section. |
+| Admin | Sees the section, **read-only** — every write requires `permissions['רחפנים']`. |
 | Type chooser | Company tabs only; גדוד and סיכום show both models at once. |
 
 ### Assumptions flagged for review
@@ -45,11 +45,8 @@ deleting a drone returns them. The pool can never go negative.
 1. **One גדוד row per model.** Stock lives as exactly two rows in `drone` with
    `location = 'גדוד'` (one EVO, one AVATA), whose `items` JSONB holds the per-item total.
    Not one row per item.
-2. **Admin has write access.** `admin` was confirmed as able to *see* the section; this spec
-   gives it the same write access as `permissions['רחפנים']`, consistent with how `admin`
-   behaves elsewhere in the app. Say so if admin should be read-only.
-3. **`ברגים` quantity is 4**, read off the four screws in `avata.png`.
-4. **`(זוג)` dropped from item names.** `מסגרות למשקפיים (זוג)` becomes
+2. **`ברגים` quantity is 4**, read off the four screws in `avata.png`.
+3. **`(זוג)` dropped from item names.** `מסגרות למשקפיים (זוג)` becomes
    `מסגרות למשקפיים` at quantity 2 — keeping both would read as "2 pairs".
 
 ### Tradeoff accepted
@@ -184,6 +181,7 @@ src/components/drone/
   types/index.ts              DroneType, DroneRow, DroneDocumentRow, tab payloads
   hooks/useDroneData.ts       react-query reads (4 query hooks + key factories)
   hooks/useDroneActions.ts    mutations, each invalidating the affected keys
+  hooks/useDronePermissions.ts the only place the two permission keys are read
   DroneTypeCards.tsx          the two square selection cards
   DroneCard.tsx               one signed drone: holder, serial, editable item list
   tabs/DroneSheetTab.tsx      a company tab
@@ -297,6 +295,28 @@ Required changes:
   permissions['admin']` rather than per-sheet keys.
 - Each drone tab renders `אין לך הרשאה לצפות בנתונים אלה` unless
   `permissions['רחפנים'] || permissions['admin']`, so a hand-typed URL is blocked too.
+
+#### Read vs. write
+
+Viewing requires `permissions['רחפנים'] || permissions['admin']`. **Every write requires
+`permissions['רחפנים']` alone — `admin` is read-only here.**
+
+A single `useDronePermissions()` hook in `hooks/` returns `{ canView, canEdit }` and is the
+only place the two keys are read, so the rule is stated once:
+
+```ts
+const canView = !!(permissions['רחפנים'] || permissions['admin']);
+const canEdit = !!permissions['רחפנים'];
+```
+
+`canEdit === false` must hide — not merely disable — `החתמת רחפן`, `העברת חתימה`,
+`מחיקת רחפן`, and both גדוד stock buttons, and must render every item quantity as static
+text instead of a number input. An admin viewing the section sees the same data with no
+affordance to change it.
+
+This is UI-level only. The RPCs are reachable by any authenticated client, so the
+restriction is not a security boundary — consistent with how the rest of this app gates by
+permission in the client.
 
 ### `AdminPage.tsx`
 
@@ -737,6 +757,8 @@ The project has no test runner configured, so verification is `npx tsc --noEmit`
 9. Delete the drone; confirm every item returned to גדוד and the audit row survives.
 10. Confirm סיכום's `בחתימה / גדוד / סה"כ` columns reconcile, and that a user holding only
     `permissions['א']` sees no רחפנים section and is blocked on a hand-typed URL.
+11. Sign in as a user holding `admin` but not `רחפנים`: confirm every tab renders its data,
+    no action button is present, and quantities show as text rather than inputs.
 
 ## Out of scope
 
