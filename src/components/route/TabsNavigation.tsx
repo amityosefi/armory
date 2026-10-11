@@ -36,6 +36,15 @@ function TabsNavigation({
                 'ammo': ['סיכום', 'שצל']
             };
             
+            // Sections gated as a whole: a company permission must not unlock a
+            // single tab inside them. Admin sees every tab (read-only is enforced
+            // by the section itself).
+            const wholeSectionOnly = ['רחפנים'];
+            if (wholeSectionOnly.includes(section)) {
+                const allowed = permissions[section] || permissions['admin'];
+                return allowed ? sheets.map((sheet, idx) => ({sheet, idx})) : [];
+            }
+
             return sheets
                 .map((sheet, idx) => ({sheet, idx}))
                 .filter(({sheet}) => {

@@ -21,6 +21,10 @@ import AmmoDocumentation from "@/components/ammo/AmmoDocumentation";
 import HrPermission from "@/components/hr/hrPermission";
 import A15 from "@/components/a15/A15";
 import AmmoSum from "@/components/ammo/AmmoSum";
+import DroneSheetTab from "@/components/drone/tabs/DroneSheetTab";
+import DroneGadudTab from "@/components/drone/tabs/DroneGadudTab";
+import DroneSumTab from "@/components/drone/tabs/DroneSumTab";
+import DroneDocumentation from "@/components/drone/DroneDocumentation";
 
 
 const DivideComponents: React.FC = () => {
@@ -50,6 +54,7 @@ const DivideComponents: React.FC = () => {
             case 'לוגיסטיקה': return 'logistic'
             case 'שלישות': return 'hr'
             case '15 א': return '15a'
+            case 'רחפנים': return 'רחפנים'
             default: return 'ammo'
         }
     }
@@ -112,12 +117,25 @@ const DivideComponents: React.FC = () => {
                 )
             )}
 
-            {(groupIndex === 3) && (
+            {/* drone section */}
+            {groupIndex === 3 && (
+                selectedSheet.range === 'גדוד' ? (
+                    <DroneGadudTab />
+                ) : selectedSheet.range === 'סיכום' ? (
+                    <DroneSumTab />
+                ) : selectedSheet.range === 'תיעוד' ? (
+                    <DroneDocumentation />
+                ) : (
+                    <DroneSheetTab sheetRange={selectedSheet.range} />
+                )
+            )}
+
+            {(groupIndex === 4) && (
                 <HrPermission selectedSheet={selectedSheet}
                 />
             )}
 
-            {(groupIndex === 4) && (
+            {(groupIndex === 5) && (
                 <A15 selectedSheet={selectedSheet}
                 />
             )}
