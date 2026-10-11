@@ -25,15 +25,20 @@ export function useStockChange() {
     mutationFn: async (
       params: Actor & { drone_type: DroneType; items: ItemMap; sign: 1 | -1; note?: string }
     ) => {
-      const { error } = await supabase.rpc('drone_stock_change', {
+      const body = {
         p_drone_type: params.drone_type,
         p_items: params.items,
         p_sign: params.sign,
         p_actor_id: params.actor_id,
         p_actor_name: params.actor_name,
         p_note: params.note ?? null,
-      });
-      if (error) throw error;
+      };
+      console.log('[drone_stock_change] body', body);
+      const { error } = await supabase.rpc('drone_stock_change', body);
+      if (error) {
+        console.error('[drone_stock_change] error', error);
+        throw error;
+      }
     },
     onSuccess: () => invalidateDrone(qc),
   });

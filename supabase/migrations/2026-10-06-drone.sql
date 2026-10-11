@@ -125,7 +125,8 @@ BEGIN
         action_type, drone_id, drone_type, item_name,
         delta, quantity_before, quantity_after, actor_id, actor_name, note
       ) VALUES (
-        CASE WHEN p_sign > 0 THEN 'stock_add' ELSE 'stock_remove' END,
+        CASE WHEN p_sign > 0 THEN 'stock_add'::drone_action_enum
+             ELSE 'stock_remove'::drone_action_enum END,
         v_id, p_drone_type, k, p_sign * v,
         COALESCE((v_before #>> ARRAY[k])::int, 0), (v_after #>> ARRAY[k])::int,
         p_actor_id, p_actor_name, p_note

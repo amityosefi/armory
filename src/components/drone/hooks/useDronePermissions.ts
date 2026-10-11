@@ -27,8 +27,6 @@ export function useDronePermissions(): DronePermissions {
   const { permissions, isPermissionsLoaded } = usePermissions();
   const email = useAuthStore((s) => s.email) ?? '';
 
-  console.log(permissions);
-
   const canEdit = !!permissions[DRONE_PERMISSION];
   const canView = canEdit || !!permissions['admin'];
 

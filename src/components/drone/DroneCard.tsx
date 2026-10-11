@@ -34,6 +34,7 @@ export function DroneCard({ drone, onReassign, onMessage }: Props) {
   // renders straight from the query cache.
   const [draft, setDraft] = useState<{ item: string; value: string } | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const itemNames = itemNamesFor(drone.drone_type, drone.items);
   const qtyOf = (item: string) => drone.items?.[item] ?? 0;
@@ -78,22 +79,43 @@ export function DroneCard({ drone, onReassign, onMessage }: Props) {
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4" dir="rtl">
-      <div className="flex flex-wrap justify-between items-start gap-2 mb-3 pb-3 border-b">
-        <div>
-          <div className="font-bold text-gray-800">
-            מספר סידורי: <span className="font-mono">{drone.serial}</span>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        className={`flex flex-wrap justify-between items-start gap-2 cursor-pointer ${
+          expanded ? 'mb-3 pb-3 border-b' : ''
+        }`}
+        onClick={() => setExpanded((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            setExpanded((v) => !v);
+          }
+        }}
+      >
+        <div className="flex items-start gap-2">
+          <span className="text-gray-400 select-none mt-0.5">{expanded ? '▾' : '◂'}</span>
+          <div>
+            <div className="font-bold text-gray-800">
+              מספר סידורי: <span className="font-mono">{drone.serial}</span>
+            </div>
+            <div className="text-sm text-gray-600">
+              מחזיק: {drone.holder_name}{' '}
+              <span className="text-gray-400">({drone.location})</span>
+            </div>
+            <div className="text-xs text-gray-400">
+              {drone.signed_by_name && <>הוחתם ע"י {drone.signed_by_name} · </>}
+              {new Date(drone.created_at).toLocaleString('he-IL', {
+                dateStyle: 'short',
+                timeStyle: 'short',
+              })}
+            </div>
           </div>
-          <div className="text-sm text-gray-600">
-            מחזיק: {drone.holder_name}{' '}
-            <span className="text-gray-400">({drone.location})</span>
-          </div>
-          {drone.signed_by_name && (
-            <div className="text-xs text-gray-400">הוחתם ע"י {drone.signed_by_name}</div>
-          )}
         </div>
 
-        {canEdit && (
-          <div className="flex gap-2">
+        {canEdit && expanded && (
+          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
             <Button variant="outline" size="sm" onClick={() => onReassign(drone)}>
               העברת חתימה
             </Button>
@@ -104,36 +126,38 @@ export function DroneCard({ drone, onReassign, onMessage }: Props) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
-        {itemNames.map((item) => {
-          const qty = qtyOf(item);
-          const isEditing = draft?.item === item;
-          return (
-            <div
-              key={item}
-              className={`flex justify-between items-center gap-2 py-1 text-sm ${
-                qty === 0 ? 'text-gray-400' : 'text-gray-800'
-              }`}
-            >
-              <span className="truncate" title={item}>{item}</span>
-              {canEdit ? (
-                <input
-                  type="number"
-                  min={0}
-                  className="w-16 shrink-0 border rounded px-2 py-0.5 text-center"
-                  value={isEditing ? draft.value : String(qty)}
-                  onChange={(e) => setDraft({ item, value: e.target.value })}
-                  onFocus={() => setDraft({ item, value: String(qty) })}
-                  onBlur={() => { if (isEditing) void commit(item); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                />
-              ) : (
-                <span className="w-16 shrink-0 text-center font-medium">{qty}</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {expanded && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
+          {itemNames.map((item) => {
+            const qty = qtyOf(item);
+            const isEditing = draft?.item === item;
+            return (
+              <div
+                key={item}
+                className={`flex justify-between items-center gap-2 py-1 text-sm ${
+                  qty === 0 ? 'text-gray-400' : 'text-gray-800'
+                }`}
+              >
+                <span className="truncate" title={item}>{item}</span>
+                {canEdit ? (
+                  <input
+                    type="number"
+                    min={0}
+                    className="w-16 shrink-0 border rounded px-2 py-0.5 text-center"
+                    value={isEditing ? draft.value : String(qty)}
+                    onChange={(e) => setDraft({ item, value: e.target.value })}
+                    onFocus={() => setDraft({ item, value: String(qty) })}
+                    onBlur={() => { if (isEditing) void commit(item); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                  />
+                ) : (
+                  <span className="w-16 shrink-0 text-center font-medium">{qty}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent dir="rtl" className="max-w-md">
